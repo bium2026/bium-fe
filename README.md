@@ -4,7 +4,7 @@ BIUM은 냉장고 속 식재료를 정리하고, 가진 재료로 만들 수 있
 
 ## 기술 스택
 
-React 19, Vite, TypeScript (strict), Zustand, Emotion, dnd-kit, lucide-react, react-icons
+React 19, Vite, TypeScript (strict), Zustand, Emotion, dnd-kit, lucide-react, react-icons, react-router
 
 ## 실행 방법
 
@@ -37,6 +37,7 @@ src/
   store/        Zustand 스토어
   styles/       전역 스타일 (GlobalStyle.tsx)
   assets/       이미지
+  routes.tsx    화면 라우트 목록 (새 화면은 여기에 추가)
 ```
 
 ## 문서

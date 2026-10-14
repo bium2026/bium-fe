@@ -11,6 +11,7 @@ BIUM 프론트엔드에서 AI에게 개발을 맡길 때 따르는 규칙이다.
 - 스타일: Emotion (`@emotion/styled`)
 - 드래그 앤 드롭: dnd-kit
 - 아이콘: lucide-react, react-icons
+- 라우팅: react-router (`src/routes.tsx`)
 - 기준 문서: API 명세서, 노션 스프린트 계획, 요구사항 목록
 - 디자인 기준: [yunho09/Bium-v1](https://github.com/yunho09/Bium-v1) 레포지토리, 레포 안의 `DESIGN.md`, `src/styles/GlobalStyle.tsx`
 - 협업: 기능 단위 브랜치 → Pull Request 리뷰 → main 병합
@@ -24,6 +25,7 @@ src/
   store/        Zustand 스토어
   styles/       전역 스타일
   assets/       이미지
+  routes.tsx    화면 라우트 목록
 ```
 
 ## 2. 기본 규칙
@@ -51,6 +53,7 @@ src/
 - 컴포넌트는 기능 폴더(`components/Fridge` 등) 안에 둔다. 여러 기능에서 쓰는 것만 공통 폴더로 뺀다.
 - 파일 이름과 컴포넌트 이름은 PascalCase로 맞춘다. (예: `IngredientItem.tsx`)
 - 한 컴포넌트가 너무 커지면 화면 단위로 나누되, 한 번만 쓰는 작은 조각까지 억지로 나누지 않는다.
+- 새 화면의 주소는 `src/routes.tsx`에 추가한다. `App.tsx`나 `main.tsx`에서 직접 화면을 고르지 않는다.
 - 스타일은 같은 파일 아래쪽에 Emotion `styled`로 작성하는 기존 방식을 따른다.
 - 색상, 간격 등은 기존 값과 전역 스타일을 먼저 확인해서 맞춘다.
 
