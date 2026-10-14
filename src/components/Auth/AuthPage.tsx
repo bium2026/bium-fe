@@ -1,8 +1,9 @@
 /*
  * 로그인·회원가입 화면이다.
  * 왼쪽 라임 블록에 서비스 소개를, 오른쪽 카드에 로그인/회원가입 전환과 폼을 보여 준다.
+ * 전환할 때 토글 표시와 폼이 옆으로 미끄러지고, 카드 높이도 부드럽게 바뀐다.
  */
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import styled from "@emotion/styled";
 import LoginForm from "./LoginForm";
 import SignupForm from "./SignupForm";
@@ -14,8 +15,32 @@ const modes: { id: AuthMode; label: string }[] = [
   { id: "signup", label: "회원가입" },
 ];
 
+const slideEasing = "cubic-bezier(0.22, 1, 0.36, 1)";
+
 function AuthPage() {
   const [mode, setMode] = useState<AuthMode>("login");
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const loginRef = useRef<HTMLDivElement>(null);
+  const signupRef = useRef<HTMLDivElement>(null);
+
+  const activeIndex = modes.findIndex((item) => item.id === mode);
+
+  // height: auto는 transition이 안 되므로, 보이는 폼의 실제 높이를 재서 직접 넣는다.
+  // 오류 메시지가 생겨 폼 높이가 바뀔 때도 따라가도록 ResizeObserver로 지켜본다.
+  useLayoutEffect(() => {
+    const viewport = viewportRef.current;
+    const panel = (mode === "login" ? loginRef : signupRef).current;
+    if (!viewport || !panel) return;
+
+    const syncHeight = () => {
+      viewport.style.height = `${panel.getBoundingClientRect().height}px`;
+    };
+    syncHeight();
+
+    const observer = new ResizeObserver(syncHeight);
+    observer.observe(panel);
+    return () => observer.disconnect();
+  }, [mode]);
 
   return (
     <Page>
@@ -37,6 +62,7 @@ function AuthPage() {
 
         <Card>
           <ModeToggle>
+            <ModeIndicator aria-hidden="true" $index={activeIndex} />
             {modes.map((item) => (
               <ModeButton
                 key={item.id}
@@ -50,7 +76,17 @@ function AuthPage() {
             ))}
           </ModeToggle>
 
-          {mode === "login" ? <LoginForm /> : <SignupForm />}
+          <Viewport ref={viewportRef}>
+            <Track $index={activeIndex}>
+              {/* 화면 밖으로 밀려난 폼은 inert로 탭 이동과 스크린 리더에서 제외한다. */}
+              <Slide ref={loginRef} inert={mode !== "login"} $active={mode === "login"}>
+                <LoginForm />
+              </Slide>
+              <Slide ref={signupRef} inert={mode !== "signup"} $active={mode === "signup"}>
+                <SignupForm />
+              </Slide>
+            </Track>
+          </Viewport>
         </Card>
       </Panel>
     </Page>
@@ -160,6 +196,7 @@ const Card = styled.section`
 `;
 
 const ModeToggle = styled.div`
+  position: relative;
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 4px;
@@ -168,13 +205,61 @@ const ModeToggle = styled.div`
   background: var(--surface-soft);
 `;
 
+const ModeIndicator = styled.span<{ $index: number }>`
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: 4px;
+  width: calc((100% - 12px) / 2);
+  border-radius: 50px;
+  background: var(--text);
+  transform: translateX(${(props) => (props.$index === 0 ? "0" : "calc(100% + 4px)")});
+  transition: transform 0.45s ${slideEasing};
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+  }
+`;
+
 const ModeButton = styled.button<{ $active: boolean }>`
+  position: relative;
+  z-index: 1;
   min-height: 44px;
   border: 0;
   border-radius: 50px;
-  background: ${(props) => (props.$active ? "var(--text)" : "transparent")};
+  background: transparent;
   color: ${(props) => (props.$active ? "var(--surface)" : "var(--text)")};
   font-size: 16px;
   font-weight: 480;
   cursor: pointer;
+  transition: color 0.3s ease;
+`;
+
+// 입력 칸 포커스 테두리(2px + 간격 2px)가 overflow에 잘리지 않도록 바깥으로 6px 여유를 둔다.
+const Viewport = styled.div`
+  margin: -6px;
+  overflow: hidden;
+  transition: height 0.45s ${slideEasing};
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+  }
+`;
+
+const Track = styled.div<{ $index: number }>`
+  display: grid;
+  grid-template-columns: 100% 100%;
+  align-items: start;
+  transform: translateX(${(props) => props.$index * -100}%);
+  transition: transform 0.45s ${slideEasing};
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+  }
+`;
+
+const Slide = styled.div<{ $active: boolean }>`
+  padding: 6px;
+  opacity: ${(props) => (props.$active ? 1 : 0)};
+  transition: opacity 0.3s ease;
 `;
