@@ -14,7 +14,7 @@ BIUM 프론트엔드에서 AI에게 개발을 맡길 때 따르는 규칙이다.
 - 라우팅: react-router (`src/routes.tsx`)
 - 기준 문서: API 명세서, 노션 스프린트 계획, 요구사항 목록
 - 디자인 기준: [yunho09/Bium-v1](https://github.com/yunho09/Bium-v1) 레포지토리, 레포 안의 `DESIGN.md`, `src/styles/GlobalStyle.tsx`
-- 협업: 기능 단위 브랜치 → Pull Request 리뷰 → main 병합
+- 협업: 기능 단위 브랜치(`develop`에서 생성) → Pull Request 리뷰 → `develop` 병합
 
 ### 폴더 구조
 
@@ -110,7 +110,7 @@ src/
 - 브랜치 이름: `feat/기능명`, `fix/버그명`
 - 커밋 메시지: `feat: 로그인 화면 추가`, `fix: 레시피 로딩 오류 수정`
 - 한 커밋에는 한 가지 변경만 담는다.
-- main에 직접 푸시하지 않고 Pull Request로 합친다.
+- 기능 브랜치는 `develop`에서 만들고, Pull Request로 `develop`에 합친다. `main`과 `develop`에 직접 푸시하지 않는다.
 
 ## 6. 요구사항 작성 형식 (스프린트 시작 때 작성)
 
