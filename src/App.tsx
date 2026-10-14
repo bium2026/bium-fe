@@ -1,5 +1,7 @@
+import AuthPage from './components/Auth/AuthPage.tsx'
+
 function App() {
-  return <h1>BIUM</h1>
+  return <AuthPage />
 }
 
 export default App
