@@ -5,6 +5,7 @@
  */
 import { useLayoutEffect, useRef, useState } from "react";
 import styled from "@emotion/styled";
+import AuthIntro from "./AuthIntro";
 import LoginForm from "./LoginForm";
 import SignupForm from "./SignupForm";
 
@@ -45,20 +46,7 @@ function AuthPage() {
   return (
     <Page>
       <Panel>
-        <Intro>
-          <Brand>
-            <LogoMark aria-hidden="true">B</LogoMark>
-            <h1>Bium</h1>
-          </Brand>
-          <IntroText>
-            <Headline>
-              냉장고 속 재료로
-              <br />
-              오늘의 한 끼를 정해요
-            </Headline>
-            <Description>가진 재료를 정리하고, 지금 만들 수 있는 레시피를 추천받아 보세요.</Description>
-          </IntroText>
-        </Intro>
+        <AuthIntro />
 
         <Card>
           <ModeToggle>
@@ -109,76 +97,20 @@ const Page = styled.main`
 `;
 
 const Panel = styled.div`
-  width: min(960px, 100%);
+  width: min(1040px, 100%);
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 440px);
+  align-items: center;
   gap: 24px;
 
-  @media (max-width: 760px) {
+  @media (max-width: 960px) {
+    width: min(520px, 100%);
     grid-template-columns: 1fr;
+  }
+
+  @media (max-width: 760px) {
     gap: 16px;
   }
-`;
-
-const Intro = styled.section`
-  border-radius: 24px;
-  background: var(--block-lime);
-  padding: 48px;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  gap: 32px;
-
-  @media (max-width: 760px) {
-    padding: 24px 20px;
-    gap: 20px;
-  }
-`;
-
-const Brand = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 7px;
-
-  h1 {
-    font-size: 24px;
-    font-weight: 700;
-    color: var(--text);
-    letter-spacing: -0.26px;
-  }
-`;
-
-const LogoMark = styled.span`
-  width: 23px;
-  height: 23px;
-  border-radius: 999px;
-  background: var(--text);
-  color: var(--surface);
-  display: grid;
-  place-items: center;
-  font-size: 11px;
-  font-weight: 700;
-  line-height: 1;
-`;
-
-const IntroText = styled.div`
-  display: grid;
-  gap: 14px;
-`;
-
-const Headline = styled.p`
-  font-size: clamp(26px, 4vw, 38px);
-  line-height: 1.16;
-  font-weight: 480;
-  letter-spacing: -0.26px;
-  color: var(--text);
-`;
-
-const Description = styled.p`
-  font-size: 16px;
-  font-weight: 330;
-  line-height: 1.45;
-  color: var(--text);
 `;
 
 const Card = styled.section`
