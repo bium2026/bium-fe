@@ -88,7 +88,7 @@ const Page = styled.main`
   display: grid;
   place-items: center;
   padding: 48px 32px;
-  background: var(--bg);
+  background: var(--bg-ivory);
 
   @media (max-width: 760px) {
     place-items: start center;

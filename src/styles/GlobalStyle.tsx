@@ -7,6 +7,7 @@ import { Global, css } from "@emotion/react";
 const globalStyles = css`
   :root {
     --bg: #ffffff;
+    --bg-ivory: #fdfaf0;
     --surface: #ffffff;
     --surface-soft: #f7f7f5;
     --text: #000000;
