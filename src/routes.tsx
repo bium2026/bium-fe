@@ -1,5 +1,6 @@
 import { createBrowserRouter, Navigate } from 'react-router'
 import AuthPage from './components/Auth/AuthPage.tsx'
+import FridgePage from './components/Fridge/FridgePage.tsx'
 import RequireAuth from './components/Auth/RequireAuth.tsx'
 import AppLayout from './components/Layout/AppLayout.tsx'
 import PreparingPage from './components/Layout/PreparingPage.tsx'
@@ -16,7 +17,7 @@ export const router = createBrowserRouter([
       </RequireAuth>
     ),
     children: [
-      { path: '/fridge', element: <PreparingPage title="내 냉장고" /> },
+      { path: '/fridge', element: <FridgePage /> },
       { path: '/library', element: <PreparingPage title="식재료 도감" /> },
       { path: '/recipes', element: <RecipePage /> },
       { path: '/recipes/:recipeId', element: <RecipeDetailPage /> },
