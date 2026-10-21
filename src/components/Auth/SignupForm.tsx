@@ -1,8 +1,11 @@
 /*
  * 아이디, 비밀번호, 닉네임으로 가입하는 폼이다.
  * 입력 칸을 벗어나거나 가입 버튼을 누르면 형식을 검사해 칸 아래에 알려 준다.
+ * 가입에 성공하면 onSuccess로 가입한 아이디를 넘겨 로그인 폼으로 보낸다.
  */
 import { useState } from "react";
+import { signup } from "../../api/auth";
+import { ApiError, NETWORK_ERROR } from "../../api/client";
 import AuthField from "./AuthField";
 import AuthForm from "./AuthForm";
 
@@ -17,6 +20,10 @@ type SignupField = keyof SignupValues;
 
 type SignupErrors = Partial<Record<SignupField, string>>;
 
+type SignupFormProps = {
+  onSuccess: (loginId: string) => void;
+};
+
 const initialValues: SignupValues = {
   loginId: "",
   password: "",
@@ -24,7 +31,7 @@ const initialValues: SignupValues = {
   nickname: "",
 };
 
-// 서버의 아이디·비밀번호 규칙이 정해지기 전까지 쓰는 임시 형식이다.
+// 백엔드 SignupRequest의 검증 규칙과 같다. 서버 규칙이 바뀌면 함께 바꾼다.
 const LOGIN_ID_PATTERN = /^[a-z0-9]{4,20}$/;
 const PASSWORD_PATTERN = /^(?=.*[A-Za-z])(?=.*\d)\S{8,20}$/;
 const NICKNAME_MIN_LENGTH = 2;
@@ -48,13 +55,28 @@ function validateSignup(values: SignupValues): SignupErrors {
   return errors;
 }
 
-function SignupForm() {
+function getSignupErrorMessage(error: unknown) {
+  // INVALID_INPUT은 서버가 검증에 실패한 첫 번째 항목의 안내 문구를 보낸다.
+  if (error instanceof ApiError && (error.code === "INVALID_INPUT" || error.code === NETWORK_ERROR)) {
+    return error.message;
+  }
+  return "회원가입하지 못했어요. 잠시 후 다시 시도해 주세요.";
+}
+
+function SignupForm({ onSuccess }: SignupFormProps) {
   const [values, setValues] = useState<SignupValues>(initialValues);
   const [touched, setTouched] = useState<Partial<Record<SignupField, boolean>>>({});
   const [submitted, setSubmitted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string>();
+  // 서버가 이미 있다고 알려 준 아이디다. 아이디를 고치면 오류가 사라진다.
+  const [takenLoginId, setTakenLoginId] = useState<string>();
 
   const errors = validateSignup(values);
-  const canSubmit = Object.values(values).every((value) => value.trim() !== "");
+  if (!errors.loginId && values.loginId === takenLoginId) {
+    errors.loginId = "이미 사용 중인 아이디입니다.";
+  }
+  const canSubmit = Object.values(values).every((value) => value.trim() !== "") && !isSubmitting;
 
   const visibleError = (field: SignupField) =>
     submitted || touched[field] ? errors[field] : undefined;
@@ -67,14 +89,38 @@ function SignupForm() {
     setTouched((prev) => ({ ...prev, [field]: true }));
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     setSubmitted(true);
     if (Object.keys(errors).length > 0) return;
-    // TODO: 회원가입 API 명세가 확정되면 서버 요청을 연결한다.
+
+    setIsSubmitting(true);
+    setError(undefined);
+    try {
+      await signup({
+        loginId: values.loginId,
+        password: values.password,
+        // 닉네임 길이는 앞뒤 공백을 뺀 값으로 검사했으므로 같은 값을 보낸다.
+        nickname: values.nickname.trim(),
+      });
+      onSuccess(values.loginId);
+    } catch (err) {
+      if (err instanceof ApiError && err.code === "DUPLICATE_LOGIN_ID") {
+        setTakenLoginId(values.loginId);
+      } else {
+        setError(getSignupErrorMessage(err));
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
-    <AuthForm submitLabel="회원가입" canSubmit={canSubmit} onSubmit={handleSubmit}>
+    <AuthForm
+      submitLabel={isSubmitting ? "가입하는 중..." : "회원가입"}
+      canSubmit={canSubmit}
+      onSubmit={handleSubmit}
+      error={error}
+    >
       <AuthField
         label="아이디"
         value={values.loginId}
