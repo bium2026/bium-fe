@@ -1,18 +1,22 @@
 /*
  * 로그인·회원가입 폼의 공통 틀이다.
  * 입력 칸 목록과 제출 버튼을 배치하고, 제출할 수 없는 상태면 버튼을 막는다.
+ * 위쪽에 안내 문구(notice)를, 제출 버튼 위에 서버 요청 오류(error)를 보여 준다.
  */
 import type { FormEvent, ReactNode } from "react";
 import styled from "@emotion/styled";
+import { CircleAlert, CircleCheck } from "lucide-react";
 
 type AuthFormProps = {
   submitLabel: string;
   canSubmit: boolean;
   onSubmit: () => void;
+  notice?: string;
+  error?: string;
   children: ReactNode;
 };
 
-function AuthForm({ submitLabel, canSubmit, onSubmit, children }: AuthFormProps) {
+function AuthForm({ submitLabel, canSubmit, onSubmit, notice, error, children }: AuthFormProps) {
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!canSubmit) return;
@@ -22,7 +26,19 @@ function AuthForm({ submitLabel, canSubmit, onSubmit, children }: AuthFormProps)
   return (
     // 브라우저 기본 검증 말풍선 대신 각 입력 칸 아래에 직접 메시지를 보여 준다.
     <Form noValidate onSubmit={handleSubmit}>
+      {notice && (
+        <FormMessage role="status" $tone="notice">
+          <CircleCheck size={16} aria-hidden="true" />
+          {notice}
+        </FormMessage>
+      )}
       {children}
+      {error && (
+        <FormMessage role="alert" $tone="error">
+          <CircleAlert size={16} aria-hidden="true" />
+          {error}
+        </FormMessage>
+      )}
       <SubmitButton type="submit" disabled={!canSubmit}>
         {submitLabel}
       </SubmitButton>
@@ -35,6 +51,24 @@ export default AuthForm;
 const Form = styled.form`
   display: grid;
   gap: 16px;
+`;
+
+const FormMessage = styled.p<{ $tone: "notice" | "error" }>`
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  border-radius: 8px;
+  background: ${(props) => (props.$tone === "error" ? "var(--block-pink)" : "var(--block-mint)")};
+  padding: 12px 14px;
+  font-size: 13px;
+  font-weight: 540;
+  line-height: 1.4;
+  color: var(--text);
+
+  svg {
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
 `;
 
 const SubmitButton = styled.button`
