@@ -39,6 +39,14 @@ function countGraphemes(value: string) {
 // 국기 이모지는 그림 문자가 아니라 지역 표시 문자 두 개로 이뤄져 있어 따로 허용한다.
 const emojiPattern = /\p{Extended_Pictographic}|\p{Regional_Indicator}/u;
 
+// 날짜 입력칸은 2026-02-30처럼 없는 날짜를 빈칸으로 보여 준다.
+// 화면에 보이는 값과 저장하는 값이 어긋나지 않게, 없는 날짜는 처음부터 빈 값으로 둔다.
+function isValidDate(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const date = new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(date.getTime()) && date.toISOString().startsWith(value);
+}
+
 function IngredientEditModal({ ingredient, onClose, onSave, onDelete }: IngredientEditModalProps) {
   const titleId = useId();
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -117,7 +125,7 @@ function IngredientEditForm({
   const id = useId();
   const [name, setName] = useState(ingredient.name);
   const [icon, setIcon] = useState(ingredient.icon);
-  const [expiresAt, setExpiresAt] = useState(ingredient.expiresAt);
+  const [expiresAt, setExpiresAt] = useState(isValidDate(ingredient.expiresAt) ? ingredient.expiresAt : "");
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -132,7 +140,7 @@ function IngredientEditForm({
     if (!emojiPattern.test(trimmedIcon)) return "아이콘은 이모지로 넣어 주세요.";
     return "";
   })();
-  const expiresAtError = expiresAt ? "" : "유통기한을 선택해 주세요.";
+  const expiresAtError = isValidDate(expiresAt) ? "" : "유통기한을 선택해 주세요.";
 
   const isChanged =
     trimmedName !== ingredient.name || trimmedIcon !== ingredient.icon || expiresAt !== ingredient.expiresAt;
