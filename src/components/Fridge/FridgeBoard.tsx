@@ -20,7 +20,11 @@ const DOOR_SLOT_COUNT = 5;
 const SHELF_SKELETON_COUNT = 6;
 
 function FridgeBoard({ zone, contents, loading }: FridgeBoardProps) {
-  const isEmpty = !loading && contents.shelf.length === 0;
+  const isEmpty =
+    !loading &&
+    contents.shelf.length === 0 &&
+    contents.leftDoor.length === 0 &&
+    contents.rightDoor.length === 0;
 
   return (
     <Shell $tone={zone.tone} aria-busy={loading}>
