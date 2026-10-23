@@ -4,7 +4,7 @@
  */
 import { useEffect, useState } from "react";
 import styled from "@emotion/styled";
-import { getFridgeItems, type FridgeItem } from "../../api/fridge";
+import { getFridgeItems, type FridgeContents, type FridgeItem } from "../../api/fridge";
 
 const URGENT_DAYS = 5;
 const MAX_URGENT_ITEMS = 5;
@@ -27,6 +27,15 @@ function getDaysLeft(expiresAt: string) {
   return Math.round((target.getTime() - today.getTime()) / DAY_MS);
 }
 
+// 임박 재료는 보관 위치·칸과 상관없이 고르므로 모든 칸의 재료를 한 목록으로 모은다.
+function flattenContents(contents: FridgeContents) {
+  return [contents.fridge, contents.freezer, contents.room].flatMap((storage) => [
+    ...storage.center,
+    ...storage.leftDoor,
+    ...storage.rightDoor,
+  ]);
+}
+
 function getUrgentItems(items: FridgeItem[]) {
   return items
     .flatMap((item) => (item.expiresAt ? [{ ...item, daysLeft: getDaysLeft(item.expiresAt) }] : []))
@@ -43,8 +52,8 @@ function UrgentIngredientList({ fridgeId }: UrgentIngredientListProps) {
   useEffect(() => {
     let ignore = false;
     getFridgeItems(fridgeId).then(
-      (items) => {
-        if (!ignore) setResult({ requestKey, items });
+      (contents) => {
+        if (!ignore) setResult({ requestKey, items: flattenContents(contents) });
       },
       () => {
         if (!ignore) setResult({ requestKey, failed: true });

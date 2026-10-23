@@ -1,7 +1,6 @@
 /*
- * 냉장고·냉장고 재료 조회 API다.
- * 아직 백엔드에 없는 API라서 주소는 정해지지 않았고, 응답 필드는 ERD(fridges, fridge_members, fridge_items) 기준으로 작성했다.
- * 백엔드 API가 나오면 주소와 응답을 확인해 이 파일을 맞춘다.
+ * 냉장고·냉장고 재료 API다.
+ * 요청·응답 형식은 백엔드 FridgeController·FridgeItemController의 DTO를 따른다.
  */
 import { request } from "./client";
 
@@ -16,20 +15,29 @@ export type Fridge = {
 // FRIDGE: 냉장실, FREEZER: 냉동실, ROOM: 실온
 export type StorageType = "FRIDGE" | "FREEZER" | "ROOM";
 
-// DOOR: 문칸, CENTER: 중앙 칸
-export type SectionType = "DOOR" | "CENTER";
-
+// 보관 위치·칸은 재료에 들어 있지 않고, 냉장고 재료 조회 응답에서 어느 묶음에 있는지로 알 수 있다.
 export type FridgeItem = {
   id: number;
   name: string;
   emoji: string | null;
   // "YYYY-MM-DD", 유통기한이 없는 재료는 null
   expiresAt: string | null;
-  storage: StorageType;
-  section: SectionType;
-  sortOrder: number;
   // 재료를 수정·삭제할 때 함께 보내 다른 멤버의 수정과 겹치지 않게 한다.
   version: number;
+};
+
+// 칸마다 칸 안 순서대로 정렬돼 있고, 재료가 없는 칸도 빈 배열로 온다.
+export type StorageContents = {
+  center: FridgeItem[];
+  leftDoor: FridgeItem[];
+  rightDoor: FridgeItem[];
+};
+
+// fridge: 냉장실, freezer: 냉동실, room: 실온
+export type FridgeContents = {
+  fridge: StorageContents;
+  freezer: StorageContents;
+  room: StorageContents;
 };
 
 // 내가 멤버로 속한 냉장고 목록
@@ -37,8 +45,9 @@ export function getMyFridges() {
   return request<Fridge[]>("/api/fridges");
 }
 
+// 실패: FRIDGE_NOT_FOUND(404)
 export function getFridgeItems(fridgeId: number) {
-  return request<FridgeItem[]>(`/api/fridges/${fridgeId}/items`);
+  return request<FridgeContents>(`/api/fridges/${fridgeId}/items`);
 }
 
 // 공유 냉장고에 함께 속해 있어도 화면은 내가 만든 냉장고를 먼저 보여 준다.
