@@ -8,21 +8,24 @@ import type { FormEvent, MouseEvent, SyntheticEvent } from "react";
 import { keyframes } from "@emotion/react";
 import styled from "@emotion/styled";
 import { CircleAlert, X } from "lucide-react";
+import { ApiError } from "../../api/client";
 
 export type EditableIngredient = {
-  id: string;
+  id: number;
   name: string;
-  icon: string;
+  emoji: string;
   expiresAt: string;
+  // 저장·삭제 요청에 함께 보내 다른 멤버가 먼저 고친 재료를 덮어쓰지 않게 한다.
+  version: number;
 };
 
-export type IngredientEditValues = Omit<EditableIngredient, "id">;
+export type IngredientEditValues = Pick<EditableIngredient, "name" | "emoji" | "expiresAt">;
 
 type IngredientEditModalProps = {
   ingredient: EditableIngredient | null;
   onClose: () => void;
-  onSave: (id: string, values: IngredientEditValues) => Promise<void>;
-  onDelete: (id: string) => Promise<void>;
+  onSave: (ingredient: EditableIngredient, values: IngredientEditValues) => Promise<void>;
+  onDelete: (ingredient: EditableIngredient) => Promise<void>;
 };
 
 type ModalStatus = "idle" | "saving" | "deleting";
@@ -45,6 +48,11 @@ function isValidDate(value: string) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
   const date = new Date(`${value}T00:00:00Z`);
   return !Number.isNaN(date.getTime()) && date.toISOString().startsWith(value);
+}
+
+// 서버가 준 안내(다른 멤버가 먼저 수정, 없는 재료, 입력 오류 등)를 그대로 보여 준다.
+function getErrorMessage(error: unknown, fallback: string) {
+  return error instanceof ApiError ? error.message : fallback;
 }
 
 function IngredientEditModal({ ingredient, onClose, onSave, onDelete }: IngredientEditModalProps) {
@@ -109,8 +117,8 @@ type IngredientEditFormProps = {
   status: ModalStatus;
   onStatusChange: (status: ModalStatus) => void;
   onClose: () => void;
-  onSave: (id: string, values: IngredientEditValues) => Promise<void>;
-  onDelete: (id: string) => Promise<void>;
+  onSave: (ingredient: EditableIngredient, values: IngredientEditValues) => Promise<void>;
+  onDelete: (ingredient: EditableIngredient) => Promise<void>;
 };
 
 function IngredientEditForm({
@@ -124,27 +132,27 @@ function IngredientEditForm({
 }: IngredientEditFormProps) {
   const id = useId();
   const [name, setName] = useState(ingredient.name);
-  const [icon, setIcon] = useState(ingredient.icon);
+  const [emoji, setEmoji] = useState(ingredient.emoji);
   const [expiresAt, setExpiresAt] = useState(isValidDate(ingredient.expiresAt) ? ingredient.expiresAt : "");
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
   const trimmedName = name.trim();
-  const trimmedIcon = icon.trim();
+  const trimmedEmoji = emoji.trim();
   const isBusy = status !== "idle";
 
   const nameError = trimmedName ? "" : "이름을 입력해 주세요.";
-  const iconError = (() => {
-    if (!trimmedIcon) return "아이콘을 입력해 주세요.";
-    if (countGraphemes(trimmedIcon) > 1) return "아이콘은 이모지 한 개만 넣어 주세요.";
-    if (!emojiPattern.test(trimmedIcon)) return "아이콘은 이모지로 넣어 주세요.";
+  const emojiError = (() => {
+    if (!trimmedEmoji) return "아이콘을 입력해 주세요.";
+    if (countGraphemes(trimmedEmoji) > 1) return "아이콘은 이모지 한 개만 넣어 주세요.";
+    if (!emojiPattern.test(trimmedEmoji)) return "아이콘은 이모지로 넣어 주세요.";
     return "";
   })();
   const expiresAtError = isValidDate(expiresAt) ? "" : "유통기한을 선택해 주세요.";
 
   const isChanged =
-    trimmedName !== ingredient.name || trimmedIcon !== ingredient.icon || expiresAt !== ingredient.expiresAt;
-  const canSave = !nameError && !iconError && !expiresAtError && isChanged && !isBusy;
+    trimmedName !== ingredient.name || trimmedEmoji !== ingredient.emoji || expiresAt !== ingredient.expiresAt;
+  const canSave = !nameError && !emojiError && !expiresAtError && isChanged && !isBusy;
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -153,12 +161,12 @@ function IngredientEditForm({
     onStatusChange("saving");
     setErrorMessage("");
     try {
-      await onSave(ingredient.id, { name: trimmedName, icon: trimmedIcon, expiresAt });
+      await onSave(ingredient, { name: trimmedName, emoji: trimmedEmoji, expiresAt });
       onStatusChange("idle");
       onClose();
-    } catch {
+    } catch (error) {
       onStatusChange("idle");
-      setErrorMessage("저장하지 못했어요. 잠시 후 다시 시도해 주세요.");
+      setErrorMessage(getErrorMessage(error, "저장하지 못했어요. 잠시 후 다시 시도해 주세요."));
     }
   };
 
@@ -166,12 +174,12 @@ function IngredientEditForm({
     onStatusChange("deleting");
     setErrorMessage("");
     try {
-      await onDelete(ingredient.id);
+      await onDelete(ingredient);
       onStatusChange("idle");
       onClose();
-    } catch {
+    } catch (error) {
       onStatusChange("idle");
-      setErrorMessage("삭제하지 못했어요. 잠시 후 다시 시도해 주세요.");
+      setErrorMessage(getErrorMessage(error, "삭제하지 못했어요. 잠시 후 다시 시도해 주세요."));
     }
   };
 
@@ -179,7 +187,7 @@ function IngredientEditForm({
     <Card>
       <Header>
         <Heading id={titleId}>
-          <HeadingIcon aria-hidden="true">{ingredient.icon}</HeadingIcon>
+          <HeadingIcon aria-hidden="true">{ingredient.emoji}</HeadingIcon>
           식재료 수정
         </Heading>
         <CloseButton type="button" onClick={onClose} disabled={isBusy} aria-label="닫기">
@@ -200,13 +208,13 @@ function IngredientEditForm({
         />
 
         <Field
-          id={`${id}-icon`}
+          id={`${id}-emoji`}
           label="아이콘"
-          value={icon}
-          onChange={setIcon}
+          value={emoji}
+          onChange={setEmoji}
           placeholder="예: 🥕"
           disabled={isBusy}
-          error={iconError}
+          error={emojiError}
           hint="이모지 한 개"
         />
 

@@ -12,6 +12,7 @@ type FridgeBoardProps = {
   zone: ZoneMeta;
   contents: ZoneIngredients;
   loading: boolean;
+  onSelectIngredient: (ingredient: FridgeIngredient) => void;
 };
 
 type DoorSide = "left" | "right";
@@ -19,7 +20,7 @@ type DoorSide = "left" | "right";
 const DOOR_SLOT_COUNT = 5;
 const SHELF_SKELETON_COUNT = 6;
 
-function FridgeBoard({ zone, contents, loading }: FridgeBoardProps) {
+function FridgeBoard({ zone, contents, loading, onSelectIngredient }: FridgeBoardProps) {
   const isEmpty =
     !loading &&
     contents.shelf.length === 0 &&
@@ -28,7 +29,7 @@ function FridgeBoard({ zone, contents, loading }: FridgeBoardProps) {
 
   return (
     <Shell $tone={zone.tone} aria-busy={loading}>
-      <Door side="left" items={contents.leftDoor} loading={loading} />
+      <Door side="left" items={contents.leftDoor} loading={loading} onSelectIngredient={onSelectIngredient} />
 
       <Cabinet>
         <ShelfArea>
@@ -41,7 +42,7 @@ function FridgeBoard({ zone, contents, loading }: FridgeBoardProps) {
                 ))
               : contents.shelf.map((ingredient) => (
                   <li key={ingredient.id}>
-                    <IngredientItem ingredient={ingredient} variant="shelf" />
+                    <IngredientItem ingredient={ingredient} variant="shelf" onSelect={onSelectIngredient} />
                   </li>
                 ))}
           </ShelfList>
@@ -56,7 +57,7 @@ function FridgeBoard({ zone, contents, loading }: FridgeBoardProps) {
         )}
       </Cabinet>
 
-      <Door side="right" items={contents.rightDoor} loading={loading} />
+      <Door side="right" items={contents.rightDoor} loading={loading} onSelectIngredient={onSelectIngredient} />
     </Shell>
   );
 }
@@ -67,9 +68,10 @@ type DoorProps = {
   side: DoorSide;
   items: FridgeIngredient[];
   loading: boolean;
+  onSelectIngredient: (ingredient: FridgeIngredient) => void;
 };
 
-function Door({ side, items, loading }: DoorProps) {
+function Door({ side, items, loading, onSelectIngredient }: DoorProps) {
   const emptySlotCount = Math.max(DOOR_SLOT_COUNT - items.length, 0);
 
   return (
@@ -83,7 +85,7 @@ function Door({ side, items, loading }: DoorProps) {
             ))
           : items.map((ingredient) => (
               <li key={ingredient.id}>
-                <IngredientItem ingredient={ingredient} variant="door" />
+                <IngredientItem ingredient={ingredient} variant="door" onSelect={onSelectIngredient} />
               </li>
             ))}
         {!loading &&

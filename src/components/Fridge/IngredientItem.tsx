@@ -1,6 +1,7 @@
 /*
  * 냉장고 선반과 문칸에 놓이는 재료 카드다.
  * 남은 유통기한에 따라 배지 문구와 색을 바꾸고, 지난 재료는 흐리게 보여 준다.
+ * 누르면 재료 수정 모달을 연다.
  */
 import styled from "@emotion/styled";
 import type { FridgeIngredient } from "./fridgeTypes";
@@ -10,6 +11,7 @@ type Freshness = "expired" | "urgent" | "soon" | "safe";
 type IngredientItemProps = {
   ingredient: FridgeIngredient;
   variant: "shelf" | "door";
+  onSelect: (ingredient: FridgeIngredient) => void;
 };
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -43,14 +45,20 @@ function getBadgeDescription(daysLeft: number) {
   return `유통기한 ${daysLeft}일 남음`;
 }
 
-function IngredientItem({ ingredient, variant }: IngredientItemProps) {
+function IngredientItem({ ingredient, variant, onSelect }: IngredientItemProps) {
   const daysLeft = getDaysLeft(ingredient.expiresAt);
   const freshness = getFreshness(daysLeft);
 
   return (
-    <Card $variant={variant} $freshness={freshness}>
+    <Card
+      type="button"
+      aria-haspopup="dialog"
+      onClick={() => onSelect(ingredient)}
+      $variant={variant}
+      $freshness={freshness}
+    >
       <Icon aria-hidden="true" $variant={variant} $freshness={freshness}>
-        {ingredient.icon}
+        {ingredient.emoji}
       </Icon>
       <Name $variant={variant}>{ingredient.name}</Name>
       <Badge $variant={variant} $freshness={freshness}>
@@ -84,8 +92,9 @@ const screenReaderOnly = `
   white-space: nowrap;
 `;
 
-const Card = styled.div<StyleProps>`
+const Card = styled.button<StyleProps>`
   position: relative;
+  width: 100%;
   height: 100%;
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -93,6 +102,14 @@ const Card = styled.div<StyleProps>`
   box-shadow: var(--shadow-sm);
   display: grid;
   min-width: 0;
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+
+  &:focus-visible {
+    outline: 2px solid var(--text);
+    outline-offset: 2px;
+  }
 
   ${(props) =>
     props.$variant === "shelf"
