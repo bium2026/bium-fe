@@ -14,49 +14,52 @@ function getDateAfter(days: number) {
   return `${date.getFullYear()}-${month}-${day}`;
 }
 
-function food(id: string, name: string, icon: string, daysLeft: number): FridgeIngredient {
-  return { id, name, icon, expiresAt: getDateAfter(daysLeft) };
+// 서버 재료처럼 숫자 id와 처음 버전(0)을 붙인다.
+let nextId = 1;
+
+function food(name: string, emoji: string, daysLeft: number): FridgeIngredient {
+  return { id: nextId++, name, emoji, expiresAt: getDateAfter(daysLeft), version: 0 };
 }
 
 export const fridgeMock: FridgeContents = {
   fridge: {
     shelf: [
-      food("salmon", "연어", "🐟", -1),
-      food("chicken", "닭가슴살", "🍗", 0),
-      food("spinach", "시금치", "🥬", 1),
-      food("tofu", "두부", "🧊", 3),
-      food("tomato", "토마토", "🍅", 4),
-      food("milk", "우유", "🥛", 5),
-      food("green-onion", "대파", "🥬", 7),
-      food("carrot", "당근", "🥕", 14),
-      food("kimchi", "김치", "🥬", 30),
+      food("연어", "🐟", -1),
+      food("닭가슴살", "🍗", 0),
+      food("시금치", "🥬", 1),
+      food("두부", "🧊", 3),
+      food("토마토", "🍅", 4),
+      food("우유", "🥛", 5),
+      food("대파", "🥬", 7),
+      food("당근", "🥕", 14),
+      food("김치", "🥬", 30),
     ],
-    leftDoor: [food("egg", "계란", "🥚", 9), food("butter", "버터", "🧈", 24)],
-    rightDoor: [food("cheese", "치즈", "🧀", 6), food("yogurt", "요거트", "🥣", 2), food("juice", "주스", "🧃", 12)],
+    leftDoor: [food("계란", "🥚", 9), food("버터", "🧈", 24)],
+    rightDoor: [food("치즈", "🧀", 6), food("요거트", "🥣", 2), food("주스", "🧃", 12)],
   },
   freezer: {
     shelf: [
-      food("rice-cake", "떡", "🍡", 10),
-      food("mackerel", "고등어", "🐟", 14),
-      food("dumpling", "만두", "🥟", 45),
-      food("beef", "소고기", "🥩", 60),
-      food("shrimp", "새우", "🦐", 2),
+      food("떡", "🍡", 10),
+      food("고등어", "🐟", 14),
+      food("만두", "🥟", 45),
+      food("소고기", "🥩", 60),
+      food("새우", "🦐", 2),
     ],
-    leftDoor: [food("ice-cream", "아이스크림", "🍨", 90)],
+    leftDoor: [food("아이스크림", "🍨", 90)],
     rightDoor: [],
   },
   pantry: {
     shelf: [
-      food("onion", "양파", "🧅", 16),
-      food("potato", "감자", "🥔", 35),
-      food("sweet-potato", "고구마", "🍠", 22),
-      food("garlic", "마늘", "🧄", 28),
-      food("canned-tuna", "참치캔", "🥫", 180),
-      food("ramen", "라면", "🍜", 90),
-      food("banana", "바나나", "🍌", 3),
+      food("양파", "🧅", 16),
+      food("감자", "🥔", 35),
+      food("고구마", "🍠", 22),
+      food("마늘", "🧄", 28),
+      food("참치캔", "🥫", 180),
+      food("라면", "🍜", 90),
+      food("바나나", "🍌", 3),
     ],
     leftDoor: [],
-    rightDoor: [food("bread", "식빵", "🍞", 1)],
+    rightDoor: [food("식빵", "🍞", 1)],
   },
 };
 
