@@ -45,3 +45,6 @@ export const useRecipeStore = create<RecipeState>()(
 useAuthStore.subscribe((state, prevState) => {
   if (prevState.accessToken && !state.accessToken) useRecipeStore.getState().clearRecipes();
 });
+
+// authStore는 이 파일보다 먼저 불러와지면서 만료된 토큰을 이미 지웠을 수 있다. 그 전환은 위 구독이 받지 못하므로 시작할 때 한 번 확인한다.
+if (!useAuthStore.getState().accessToken) useRecipeStore.getState().clearRecipes();

@@ -9,6 +9,7 @@ import { Link } from "react-router";
 import { ApiError } from "../../api/client";
 import { getMyFridge } from "../../api/fridge";
 import { recommendRecipes } from "../../api/recipe";
+import { useAuthStore } from "../../store/authStore";
 import { useRecipeStore } from "../../store/recipeStore";
 import RecipeCard from "./RecipeCard";
 import RecipeSkeletonCard from "./RecipeSkeletonCard";
@@ -71,11 +72,16 @@ function RecipePage() {
     // 다른 화면에 다녀오는 사이 시작된 요청도 막도록 화면 상태 대신 스토어 값을 바로 확인한다.
     if (fridgeId === null || useRecipeStore.getState().recommend.status === "loading") return;
     setRecommend({ status: "loading" });
+    const requestToken = useAuthStore.getState().accessToken;
+    // 응답을 기다리는 사이 로그아웃·토큰 만료로 목록을 지웠다면, 늦게 온 결과로 이전 사용자의 목록을 다시 채우지 않는다.
+    const isStale = () => useAuthStore.getState().accessToken !== requestToken;
     try {
       const nextRecipes = await recommendRecipes(fridgeId, prioritizeUrgent);
+      if (isStale()) return;
       setRecipes(fridgeId, nextRecipes);
       setRecommend({ status: "idle" });
     } catch (error) {
+      if (isStale()) return;
       setRecommend({ status: "error", ...getErrorInfo(error) });
     }
   };
