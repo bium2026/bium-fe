@@ -7,7 +7,7 @@ import { useId } from "react";
 import styled from "@emotion/styled";
 import { ShoppingBag } from "lucide-react";
 import type { PurchasedItem } from "../../api/purchasedItem";
-import { formatMonthDay } from "./libraryDate";
+import { formatDate } from "./libraryDate";
 
 type GroceryBagProps = {
   items: PurchasedItem[];
@@ -40,7 +40,7 @@ function GroceryBag({ items }: GroceryBagProps) {
               <ItemIcon aria-hidden="true">{item.emoji}</ItemIcon>
               <ItemText>
                 <strong>{item.name}</strong>
-                <span>{formatMonthDay(item.expiresAt)}까지</span>
+                <span>{formatDate(item.expiresAt)}까지</span>
               </ItemText>
             </Item>
           ))}
