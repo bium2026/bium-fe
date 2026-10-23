@@ -2,9 +2,8 @@
  * 식재료 도감 화면이다.
  * 카테고리 탭과 검색으로 재료를 고르고, 재료를 추가·삭제하거나 장본 음식에 담는다.
  * 전체 탭에서는 카테고리별로 묶어 보여 주고, 고른 탭은 주소(?category=)에 남겨 새로고침해도 유지한다.
- * 도감과 내 냉장고를 함께 불러오고, 장본 음식에 담은 재료는 담기 응답으로 패널에 쌓는다.
+ * 도감과 내 냉장고, 그 냉장고의 장본 음식을 함께 불러오고, 장본 음식에 담거나 뺀 결과는 서버에 반영된 뒤 패널에 보인다.
  * 도감 재료를 고른 보관 위치에 바로 넣을 수도 있다.
- * 장본 음식 목록 조회 API가 아직 없어서 패널은 이 화면에서 담은 재료만 보여 준다.
  */
 import { useEffect, useRef, useState } from "react";
 import { keyframes } from "@emotion/react";
@@ -15,7 +14,7 @@ import { ApiError, NETWORK_ERROR } from "../../api/client";
 import { addFridgeItem, getMyFridge } from "../../api/fridge";
 import { createCatalogIngredient, deleteCatalogIngredient, getMyCatalog } from "../../api/ingredientCatalog";
 import type { CatalogIngredient, CatalogIngredientCreateRequest } from "../../api/ingredientCatalog";
-import { addPurchasedItem } from "../../api/purchasedItem";
+import { addPurchasedItem, getPurchasedItems, removePurchasedItem } from "../../api/purchasedItem";
 import type { PurchasedItem } from "../../api/purchasedItem";
 import FridgeAddModal from "./FridgeAddModal";
 import type { FridgeAddValues } from "./FridgeAddModal";
@@ -46,6 +45,13 @@ function getLoadErrorMessage(error: unknown) {
   return "잠시 후 다시 시도해 주세요. 문제가 계속되면 새로고침해 주세요.";
 }
 
+// 장본 음식은 냉장고에 묶여 있어 냉장고를 받은 뒤 불러온다.
+async function getFridgeWithGroceries() {
+  const fridge = await getMyFridge();
+  const groceries = fridge ? await getPurchasedItems(fridge.id) : [];
+  return { fridgeId: fridge?.id ?? null, groceries };
+}
+
 function LibraryPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [catalog, setCatalog] = useState<CatalogState>({ status: "loading" });
@@ -63,9 +69,11 @@ function LibraryPage() {
 
   useEffect(() => {
     let ignore = false;
-    Promise.all([getMyCatalog(), getMyFridge()]).then(
-      ([ingredients, fridge]) => {
-        if (!ignore) setCatalog({ status: "success", ingredients, fridgeId: fridge?.id ?? null });
+    Promise.all([getMyCatalog(), getFridgeWithGroceries()]).then(
+      ([ingredients, { fridgeId, groceries }]) => {
+        if (ignore) return;
+        setCatalog({ status: "success", ingredients, fridgeId });
+        setGroceries(groceries);
       },
       (error: unknown) => {
         if (!ignore) setCatalog({ status: "error", message: getLoadErrorMessage(error) });
@@ -118,6 +126,18 @@ function LibraryPage() {
     const item = await addPurchasedItem(fridgeId, ingredient.id);
     setGroceries((prev) => [item, ...prev]);
     setAnnouncement(`${item.name}을(를) 장본 음식에 담았어요.`);
+  };
+
+  // 서버에서 뺀 뒤에 패널에서 지운다. 실패하면 패널이 오류를 보여 주도록 다시 던진다.
+  const handleRemoveGrocery = async (item: PurchasedItem) => {
+    try {
+      await removePurchasedItem(item.id);
+    } catch (error) {
+      // 다른 멤버가 먼저 빼서 서버에 없으면, 빼려던 결과와 같으므로 패널에서 지우고 넘어간다.
+      if (!(error instanceof ApiError && error.code === "PURCHASED_ITEM_NOT_FOUND")) throw error;
+    }
+    setGroceries((prev) => prev.filter((grocery) => grocery.id !== item.id));
+    setAnnouncement(`${item.name}을(를) 장본 음식에서 뺐어요.`);
   };
 
   // 실패하면 모달이 오류를 보여 주도록 그대로 던진다.
@@ -290,7 +310,7 @@ function LibraryPage() {
           {renderContent()}
         </MainColumn>
 
-        <GroceryBag items={groceries} />
+        <GroceryBag items={groceries} onRemove={handleRemoveGrocery} />
       </Layout>
 
       <ScreenReaderOnly role="status">{announcement}</ScreenReaderOnly>
