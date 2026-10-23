@@ -77,12 +77,11 @@ function RecipePage() {
     const isStale = () => useAuthStore.getState().accessToken !== requestToken;
     try {
       const nextRecipes = await recommendRecipes(fridgeId, prioritizeUrgent);
-      if (isStale()) return;
-      setRecipes(fridgeId, nextRecipes);
+      if (!isStale()) setRecipes(fridgeId, nextRecipes);
+      // 다른 계정으로 바로 로그인해 토큰만 바뀐 경우에는 목록을 지우는 구독이 돌지 않아, 여기서 버튼 잠금을 풀어야 한다.
       setRecommend({ status: "idle" });
     } catch (error) {
-      if (isStale()) return;
-      setRecommend({ status: "error", ...getErrorInfo(error) });
+      setRecommend(isStale() ? { status: "idle" } : { status: "error", ...getErrorInfo(error) });
     }
   };
 
