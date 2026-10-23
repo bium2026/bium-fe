@@ -2,7 +2,8 @@
  * 식재료 도감 화면이다.
  * 카테고리 탭과 검색으로 재료를 고르고, 재료를 추가·삭제하거나 장본 음식에 담는다.
  * 전체 탭에서는 카테고리별로 묶어 보여 주고, 고른 탭은 주소(?category=)에 남겨 새로고침해도 유지한다.
- * 도감은 서버에서 불러오고, 장본 음식은 API가 아직 없어서 화면 안에서만 들고 있다.
+ * 도감과 내 냉장고를 함께 불러오고, 장본 음식에 담은 재료는 담기 응답으로 패널에 쌓는다.
+ * 장본 음식 목록 조회 API가 아직 없어서 패널은 이 화면에서 담은 재료만 보여 준다.
  */
 import { useEffect, useState } from "react";
 import { keyframes } from "@emotion/react";
@@ -10,19 +11,21 @@ import styled from "@emotion/styled";
 import { Plus, Search } from "lucide-react";
 import { useSearchParams } from "react-router";
 import { ApiError, NETWORK_ERROR } from "../../api/client";
+import { getMyFridge } from "../../api/fridge";
 import { createCatalogIngredient, deleteCatalogIngredient, getMyCatalog } from "../../api/ingredientCatalog";
 import type { CatalogIngredient, CatalogIngredientCreateRequest } from "../../api/ingredientCatalog";
+import { addPurchasedItem } from "../../api/purchasedItem";
+import type { PurchasedItem } from "../../api/purchasedItem";
 import GroceryBag from "./GroceryBag";
 import IngredientAddModal from "./IngredientAddModal";
 import IngredientCard from "./IngredientCard";
 import { categoryLabel, categoryOrder, isCategoryFilter } from "./libraryCategories";
 import type { CategoryFilter } from "./libraryCategories";
-import { getDateAfter } from "./libraryDate";
-import type { GroceryItem } from "./libraryTypes";
 
 type CatalogState =
   | { status: "loading" }
-  | { status: "success"; ingredients: CatalogIngredient[] }
+  // 연결된 냉장고가 없으면 fridgeId는 null이고, 장본 음식에 담을 수 없다.
+  | { status: "success"; ingredients: CatalogIngredient[]; fridgeId: number | null }
   | { status: "error"; message: string };
 
 const skeletonKeys = ["s1", "s2", "s3", "s4", "s5", "s6", "s7", "s8"];
@@ -31,13 +34,6 @@ const filters: { id: CategoryFilter; label: string }[] = [
   { id: "all", label: "전체" },
   ...categoryOrder.map((id) => ({ id, label: categoryLabel[id] })),
 ];
-
-// crypto.randomUUID()는 https나 localhost에서만 있어서, 휴대폰으로 내부 IP에 접속해 확인할 때도 동작하도록 직접 만든다.
-let nextId = 0;
-function createId(prefix: string) {
-  nextId += 1;
-  return `${prefix}-${Date.now()}-${nextId}`;
-}
 
 function getLoadErrorMessage(error: unknown) {
   if (error instanceof ApiError && error.code === NETWORK_ERROR) return error.message;
@@ -48,7 +44,7 @@ function LibraryPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [catalog, setCatalog] = useState<CatalogState>({ status: "loading" });
   const [loadAttempt, setLoadAttempt] = useState(0);
-  const [groceries, setGroceries] = useState<GroceryItem[]>([]);
+  const [groceries, setGroceries] = useState<PurchasedItem[]>([]);
   const [query, setQuery] = useState("");
   const [isAddOpen, setIsAddOpen] = useState(false);
   // 담기·추가·삭제 결과를 스크린 리더에 알려 준다. 화면에는 보이지 않는다.
@@ -56,9 +52,9 @@ function LibraryPage() {
 
   useEffect(() => {
     let ignore = false;
-    getMyCatalog().then(
-      (ingredients) => {
-        if (!ignore) setCatalog({ status: "success", ingredients });
+    Promise.all([getMyCatalog(), getMyFridge()]).then(
+      ([ingredients, fridge]) => {
+        if (!ignore) setCatalog({ status: "success", ingredients, fridgeId: fridge?.id ?? null });
       },
       (error: unknown) => {
         if (!ignore) setCatalog({ status: "error", message: getLoadErrorMessage(error) });
@@ -70,6 +66,7 @@ function LibraryPage() {
   }, [loadAttempt]);
 
   const ingredients = catalog.status === "success" ? catalog.ingredients : [];
+  const fridgeId = catalog.status === "success" ? catalog.fridgeId : null;
   const status = catalog.status;
   const categoryParam = searchParams.get("category");
   const category: CategoryFilter = isCategoryFilter(categoryParam) ? categoryParam : "all";
@@ -102,22 +99,12 @@ function LibraryPage() {
     );
   };
 
-  const handleAddToGroceries = (ingredient: CatalogIngredient) => {
-    // TODO: 장본 음식 API가 정해지면 서버에 저장하고, 실패하면 담은 재료를 되돌린다.
-    const item: GroceryItem = {
-      id: createId("grocery"),
-      name: ingredient.name,
-      emoji: ingredient.emoji,
-      expiresAt: getDateAfter(ingredient.shelfLifeDays),
-    };
+  // 서버에 담긴 뒤 응답으로 받은 재료를 패널 맨 위에 넣는다. 실패하면 카드가 오류를 보여 주도록 그대로 던진다.
+  const handleAddToGroceries = async (ingredient: CatalogIngredient) => {
+    if (fridgeId === null) return;
+    const item = await addPurchasedItem(fridgeId, ingredient.id);
     setGroceries((prev) => [item, ...prev]);
-    setAnnouncement(`${ingredient.name}을(를) 장본 음식에 담았어요.`);
-  };
-
-  const handleRemoveGrocery = (item: GroceryItem) => {
-    // TODO: 장본 음식 API가 정해지면 서버에서 지우고, 실패하면 목록을 되돌린다.
-    setGroceries((prev) => prev.filter((grocery) => grocery.id !== item.id));
-    setAnnouncement(`${item.name}을(를) 장본 음식에서 뺐어요.`);
+    setAnnouncement(`${item.name}을(를) 장본 음식에 담았어요.`);
   };
 
   // 서버에서 지워진 뒤에 목록에서 뺀다. 실패하면 카드가 오류를 보여 주도록 다시 던진다.
@@ -210,6 +197,7 @@ function LibraryPage() {
                 <IngredientCard
                   key={ingredient.id}
                   ingredient={ingredient}
+                  canUseFridge={fridgeId !== null}
                   onAddToGroceries={handleAddToGroceries}
                   onDelete={handleDelete}
                 />
@@ -266,10 +254,17 @@ function LibraryPage() {
             </CategoryTabs>
           </Toolbar>
 
+          {status === "success" && fridgeId === null && (
+            <Notice role="status">
+              <strong>연결된 냉장고가 없어요.</strong>
+              냉장고가 있어야 장본 음식에 담을 수 있어요. 도감 재료를 추가하고 지우는 것은 지금도 할 수 있어요.
+            </Notice>
+          )}
+
           {renderContent()}
         </MainColumn>
 
-        <GroceryBag items={groceries} onRemove={handleRemoveGrocery} />
+        <GroceryBag items={groceries} />
       </Layout>
 
       <ScreenReaderOnly role="status">{announcement}</ScreenReaderOnly>
@@ -493,6 +488,23 @@ const SkeletonCard = styled.div`
 
   @media (prefers-reduced-motion: reduce) {
     animation: none;
+  }
+`;
+
+const Notice = styled.p`
+  border-radius: 8px;
+  background: var(--block-cream);
+  padding: 14px 16px;
+  display: grid;
+  gap: 4px;
+  font-size: 14px;
+  font-weight: 330;
+  line-height: 1.5;
+  word-break: keep-all;
+
+  strong {
+    font-size: 15px;
+    font-weight: 540;
   }
 `;
 

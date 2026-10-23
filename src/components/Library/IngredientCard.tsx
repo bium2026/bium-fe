@@ -1,7 +1,7 @@
 /*
  * 식재료 도감의 재료 카드다.
- * 장본 음식에 담기 버튼을 누르면 잠깐 "담았어요"로 바뀌고, 삭제는 카드 위에서 한 번 더 확인한다.
- * 삭제는 서버에서 지워질 때까지 버튼을 막고, 실패하면 확인 영역에 오류를 보여 다시 시도하게 한다.
+ * 장본 음식에 담기는 서버에 담길 때까지 버튼을 막고, 담기면 잠깐 "담았어요"로 바꾼다. 실패하면 버튼 아래에 알린다.
+ * 삭제는 카드 위에서 한 번 더 확인하고, 실패하면 확인 영역에 오류를 보여 다시 시도하게 한다.
  */
 import { useEffect, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
@@ -11,16 +11,20 @@ import type { CatalogIngredient } from "../../api/ingredientCatalog";
 
 type IngredientCardProps = {
   ingredient: CatalogIngredient;
-  onAddToGroceries: (ingredient: CatalogIngredient) => void;
+  // 연결된 냉장고가 없으면 장본 음식에 담을 수 없다.
+  canUseFridge: boolean;
+  onAddToGroceries: (ingredient: CatalogIngredient) => Promise<void>;
   onDelete: (ingredient: CatalogIngredient) => Promise<void>;
 };
+
+type AddStatus = "idle" | "adding" | "added" | "error";
 
 type DeleteStatus = "idle" | "deleting" | "error";
 
 const ADDED_FEEDBACK_MS = 1200;
 
-function IngredientCard({ ingredient, onAddToGroceries, onDelete }: IngredientCardProps) {
-  const [isAdded, setIsAdded] = useState(false);
+function IngredientCard({ ingredient, canUseFridge, onAddToGroceries, onDelete }: IngredientCardProps) {
+  const [addStatus, setAddStatus] = useState<AddStatus>("idle");
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
   const [deleteStatus, setDeleteStatus] = useState<DeleteStatus>("idle");
   const deleteButtonRef = useRef<HTMLButtonElement>(null);
@@ -28,12 +32,19 @@ function IngredientCard({ ingredient, onAddToGroceries, onDelete }: IngredientCa
 
   useEffect(() => () => window.clearTimeout(timerRef.current), []);
 
-  const handleAdd = () => {
-    // 같은 재료를 두 번 사는 경우도 있어 막지는 않지만, 잘못 두 번 눌러 겹쳐 담기지 않게 잠깐 쉬게 한다.
-    if (isAdded) return;
-    onAddToGroceries(ingredient);
-    setIsAdded(true);
-    timerRef.current = window.setTimeout(() => setIsAdded(false), ADDED_FEEDBACK_MS);
+  const isAddBusy = addStatus === "adding" || addStatus === "added";
+
+  const handleAdd = async () => {
+    // 같은 재료를 두 번 사는 경우도 있어 막지는 않지만, 요청 중이거나 방금 담았을 때는 잘못 두 번 눌러 겹쳐 담기지 않게 막는다.
+    if (isAddBusy) return;
+    setAddStatus("adding");
+    try {
+      await onAddToGroceries(ingredient);
+      setAddStatus("added");
+      timerRef.current = window.setTimeout(() => setAddStatus("idle"), ADDED_FEEDBACK_MS);
+    } catch {
+      setAddStatus("error");
+    }
   };
 
   const isDeleting = deleteStatus === "deleting";
@@ -83,14 +94,17 @@ function IngredientCard({ ingredient, onAddToGroceries, onDelete }: IngredientCa
       <AddButton
         type="button"
         onClick={handleAdd}
-        disabled={isConfirmingDelete}
-        aria-disabled={isAdded || undefined}
-        aria-label={isAdded ? `${ingredient.name}을(를) 장본 음식에 담았어요` : `${ingredient.name} 장본 음식에 담기`}
-        $added={isAdded}
+        disabled={isConfirmingDelete || !canUseFridge}
+        aria-disabled={isAddBusy || undefined}
+        aria-label={
+          addStatus === "added" ? `${ingredient.name}을(를) 장본 음식에 담았어요` : `${ingredient.name} 장본 음식에 담기`
+        }
+        $added={addStatus === "added"}
       >
-        {isAdded ? <Check size={15} aria-hidden="true" /> : <Plus size={15} aria-hidden="true" />}
-        {isAdded ? "담았어요" : "장본 음식에 담기"}
+        {addStatus === "added" ? <Check size={15} aria-hidden="true" /> : <Plus size={15} aria-hidden="true" />}
+        {addStatus === "adding" ? "담는 중..." : addStatus === "added" ? "담았어요" : "장본 음식에 담기"}
       </AddButton>
+      {addStatus === "error" && <AddError role="alert">담지 못했어요. 다시 눌러 주세요.</AddError>}
 
       {isConfirmingDelete && (
         <ConfirmLayer role="group" aria-label={`${ingredient.name} 삭제 확인`} onKeyDown={handleConfirmKeyDown}>
@@ -208,7 +222,7 @@ const AddButton = styled.button<{ $added: boolean }>`
   font-size: 13px;
   font-weight: 480;
   white-space: nowrap;
-  cursor: ${(props) => (props.$added ? "default" : "pointer")};
+  cursor: pointer;
   transition:
     background 0.18s ease,
     color 0.18s ease;
@@ -217,9 +231,25 @@ const AddButton = styled.button<{ $added: boolean }>`
     transform: scale(0.98);
   }
 
+  &[aria-disabled="true"] {
+    cursor: default;
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.3;
+  }
+
   svg {
     flex-shrink: 0;
   }
+`;
+
+const AddError = styled.p`
+  font-size: 12px;
+  font-weight: 540;
+  line-height: 1.4;
+  word-break: keep-all;
 `;
 
 const ConfirmLayer = styled.div`

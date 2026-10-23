@@ -1,19 +1,19 @@
 /*
  * 식재료 도감 오른쪽의 장본 음식 패널이다.
- * 도감에서 담은 재료를 최근에 담은 순서로 보여 주고, 잘못 담은 재료는 뺄 수 있다.
+ * 도감에서 담은 재료를 최근에 담은 순서로 보여 준다.
+ * 장본 음식 목록 조회·빼기 API가 아직 없어서, 이 화면에서 담은 재료만 보여 주고 빼기 버튼은 두지 않는다.
  */
 import { useId } from "react";
 import styled from "@emotion/styled";
-import { ShoppingBag, X } from "lucide-react";
+import { ShoppingBag } from "lucide-react";
+import type { PurchasedItem } from "../../api/purchasedItem";
 import { formatMonthDay } from "./libraryDate";
-import type { GroceryItem } from "./libraryTypes";
 
 type GroceryBagProps = {
-  items: GroceryItem[];
-  onRemove: (item: GroceryItem) => void;
+  items: PurchasedItem[];
 };
 
-function GroceryBag({ items, onRemove }: GroceryBagProps) {
+function GroceryBag({ items }: GroceryBagProps) {
   const titleId = useId();
 
   return (
@@ -42,9 +42,6 @@ function GroceryBag({ items, onRemove }: GroceryBagProps) {
                 <strong>{item.name}</strong>
                 <span>{formatMonthDay(item.expiresAt)}까지</span>
               </ItemText>
-              <RemoveButton type="button" aria-label={`${item.name} 장본 음식에서 빼기`} onClick={() => onRemove(item)}>
-                <X size={16} aria-hidden="true" />
-              </RemoveButton>
             </Item>
           ))}
         </List>
@@ -136,9 +133,9 @@ const Item = styled.li`
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--surface);
-  padding: 8px 8px 8px 12px;
+  padding: 8px 12px;
   display: grid;
-  grid-template-columns: 28px minmax(0, 1fr) 36px;
+  grid-template-columns: 28px minmax(0, 1fr);
   align-items: center;
   gap: 8px;
 `;
@@ -164,20 +161,5 @@ const ItemText = styled.div`
   span {
     font-size: 12px;
     font-weight: 330;
-  }
-`;
-
-const RemoveButton = styled.button`
-  width: 36px;
-  height: 36px;
-  border: 0;
-  border-radius: 999px;
-  background: var(--surface-soft);
-  display: grid;
-  place-items: center;
-  cursor: pointer;
-
-  &:hover {
-    background: var(--block-pink);
   }
 `;
