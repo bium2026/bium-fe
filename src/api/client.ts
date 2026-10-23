@@ -64,11 +64,12 @@ async function readData<T>(response: Response, token: string | null): Promise<T>
     useAuthStore.getState().clearAuth();
   }
 
-  if (!result?.success) {
+  // 본문이 성공처럼 보여도 HTTP 상태가 실패면 실패로 본다.
+  if (!response.ok || !result?.success) {
     throw new ApiError(
       response.status,
-      result?.error.code ?? "UNKNOWN_ERROR",
-      result?.error.message ?? "요청을 처리하지 못했어요.",
+      result?.error?.code ?? "UNKNOWN_ERROR",
+      result?.error?.message ?? "요청을 처리하지 못했어요.",
     );
   }
 
