@@ -37,7 +37,7 @@ function GroceryBag({ items, onRemove }: GroceryBagProps) {
         <List>
           {items.map((item) => (
             <Item key={item.id}>
-              <ItemIcon aria-hidden="true">{item.icon}</ItemIcon>
+              <ItemIcon aria-hidden="true">{item.emoji}</ItemIcon>
               <ItemText>
                 <strong>{item.name}</strong>
                 <span>{formatMonthDay(item.expiresAt)}까지</span>

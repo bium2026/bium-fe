@@ -2,23 +2,28 @@
  * 식재료 도감 화면이다.
  * 카테고리 탭과 검색으로 재료를 고르고, 재료를 추가·삭제하거나 장본 음식에 담는다.
  * 전체 탭에서는 카테고리별로 묶어 보여 주고, 고른 탭은 주소(?category=)에 남겨 새로고침해도 유지한다.
- * 지금은 퍼블리싱 단계라 목데이터를 쓰고, 서버 연동 때 도감·장본 음식 API로 바꾼다.
+ * 도감은 서버에서 불러오고, 장본 음식은 API가 아직 없어서 화면 안에서만 들고 있다.
  */
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { keyframes } from "@emotion/react";
 import styled from "@emotion/styled";
 import { Plus, Search } from "lucide-react";
 import { useSearchParams } from "react-router";
+import { ApiError, NETWORK_ERROR } from "../../api/client";
+import { createCatalogIngredient, deleteCatalogIngredient, getMyCatalog } from "../../api/ingredientCatalog";
+import type { CatalogIngredient, CatalogIngredientCreateRequest } from "../../api/ingredientCatalog";
 import GroceryBag from "./GroceryBag";
 import IngredientAddModal from "./IngredientAddModal";
 import IngredientCard from "./IngredientCard";
 import { categoryLabel, categoryOrder, isCategoryFilter } from "./libraryCategories";
 import type { CategoryFilter } from "./libraryCategories";
 import { getDateAfter } from "./libraryDate";
-import { groceryMock, libraryMock } from "./libraryMockData";
-import type { GroceryItem, LibraryIngredient, NewLibraryIngredient } from "./libraryTypes";
+import type { GroceryItem } from "./libraryTypes";
 
-type LibraryStatus = "loading" | "success" | "error";
+type CatalogState =
+  | { status: "loading" }
+  | { status: "success"; ingredients: CatalogIngredient[] }
+  | { status: "error"; message: string };
 
 const skeletonKeys = ["s1", "s2", "s3", "s4", "s5", "s6", "s7", "s8"];
 
@@ -34,30 +39,47 @@ function createId(prefix: string) {
   return `${prefix}-${Date.now()}-${nextId}`;
 }
 
-// 퍼블리싱 확인용: ?preview=loading|empty|error 로 각 상태 화면을 볼 수 있다. API 연동 시 지운다.
-function getPreviewStatus(value: string | null): LibraryStatus {
-  if (value === "loading" || value === "error") return value;
-  return "success";
+function getLoadErrorMessage(error: unknown) {
+  if (error instanceof ApiError && error.code === NETWORK_ERROR) return error.message;
+  return "잠시 후 다시 시도해 주세요. 문제가 계속되면 새로고침해 주세요.";
 }
 
 function LibraryPage() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const preview = searchParams.get("preview");
-  const [status, setStatus] = useState<LibraryStatus>(() => getPreviewStatus(preview));
-  const [ingredients, setIngredients] = useState<LibraryIngredient[]>(() => (preview === "empty" ? [] : libraryMock));
-  const [groceries, setGroceries] = useState<GroceryItem[]>(groceryMock);
+  const [catalog, setCatalog] = useState<CatalogState>({ status: "loading" });
+  const [loadAttempt, setLoadAttempt] = useState(0);
+  const [groceries, setGroceries] = useState<GroceryItem[]>([]);
   const [query, setQuery] = useState("");
   const [isAddOpen, setIsAddOpen] = useState(false);
   // 담기·추가·삭제 결과를 스크린 리더에 알려 준다. 화면에는 보이지 않는다.
   const [announcement, setAnnouncement] = useState("");
-  const timerRef = useRef<number | undefined>(undefined);
 
-  useEffect(() => () => window.clearTimeout(timerRef.current), []);
+  useEffect(() => {
+    let ignore = false;
+    getMyCatalog().then(
+      (ingredients) => {
+        if (!ignore) setCatalog({ status: "success", ingredients });
+      },
+      (error: unknown) => {
+        if (!ignore) setCatalog({ status: "error", message: getLoadErrorMessage(error) });
+      },
+    );
+    return () => {
+      ignore = true;
+    };
+  }, [loadAttempt]);
 
+  const ingredients = catalog.status === "success" ? catalog.ingredients : [];
+  const status = catalog.status;
   const categoryParam = searchParams.get("category");
   const category: CategoryFilter = isCategoryFilter(categoryParam) ? categoryParam : "all";
   const keyword = query.trim().toLowerCase();
   const isLoading = status === "loading";
+
+  // 추가·삭제 응답은 목록을 불러온 뒤에만 오므로, 성공 상태일 때만 목록을 바꾼다.
+  const updateIngredients = (update: (prev: CatalogIngredient[]) => CatalogIngredient[]) => {
+    setCatalog((prev) => (prev.status === "success" ? { ...prev, ingredients: update(prev.ingredients) } : prev));
+  };
 
   const groups = categoryOrder
     .filter((id) => category === "all" || id === category)
@@ -80,12 +102,12 @@ function LibraryPage() {
     );
   };
 
-  const handleAddToGroceries = (ingredient: LibraryIngredient) => {
+  const handleAddToGroceries = (ingredient: CatalogIngredient) => {
     // TODO: 장본 음식 API가 정해지면 서버에 저장하고, 실패하면 담은 재료를 되돌린다.
     const item: GroceryItem = {
       id: createId("grocery"),
       name: ingredient.name,
-      icon: ingredient.icon,
+      emoji: ingredient.emoji,
       expiresAt: getDateAfter(ingredient.shelfLifeDays),
     };
     setGroceries((prev) => [item, ...prev]);
@@ -98,34 +120,39 @@ function LibraryPage() {
     setAnnouncement(`${item.name}을(를) 장본 음식에서 뺐어요.`);
   };
 
-  const handleDelete = (ingredient: LibraryIngredient) => {
-    // TODO: 도감 API가 정해지면 서버에서 지우고, 실패하면 목록을 되돌린다.
-    setIngredients((prev) => prev.filter((item) => item.id !== ingredient.id));
+  // 서버에서 지워진 뒤에 목록에서 뺀다. 실패하면 카드가 오류를 보여 주도록 다시 던진다.
+  const handleDelete = async (ingredient: CatalogIngredient) => {
+    try {
+      await deleteCatalogIngredient(ingredient.id);
+    } catch (error) {
+      // 다른 기기에서 먼저 지워 서버에 없는 재료면, 지우려던 결과와 같으므로 목록에서 빼고 넘어간다.
+      if (!(error instanceof ApiError && error.code === "CATALOG_NOT_FOUND")) throw error;
+    }
+    updateIngredients((prev) => prev.filter((item) => item.id !== ingredient.id));
     setAnnouncement(`${ingredient.name}을(를) 도감에서 삭제했어요.`);
   };
 
-  const handleAdd = async (values: NewLibraryIngredient) => {
-    // TODO: 도감 API가 정해지면 서버에 저장하고 응답으로 받은 재료를 넣는다.
-    setIngredients((prev) => [{ id: createId("ingredient"), ...values }, ...prev]);
+  // 실패하면 모달이 오류를 보여 주도록 그대로 던진다.
+  const handleAdd = async (values: CatalogIngredientCreateRequest) => {
+    const created = await createCatalogIngredient(values);
+    updateIngredients((prev) => [created, ...prev]);
     // 추가한 재료가 바로 보이도록 그 카테고리 탭으로 옮기고 검색어를 지운다.
-    changeCategory(values.category);
+    changeCategory(created.category);
     setQuery("");
-    setAnnouncement(`${values.name}을(를) 도감에 추가했어요.`);
+    setAnnouncement(`${created.name}을(를) 도감에 추가했어요.`);
   };
 
   const handleRetry = () => {
-    if (isLoading) return;
-    setStatus("loading");
-    // TODO: 도감 조회 API가 정해지면 서버 요청으로 바꾼다. 지금은 로딩 화면을 보여 주기 위한 지연이다.
-    timerRef.current = window.setTimeout(() => setStatus("success"), 1200);
+    setCatalog({ status: "loading" });
+    setLoadAttempt((prev) => prev + 1);
   };
 
   const renderContent = () => {
-    if (status === "error") {
+    if (catalog.status === "error") {
       return (
         <StatusBox role="alert">
           <strong>식재료 도감을 불러오지 못했어요.</strong>
-          <p>잠시 후 다시 시도해 주세요. 문제가 계속되면 새로고침해 주세요.</p>
+          <p>{catalog.message}</p>
           <OutlineButton type="button" onClick={handleRetry}>
             다시 시도
           </OutlineButton>
@@ -249,7 +276,7 @@ function LibraryPage() {
 
       <IngredientAddModal
         open={isAddOpen}
-        defaultCategory={category === "all" ? "vegetable" : category}
+        defaultCategory={category === "all" ? "VEGETABLE" : category}
         existingNames={ingredients.map((item) => item.name)}
         onClose={() => setIsAddOpen(false)}
         onAdd={handleAdd}

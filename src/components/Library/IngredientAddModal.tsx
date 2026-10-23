@@ -8,15 +8,16 @@ import type { FormEvent, MouseEvent, SyntheticEvent } from "react";
 import { keyframes } from "@emotion/react";
 import styled from "@emotion/styled";
 import { CircleAlert, X } from "lucide-react";
+import { ApiError, NETWORK_ERROR } from "../../api/client";
+import type { CatalogIngredientCreateRequest, IngredientCategory } from "../../api/ingredientCatalog";
 import { categoryLabel, categoryOrder } from "./libraryCategories";
-import type { IngredientCategory, NewLibraryIngredient } from "./libraryTypes";
 
 type IngredientAddModalProps = {
   open: boolean;
   defaultCategory: IngredientCategory;
   existingNames: string[];
   onClose: () => void;
-  onAdd: (values: NewLibraryIngredient) => Promise<void>;
+  onAdd: (values: CatalogIngredientCreateRequest) => Promise<void>;
 };
 
 type AddField = "name" | "icon" | "shelfLifeDays";
@@ -26,11 +27,11 @@ const SHELF_LIFE_MAX_DAYS = 365;
 
 // 아이콘을 비워 두면 이모지를 찾아 넣기 번거로우니 카테고리마다 기본 아이콘을 채워 둔다.
 const defaultIcon: Record<IngredientCategory, string> = {
-  vegetable: "🥬",
-  meat: "🥩",
-  dairy: "🥛",
-  fruit: "🍎",
-  etc: "🍽️",
+  VEGETABLE: "🥬",
+  MEAT: "🥩",
+  DAIRY: "🥛",
+  FRUIT: "🍎",
+  ETC: "🍽️",
 };
 
 // 아이콘 검사는 냉장고 재료 수정 모달(IngredientEditModal)과 같은 규칙을 쓴다.
@@ -42,6 +43,14 @@ function getIconError(icon: string) {
   if ([...graphemeSegmenter.segment(icon)].length > 1) return "아이콘은 이모지 한 개만 넣어 주세요.";
   if (!emojiPattern.test(icon)) return "아이콘은 이모지로 넣어 주세요.";
   return "";
+}
+
+function getAddErrorMessage(error: unknown) {
+  // INVALID_INPUT은 서버가 검증에 실패한 첫 번째 항목의 안내 문구를 보낸다.
+  if (error instanceof ApiError && (error.code === "INVALID_INPUT" || error.code === NETWORK_ERROR)) {
+    return error.message;
+  }
+  return "추가하지 못했어요. 잠시 후 다시 시도해 주세요.";
 }
 
 function IngredientAddModal({ open, defaultCategory, existingNames, onClose, onAdd }: IngredientAddModalProps) {
@@ -103,7 +112,7 @@ type IngredientAddFormProps = {
   isBusy: boolean;
   onBusyChange: (isBusy: boolean) => void;
   onClose: () => void;
-  onAdd: (values: NewLibraryIngredient) => Promise<void>;
+  onAdd: (values: CatalogIngredientCreateRequest) => Promise<void>;
 };
 
 function IngredientAddForm({
@@ -123,6 +132,8 @@ function IngredientAddForm({
   const [touched, setTouched] = useState<Partial<Record<AddField, boolean>>>({});
   const [submitted, setSubmitted] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  // 화면 목록에는 없었지만 서버가 이미 있다고 알려 준 이름이다. 이름을 고치면 오류가 사라진다.
+  const [takenName, setTakenName] = useState("");
 
   const trimmedName = name.trim();
   const trimmedIcon = icon.trim();
@@ -131,7 +142,7 @@ function IngredientAddForm({
   const errors: Record<AddField, string> = {
     name: !trimmedName
       ? "이름을 입력해 주세요."
-      : existingNames.includes(trimmedName)
+      : existingNames.includes(trimmedName) || trimmedName === takenName
         ? "이미 도감에 있는 재료예요."
         : "",
     icon: getIconError(trimmedIcon),
@@ -162,12 +173,16 @@ function IngredientAddForm({
     onBusyChange(true);
     setErrorMessage("");
     try {
-      await onAdd({ name: trimmedName, icon: trimmedIcon, category, shelfLifeDays: days });
+      await onAdd({ name: trimmedName, emoji: trimmedIcon, category, shelfLifeDays: days });
       onBusyChange(false);
       onClose();
-    } catch {
+    } catch (error) {
       onBusyChange(false);
-      setErrorMessage("추가하지 못했어요. 잠시 후 다시 시도해 주세요.");
+      if (error instanceof ApiError && error.code === "DUPLICATE_CATALOG_NAME") {
+        setTakenName(trimmedName);
+      } else {
+        setErrorMessage(getAddErrorMessage(error));
+      }
     }
   };
 

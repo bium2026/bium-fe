@@ -1,24 +1,28 @@
 /*
  * 식재료 도감의 재료 카드다.
  * 장본 음식에 담기 버튼을 누르면 잠깐 "담았어요"로 바뀌고, 삭제는 카드 위에서 한 번 더 확인한다.
+ * 삭제는 서버에서 지워질 때까지 버튼을 막고, 실패하면 확인 영역에 오류를 보여 다시 시도하게 한다.
  */
 import { useEffect, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
 import styled from "@emotion/styled";
 import { Check, Plus, Trash2 } from "lucide-react";
-import type { LibraryIngredient } from "./libraryTypes";
+import type { CatalogIngredient } from "../../api/ingredientCatalog";
 
 type IngredientCardProps = {
-  ingredient: LibraryIngredient;
-  onAddToGroceries: (ingredient: LibraryIngredient) => void;
-  onDelete: (ingredient: LibraryIngredient) => void;
+  ingredient: CatalogIngredient;
+  onAddToGroceries: (ingredient: CatalogIngredient) => void;
+  onDelete: (ingredient: CatalogIngredient) => Promise<void>;
 };
+
+type DeleteStatus = "idle" | "deleting" | "error";
 
 const ADDED_FEEDBACK_MS = 1200;
 
 function IngredientCard({ ingredient, onAddToGroceries, onDelete }: IngredientCardProps) {
   const [isAdded, setIsAdded] = useState(false);
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
+  const [deleteStatus, setDeleteStatus] = useState<DeleteStatus>("idle");
   const deleteButtonRef = useRef<HTMLButtonElement>(null);
   const timerRef = useRef<number | undefined>(undefined);
 
@@ -32,8 +36,23 @@ function IngredientCard({ ingredient, onAddToGroceries, onDelete }: IngredientCa
     timerRef.current = window.setTimeout(() => setIsAdded(false), ADDED_FEEDBACK_MS);
   };
 
+  const isDeleting = deleteStatus === "deleting";
+
+  const handleDelete = async () => {
+    if (isDeleting) return;
+    setDeleteStatus("deleting");
+    try {
+      // 성공하면 카드가 목록에서 빠지므로 상태를 되돌리지 않는다.
+      await onDelete(ingredient);
+    } catch {
+      setDeleteStatus("error");
+    }
+  };
+
   const cancelDelete = () => {
+    if (isDeleting) return;
     setIsConfirmingDelete(false);
+    setDeleteStatus("idle");
     // 확인 영역이 사라지면 포커스가 갈 곳을 잃으므로 삭제 버튼으로 돌려놓는다.
     requestAnimationFrame(() => deleteButtonRef.current?.focus());
   };
@@ -45,7 +64,7 @@ function IngredientCard({ ingredient, onAddToGroceries, onDelete }: IngredientCa
   return (
     <Card>
       <CardTop>
-        <Icon aria-hidden="true">{ingredient.icon}</Icon>
+        <Icon aria-hidden="true">{ingredient.emoji}</Icon>
         <DeleteButton
           ref={deleteButtonRef}
           type="button"
@@ -75,18 +94,27 @@ function IngredientCard({ ingredient, onAddToGroceries, onDelete }: IngredientCa
 
       {isConfirmingDelete && (
         <ConfirmLayer role="group" aria-label={`${ingredient.name} 삭제 확인`} onKeyDown={handleConfirmKeyDown}>
-          <p>
-            {ingredient.name}을(를)
-            <br />
-            도감에서 삭제할까요?
-          </p>
+          {deleteStatus === "error" ? (
+            <p role="alert">
+              삭제하지 못했어요.
+              <br />
+              잠시 후 다시 시도해 주세요.
+            </p>
+          ) : (
+            <p>
+              {ingredient.name}을(를)
+              <br />
+              도감에서 삭제할까요?
+            </p>
+          )}
           <ConfirmButtons>
             {/* 실수로 지우지 않도록 취소에 먼저 포커스를 둔다. */}
-            <ConfirmButton type="button" onClick={cancelDelete} autoFocus>
+            {/* disabled 대신 aria-disabled로 막아, 요청 중에도 포커스가 버튼에서 빠져나가지 않게 한다. */}
+            <ConfirmButton type="button" onClick={cancelDelete} aria-disabled={isDeleting || undefined} autoFocus>
               취소
             </ConfirmButton>
-            <ConfirmButton type="button" $primary onClick={() => onDelete(ingredient)}>
-              삭제
+            <ConfirmButton type="button" $primary onClick={handleDelete} aria-disabled={isDeleting || undefined}>
+              {isDeleting ? "삭제 중..." : "삭제"}
             </ConfirmButton>
           </ConfirmButtons>
         </ConfirmLayer>
@@ -229,5 +257,11 @@ const ConfirmButton = styled.button<{ $primary?: boolean }>`
   color: ${(props) => (props.$primary ? "var(--surface)" : "var(--text)")};
   font-size: 13px;
   font-weight: 480;
+  white-space: nowrap;
   cursor: pointer;
+
+  &[aria-disabled="true"] {
+    cursor: not-allowed;
+    opacity: 0.4;
+  }
 `;
