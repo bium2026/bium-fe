@@ -14,11 +14,11 @@ function getDateAfter(days: number) {
   return `${date.getFullYear()}-${month}-${day}`;
 }
 
-// 서버 재료처럼 숫자 id와 처음 버전(0)을 붙인다.
-let nextId = 1;
+// 수정·삭제 요청이 실제 서버로 나가므로, 목데이터 id는 서버 id(양수)와 겹쳐 실제 재료를 고치지 않도록 음수로 둔다.
+let nextId = -1;
 
 function food(name: string, emoji: string, daysLeft: number): FridgeIngredient {
-  return { id: nextId++, name, emoji, expiresAt: getDateAfter(daysLeft), version: 0 };
+  return { id: nextId--, name, emoji, expiresAt: getDateAfter(daysLeft), version: 0 };
 }
 
 export const fridgeMock: FridgeContents = {
