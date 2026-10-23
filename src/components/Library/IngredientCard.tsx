@@ -51,6 +51,8 @@ function IngredientCard({ ingredient, onAddToGroceries, onDelete }: IngredientCa
           type="button"
           aria-label={`${ingredient.name} 도감에서 삭제`}
           onClick={() => setIsConfirmingDelete(true)}
+          // 확인 영역은 화면만 덮으므로, 가려진 버튼에 키보드로 닿지 않게 확인하는 동안 막는다.
+          disabled={isConfirmingDelete}
         >
           <Trash2 size={16} aria-hidden="true" />
         </DeleteButton>
@@ -62,6 +64,7 @@ function IngredientCard({ ingredient, onAddToGroceries, onDelete }: IngredientCa
       <AddButton
         type="button"
         onClick={handleAdd}
+        disabled={isConfirmingDelete}
         aria-disabled={isAdded || undefined}
         aria-label={isAdded ? `${ingredient.name}을(를) 장본 음식에 담았어요` : `${ingredient.name} 장본 음식에 담기`}
         $added={isAdded}
