@@ -3,30 +3,36 @@
  * 카테고리 탭과 검색으로 재료를 고르고, 재료를 추가·삭제하거나 장본 음식에 담는다.
  * 전체 탭에서는 카테고리별로 묶어 보여 주고, 고른 탭은 주소(?category=)에 남겨 새로고침해도 유지한다.
  * 도감과 내 냉장고를 함께 불러오고, 장본 음식에 담은 재료는 담기 응답으로 패널에 쌓는다.
+ * 도감 재료를 고른 보관 위치에 바로 넣을 수도 있다.
  * 장본 음식 목록 조회 API가 아직 없어서 패널은 이 화면에서 담은 재료만 보여 준다.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { keyframes } from "@emotion/react";
 import styled from "@emotion/styled";
 import { Plus, Search } from "lucide-react";
 import { useSearchParams } from "react-router";
 import { ApiError, NETWORK_ERROR } from "../../api/client";
-import { getMyFridge } from "../../api/fridge";
+import { addFridgeItem, getMyFridge } from "../../api/fridge";
 import { createCatalogIngredient, deleteCatalogIngredient, getMyCatalog } from "../../api/ingredientCatalog";
 import type { CatalogIngredient, CatalogIngredientCreateRequest } from "../../api/ingredientCatalog";
 import { addPurchasedItem } from "../../api/purchasedItem";
 import type { PurchasedItem } from "../../api/purchasedItem";
+import FridgeAddModal from "./FridgeAddModal";
+import type { FridgeAddValues } from "./FridgeAddModal";
 import GroceryBag from "./GroceryBag";
 import IngredientAddModal from "./IngredientAddModal";
 import IngredientCard from "./IngredientCard";
 import { categoryLabel, categoryOrder, isCategoryFilter } from "./libraryCategories";
 import type { CategoryFilter } from "./libraryCategories";
+import { storageLabel } from "./libraryStorage";
 
 type CatalogState =
   | { status: "loading" }
-  // 연결된 냉장고가 없으면 fridgeId는 null이고, 장본 음식에 담을 수 없다.
+  // 연결된 냉장고가 없으면 fridgeId는 null이고, 장본 음식에 담거나 냉장고에 넣을 수 없다.
   | { status: "success"; ingredients: CatalogIngredient[]; fridgeId: number | null }
   | { status: "error"; message: string };
+
+const FRIDGE_ADDED_FEEDBACK_MS = 2000;
 
 const skeletonKeys = ["s1", "s2", "s3", "s4", "s5", "s6", "s7", "s8"];
 
@@ -47,6 +53,11 @@ function LibraryPage() {
   const [groceries, setGroceries] = useState<PurchasedItem[]>([]);
   const [query, setQuery] = useState("");
   const [isAddOpen, setIsAddOpen] = useState(false);
+  // 냉장고에 넣기 모달로 연 도감 재료. null이면 모달이 닫힌다.
+  const [fridgeTarget, setFridgeTarget] = useState<CatalogIngredient | null>(null);
+  // 방금 냉장고에 넣은 도감 재료. 카드가 잠깐 "넣었어요"를 보여 준다.
+  const [fridgeAddedId, setFridgeAddedId] = useState<number | null>(null);
+  const fridgeAddedTimerRef = useRef<number | undefined>(undefined);
   // 담기·추가·삭제 결과를 스크린 리더에 알려 준다. 화면에는 보이지 않는다.
   const [announcement, setAnnouncement] = useState("");
 
@@ -64,6 +75,8 @@ function LibraryPage() {
       ignore = true;
     };
   }, [loadAttempt]);
+
+  useEffect(() => () => window.clearTimeout(fridgeAddedTimerRef.current), []);
 
   const ingredients = catalog.status === "success" ? catalog.ingredients : [];
   const fridgeId = catalog.status === "success" ? catalog.fridgeId : null;
@@ -105,6 +118,16 @@ function LibraryPage() {
     const item = await addPurchasedItem(fridgeId, ingredient.id);
     setGroceries((prev) => [item, ...prev]);
     setAnnouncement(`${item.name}을(를) 장본 음식에 담았어요.`);
+  };
+
+  // 실패하면 모달이 오류를 보여 주도록 그대로 던진다.
+  const handleAddToFridge = async (ingredient: CatalogIngredient, values: FridgeAddValues) => {
+    if (fridgeId === null) return;
+    await addFridgeItem(fridgeId, { catalogId: ingredient.id, ...values });
+    setFridgeAddedId(ingredient.id);
+    window.clearTimeout(fridgeAddedTimerRef.current);
+    fridgeAddedTimerRef.current = window.setTimeout(() => setFridgeAddedId(null), FRIDGE_ADDED_FEEDBACK_MS);
+    setAnnouncement(`${values.name}을(를) ${storageLabel[values.storage]}에 넣었어요.`);
   };
 
   // 서버에서 지워진 뒤에 목록에서 뺀다. 실패하면 카드가 오류를 보여 주도록 다시 던진다.
@@ -198,7 +221,9 @@ function LibraryPage() {
                   key={ingredient.id}
                   ingredient={ingredient}
                   canUseFridge={fridgeId !== null}
+                  isFridgeAdded={fridgeAddedId === ingredient.id}
                   onAddToGroceries={handleAddToGroceries}
+                  onOpenFridgeAdd={setFridgeTarget}
                   onDelete={handleDelete}
                 />
               ))}
@@ -257,7 +282,8 @@ function LibraryPage() {
           {status === "success" && fridgeId === null && (
             <Notice role="status">
               <strong>연결된 냉장고가 없어요.</strong>
-              냉장고가 있어야 장본 음식에 담을 수 있어요. 도감 재료를 추가하고 지우는 것은 지금도 할 수 있어요.
+              냉장고가 있어야 장본 음식에 담거나 냉장고에 넣을 수 있어요. 도감 재료를 추가하고 지우는 것은 지금도 할 수
+              있어요.
             </Notice>
           )}
 
@@ -276,6 +302,8 @@ function LibraryPage() {
         onClose={() => setIsAddOpen(false)}
         onAdd={handleAdd}
       />
+
+      <FridgeAddModal ingredient={fridgeTarget} onClose={() => setFridgeTarget(null)} onAdd={handleAddToFridge} />
     </Wrapper>
   );
 }

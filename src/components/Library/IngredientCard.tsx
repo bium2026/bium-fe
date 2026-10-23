@@ -1,19 +1,22 @@
 /*
  * 식재료 도감의 재료 카드다.
  * 장본 음식에 담기는 서버에 담길 때까지 버튼을 막고, 담기면 잠깐 "담았어요"로 바꾼다. 실패하면 버튼 아래에 알린다.
+ * 냉장고에 넣기는 화면의 모달을 열고, 넣고 나면 화면이 isFridgeAdded로 잠깐 "넣었어요"를 보여 주게 한다.
  * 삭제는 카드 위에서 한 번 더 확인하고, 실패하면 확인 영역에 오류를 보여 다시 시도하게 한다.
  */
 import { useEffect, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
 import styled from "@emotion/styled";
-import { Check, Plus, Trash2 } from "lucide-react";
+import { Check, Plus, Refrigerator, Trash2 } from "lucide-react";
 import type { CatalogIngredient } from "../../api/ingredientCatalog";
 
 type IngredientCardProps = {
   ingredient: CatalogIngredient;
-  // 연결된 냉장고가 없으면 장본 음식에 담을 수 없다.
+  // 연결된 냉장고가 없으면 장본 음식에 담거나 냉장고에 넣을 수 없다.
   canUseFridge: boolean;
+  isFridgeAdded: boolean;
   onAddToGroceries: (ingredient: CatalogIngredient) => Promise<void>;
+  onOpenFridgeAdd: (ingredient: CatalogIngredient) => void;
   onDelete: (ingredient: CatalogIngredient) => Promise<void>;
 };
 
@@ -23,7 +26,14 @@ type DeleteStatus = "idle" | "deleting" | "error";
 
 const ADDED_FEEDBACK_MS = 1200;
 
-function IngredientCard({ ingredient, canUseFridge, onAddToGroceries, onDelete }: IngredientCardProps) {
+function IngredientCard({
+  ingredient,
+  canUseFridge,
+  isFridgeAdded,
+  onAddToGroceries,
+  onOpenFridgeAdd,
+  onDelete,
+}: IngredientCardProps) {
   const [addStatus, setAddStatus] = useState<AddStatus>("idle");
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
   const [deleteStatus, setDeleteStatus] = useState<DeleteStatus>("idle");
@@ -91,20 +101,32 @@ function IngredientCard({ ingredient, canUseFridge, onAddToGroceries, onDelete }
       <Name>{ingredient.name}</Name>
       <Meta>기본 유통기한 {ingredient.shelfLifeDays}일</Meta>
 
-      <AddButton
-        type="button"
-        onClick={handleAdd}
-        disabled={isConfirmingDelete || !canUseFridge}
-        aria-disabled={isAddBusy || undefined}
-        aria-label={
-          addStatus === "added" ? `${ingredient.name}을(를) 장본 음식에 담았어요` : `${ingredient.name} 장본 음식에 담기`
-        }
-        $added={addStatus === "added"}
-      >
-        {addStatus === "added" ? <Check size={15} aria-hidden="true" /> : <Plus size={15} aria-hidden="true" />}
-        {addStatus === "adding" ? "담는 중..." : addStatus === "added" ? "담았어요" : "장본 음식에 담기"}
-      </AddButton>
-      {addStatus === "error" && <AddError role="alert">담지 못했어요. 다시 눌러 주세요.</AddError>}
+      <Actions>
+        <AddButton
+          type="button"
+          onClick={handleAdd}
+          disabled={isConfirmingDelete || !canUseFridge}
+          aria-disabled={isAddBusy || undefined}
+          aria-label={
+            addStatus === "added" ? `${ingredient.name}을(를) 장본 음식에 담았어요` : `${ingredient.name} 장본 음식에 담기`
+          }
+          $added={addStatus === "added"}
+        >
+          {addStatus === "added" ? <Check size={15} aria-hidden="true" /> : <Plus size={15} aria-hidden="true" />}
+          {addStatus === "adding" ? "담는 중..." : addStatus === "added" ? "담았어요" : "장본 음식에 담기"}
+        </AddButton>
+        <FridgeButton
+          type="button"
+          onClick={() => onOpenFridgeAdd(ingredient)}
+          disabled={isConfirmingDelete || !canUseFridge}
+          aria-label={isFridgeAdded ? `${ingredient.name}을(를) 냉장고에 넣었어요` : `${ingredient.name} 냉장고에 넣기`}
+          $added={isFridgeAdded}
+        >
+          {isFridgeAdded ? <Check size={15} aria-hidden="true" /> : <Refrigerator size={15} aria-hidden="true" />}
+          {isFridgeAdded ? "넣었어요" : "냉장고에 넣기"}
+        </FridgeButton>
+        {addStatus === "error" && <AddError role="alert">담지 못했어요. 다시 눌러 주세요.</AddError>}
+      </Actions>
 
       {isConfirmingDelete && (
         <ConfirmLayer role="group" aria-label={`${ingredient.name} 삭제 확인`} onKeyDown={handleConfirmKeyDown}>
@@ -206,9 +228,14 @@ const Meta = styled.span`
   font-weight: 330;
 `;
 
-const AddButton = styled.button<{ $added: boolean }>`
+const Actions = styled.div`
   align-self: end;
   margin-top: 8px;
+  display: grid;
+  gap: 6px;
+`;
+
+const AddButton = styled.button<{ $added: boolean }>`
   min-height: 36px;
   border: 1px solid var(--text);
   border-radius: 50px;
@@ -243,6 +270,12 @@ const AddButton = styled.button<{ $added: boolean }>`
   svg {
     flex-shrink: 0;
   }
+`;
+
+// 장본 음식에 담기와 모양은 같고, 카드마다 검은 버튼이 두 개면 무거워서 흰 바탕으로 둔다.
+const FridgeButton = styled(AddButton)`
+  background: ${(props) => (props.$added ? "var(--block-mint)" : "var(--surface)")};
+  color: var(--text);
 `;
 
 const AddError = styled.p`
