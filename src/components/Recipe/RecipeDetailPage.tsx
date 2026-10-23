@@ -1,44 +1,128 @@
 /*
  * 추천 레시피 한 개의 상세 화면이다.
- * 조리 순서, 활용 팁, 재료, 냉장고 매칭, 영양 정보를 보여 준다.
- * 지금은 퍼블리싱 단계라 주소의 id로 목데이터에서 레시피를 찾는다.
+ * 주소의 id로 레시피를 불러와 조리 순서, 활용 팁, 재료, 냉장고 매칭, 영양 정보를 보여 준다.
  */
+import { useEffect, useState } from "react";
 import styled from "@emotion/styled";
 import { ArrowLeft, ChefHat, Clock3, Flame, Sparkles, Users } from "lucide-react";
 import { Link, useParams } from "react-router";
-import { recipesMock } from "./recipeMockData";
+import { ApiError } from "../../api/client";
+import { getRecipe, type Recipe, type RecipeIngredient } from "../../api/recipe";
+import {
+  DEFAULT_RECIPE_EMOJI,
+  formatCalories,
+  formatCookTime,
+  formatDifficulty,
+  formatIngredientSource,
+  formatServings,
+  getNutritionItems,
+} from "./recipeFormat";
 import { getRecipeTone } from "./recipeTone";
-import type { RecipeIngredient } from "./recipeTypes";
+
+type DetailView =
+  | { status: "loading" }
+  | { status: "success"; recipe: Recipe }
+  | { status: "notFound" }
+  | { status: "error"; message: string };
+
+// 다시 시도를 누르거나 주소의 id가 바뀌면 requestKey가 바뀌어, 이전 결과 대신 로딩을 보여 준다.
+type DetailResult = { requestKey: string } & Exclude<DetailView, { status: "loading" }>;
+
+// "12abc"나 "1e3"처럼 Number()가 받아 주는 값까지 서버로 보내지 않게 숫자만 받는다.
+function parseRecipeId(value: string | undefined) {
+  if (!value || !/^[1-9]\d*$/.test(value)) return null;
+  const id = Number(value);
+  return Number.isSafeInteger(id) ? id : null;
+}
 
 function RecipeDetailPage() {
-  const { recipeId } = useParams();
-  const recipeIndex = recipesMock.findIndex((item) => item.id === recipeId);
-  const recipe = recipesMock[recipeIndex];
+  const recipeId = parseRecipeId(useParams().recipeId);
+  const [attempt, setAttempt] = useState(0);
+  const [result, setResult] = useState<DetailResult | null>(null);
+  const requestKey = `${recipeId}-${attempt}`;
 
-  if (!recipe) {
+  useEffect(() => {
+    if (recipeId === null) return;
+    let ignore = false;
+    getRecipe(recipeId).then(
+      (recipe) => {
+        if (!ignore) setResult({ requestKey, status: "success", recipe });
+      },
+      (error: unknown) => {
+        if (ignore) return;
+        if (error instanceof ApiError && error.status === 404) {
+          setResult({ requestKey, status: "notFound" });
+          return;
+        }
+        const message =
+          error instanceof ApiError ? error.message : "요청을 처리하지 못했어요. 잠시 후 다시 시도해 주세요.";
+        setResult({ requestKey, status: "error", message });
+      },
+    );
+    return () => {
+      ignore = true;
+    };
+  }, [recipeId, requestKey]);
+
+  const backLink = (
+    <BackLink to="/recipes">
+      <ArrowLeft size={18} aria-hidden="true" />
+      레시피 목록
+    </BackLink>
+  );
+
+  const view: DetailView =
+    recipeId === null
+      ? { status: "notFound" }
+      : result?.requestKey === requestKey
+        ? result
+        : { status: "loading" };
+
+  if (view.status === "notFound") {
     return (
       <DetailWrap>
-        <BackLink to="/recipes">
-          <ArrowLeft size={18} aria-hidden="true" />
-          레시피 목록
-        </BackLink>
-        <NotFound role="alert">
+        {backLink}
+        <StatusBox role="alert">
           <strong>레시피를 찾을 수 없어요.</strong>
           <p>목록에서 다른 레시피를 골라 주세요.</p>
-        </NotFound>
+        </StatusBox>
       </DetailWrap>
     );
   }
 
+  if (view.status === "loading") {
+    return (
+      <DetailWrap>
+        {backLink}
+        <StatusBox role="status" aria-busy="true">
+          <strong>레시피를 불러오는 중이에요.</strong>
+        </StatusBox>
+      </DetailWrap>
+    );
+  }
+
+  if (view.status === "error") {
+    return (
+      <DetailWrap>
+        {backLink}
+        <StatusBox role="alert">
+          <strong>레시피를 불러오지 못했어요.</strong>
+          <p>{view.message}</p>
+          <RetryButton type="button" onClick={() => setAttempt((prev) => prev + 1)}>
+            다시 시도
+          </RetryButton>
+        </StatusBox>
+      </DetailWrap>
+    );
+  }
+
+  const { recipe } = view;
   const requiredIngredients = recipe.ingredients.filter((item) => item.required);
   const optionalIngredients = recipe.ingredients.filter((item) => !item.required);
 
   return (
     <DetailWrap>
-      <BackLink to="/recipes">
-        <ArrowLeft size={18} aria-hidden="true" />
-        레시피 목록
-      </BackLink>
+      {backLink}
 
       <Hero>
         <HeroCopy>
@@ -47,28 +131,28 @@ function RecipeDetailPage() {
             AI 추천 레시피
           </Badge>
           <h1>{recipe.name}</h1>
-          <p>{recipe.summary}</p>
+          {recipe.summary && <p>{recipe.summary}</p>}
           <MetaGrid>
             <MetaItem>
               <Clock3 size={18} aria-hidden="true" />
-              {recipe.cookTime}
+              {formatCookTime(recipe.cookTimeMinutes)}
             </MetaItem>
             <MetaItem>
               <ChefHat size={18} aria-hidden="true" />
-              난이도 {recipe.difficulty}
+              난이도 {formatDifficulty(recipe.difficulty)}
             </MetaItem>
             <MetaItem>
               <Users size={18} aria-hidden="true" />
-              {recipe.servings}
+              {formatServings(recipe.servings)}
             </MetaItem>
             <MetaItem>
               <Flame size={18} aria-hidden="true" />
-              {recipe.calories}
+              {formatCalories(recipe.caloriesKcal)}
             </MetaItem>
           </MetaGrid>
         </HeroCopy>
-        <HeroVisual $tone={getRecipeTone(recipeIndex)}>
-          <FoodEmoji aria-hidden="true">{recipe.emoji}</FoodEmoji>
+        <HeroVisual $tone={getRecipeTone(recipe.id)}>
+          <FoodEmoji aria-hidden="true">{recipe.emoji ?? DEFAULT_RECIPE_EMOJI}</FoodEmoji>
         </HeroVisual>
       </Hero>
 
@@ -77,8 +161,9 @@ function RecipeDetailPage() {
           <Section>
             <SectionTitle>조리 순서</SectionTitle>
             <StepList>
+              {/* AI가 같은 문장을 두 번 줄 수 있어 순서를 key에 넣는다. */}
               {recipe.steps.map((step, index) => (
-                <li key={step}>
+                <li key={`${index}-${step}`}>
                   <StepNumber>{index + 1}</StepNumber>
                   <span>{step}</span>
                 </li>
@@ -90,8 +175,8 @@ function RecipeDetailPage() {
             <Section>
               <SectionTitle>활용 팁</SectionTitle>
               <TipList>
-                {recipe.tips.map((tip) => (
-                  <li key={tip}>{tip}</li>
+                {recipe.tips.map((tip, index) => (
+                  <li key={`${index}-${tip}`}>{tip}</li>
                 ))}
               </TipList>
             </Section>
@@ -104,19 +189,21 @@ function RecipeDetailPage() {
             <IngredientPanel title="있으면 좋은 재료" ingredients={optionalIngredients} />
           )}
 
-          <Panel>
-            <SectionTitle>냉장고 매칭</SectionTitle>
-            <MatchList>
-              {recipe.fridgeMatches.map((item) => (
-                <li key={item}>{item}</li>
-              ))}
-            </MatchList>
-          </Panel>
+          {recipe.fridgeMatches.length > 0 && (
+            <Panel>
+              <SectionTitle>냉장고 매칭</SectionTitle>
+              <MatchList>
+                {recipe.fridgeMatches.map((item, index) => (
+                  <li key={`${index}-${item}`}>{item}</li>
+                ))}
+              </MatchList>
+            </Panel>
+          )}
 
           <Panel>
             <SectionTitle>영양 정보</SectionTitle>
             <NutritionGrid>
-              {recipe.nutrition.map((item) => (
+              {getNutritionItems(recipe.nutrition).map((item) => (
                 <NutritionItem key={item.label}>
                   <span>{item.label}</span>
                   <strong>{item.value}</strong>
@@ -142,13 +229,16 @@ function IngredientPanel({ title, ingredients }: IngredientPanelProps) {
     <Panel>
       <SectionTitle>{title}</SectionTitle>
       <IngredientList>
-        {ingredients.map((item) => (
-          <li key={item.name}>
-            <strong>{item.name}</strong>
-            <span>{item.amount}</span>
-            <em>{item.status}</em>
-          </li>
-        ))}
+        {ingredients.map((item, index) => {
+          const sourceLabel = formatIngredientSource(item.source);
+          return (
+            <li key={`${index}-${item.name}`}>
+              <strong>{item.name}</strong>
+              {item.amount && <span>{item.amount}</span>}
+              {sourceLabel && <em>{sourceLabel}</em>}
+            </li>
+          );
+        })}
       </IngredientList>
     </Panel>
   );
@@ -178,7 +268,7 @@ const BackLink = styled(Link)`
   }
 `;
 
-const NotFound = styled.div`
+const StatusBox = styled.div`
   min-height: 220px;
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -197,6 +287,18 @@ const NotFound = styled.div`
     font-size: 15px;
     line-height: 1.55;
   }
+`;
+
+const RetryButton = styled.button`
+  width: fit-content;
+  margin-top: 6px;
+  border: 1px solid var(--text);
+  border-radius: 50px;
+  background: var(--surface);
+  padding: 10px 18px;
+  font-size: 15px;
+  font-weight: 480;
+  cursor: pointer;
 `;
 
 const Hero = styled.header`

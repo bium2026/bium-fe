@@ -5,18 +5,19 @@
 import styled from "@emotion/styled";
 import { ChevronRight, Clock3 } from "lucide-react";
 import { Link } from "react-router";
-import type { Recipe } from "./recipeTypes";
+import type { Recipe } from "../../api/recipe";
+import { DEFAULT_RECIPE_EMOJI, formatCookTime, formatDifficulty } from "./recipeFormat";
+import { getRecipeTone } from "./recipeTone";
 
 type RecipeCardProps = {
   recipe: Recipe;
-  tone: string;
 };
 
-function RecipeCard({ recipe, tone }: RecipeCardProps) {
+function RecipeCard({ recipe }: RecipeCardProps) {
   return (
     <Card to={`/recipes/${recipe.id}`}>
-      <Cover $tone={tone}>
-        <FoodEmoji aria-hidden="true">{recipe.emoji}</FoodEmoji>
+      <Cover $tone={getRecipeTone(recipe.id)}>
+        <FoodEmoji aria-hidden="true">{recipe.emoji ?? DEFAULT_RECIPE_EMOJI}</FoodEmoji>
       </Cover>
       <Body>
         <NameRow>
@@ -26,17 +27,19 @@ function RecipeCard({ recipe, tone }: RecipeCardProps) {
         <Meta>
           <MetaText>
             <Clock3 size={14} aria-hidden="true" />
-            조리 시간 {recipe.cookTime}
+            조리 시간 {formatCookTime(recipe.cookTimeMinutes)}
           </MetaText>
           <Divider aria-hidden="true" />
-          <MetaText>난이도 {recipe.difficulty}</MetaText>
+          <MetaText>난이도 {formatDifficulty(recipe.difficulty)}</MetaText>
         </Meta>
-        <IngredientLine>
-          사용
-          {recipe.usedIngredients.map((ingredient) => (
-            <strong key={ingredient}>{ingredient}</strong>
-          ))}
-        </IngredientLine>
+        {recipe.fridgeMatches.length > 0 && (
+          <IngredientLine>
+            사용
+            {recipe.fridgeMatches.map((ingredient, index) => (
+              <strong key={`${index}-${ingredient}`}>{ingredient}</strong>
+            ))}
+          </IngredientLine>
+        )}
       </Body>
     </Card>
   );
