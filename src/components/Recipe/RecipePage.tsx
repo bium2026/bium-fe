@@ -1,43 +1,88 @@
 /*
  * 냉장고 재료로 AI 레시피를 추천받는 화면이다.
- * 추천 카드 목록과 유통기한 임박 재료, 추천 생성 버튼을 보여 준다.
- * 지금은 퍼블리싱 단계라 목데이터를 쓰고, 서버 연동 때 추천 API로 바꾼다.
+ * 내 냉장고를 불러온 뒤 추천 카드 목록과 유통기한 임박 재료, 추천 생성 버튼을 보여 준다.
+ * 마지막 추천 결과는 스토어에 남겨 상세 화면에 다녀와도 다시 보여 준다.
  */
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import styled from "@emotion/styled";
-import { useSearchParams } from "react-router";
+import { Link } from "react-router";
+import { ApiError } from "../../api/client";
+import { getMyFridge } from "../../api/fridge";
+import { recommendRecipes } from "../../api/recipe";
+import { useAuthStore } from "../../store/authStore";
+import { useRecipeStore } from "../../store/recipeStore";
 import RecipeCard from "./RecipeCard";
 import RecipeSkeletonCard from "./RecipeSkeletonCard";
-import { recipesMock, urgentIngredientsMock } from "./recipeMockData";
-import { getRecipeTone } from "./recipeTone";
+import UrgentIngredientList from "./UrgentIngredientList";
 
-type RecipeStatus = "loading" | "success" | "empty" | "error";
+type FridgeState =
+  | { status: "loading" }
+  | { status: "success"; fridgeId: number }
+  | { status: "error"; message: string };
 
 const skeletonKeys = ["s1", "s2", "s3", "s4"];
 
-// 퍼블리싱 확인용: ?preview=loading|empty|error 로 각 상태 화면을 볼 수 있다. API 연동 시 지운다.
-function getPreviewStatus(value: string | null): RecipeStatus {
-  if (value === "loading" || value === "empty" || value === "error") return value;
-  return "success";
+function getErrorInfo(error: unknown) {
+  if (error instanceof ApiError) return { code: error.code, message: error.message };
+  return { code: "UNKNOWN_ERROR", message: "요청을 처리하지 못했어요. 잠시 후 다시 시도해 주세요." };
 }
 
 function RecipePage() {
-  const [searchParams] = useSearchParams();
-  const [status, setStatus] = useState<RecipeStatus>(() =>
-    getPreviewStatus(searchParams.get("preview")),
-  );
+  const [fridge, setFridge] = useState<FridgeState>({ status: "loading" });
+  const [fridgeAttempt, setFridgeAttempt] = useState(0);
   const [prioritizeUrgent, setPrioritizeUrgent] = useState(true);
-  const timerRef = useRef<number | undefined>(undefined);
+  const storedFridgeId = useRecipeStore((state) => state.fridgeId);
+  const storedRecipes = useRecipeStore((state) => state.recipes);
+  const setRecipes = useRecipeStore((state) => state.setRecipes);
+  const recommend = useRecipeStore((state) => state.recommend);
+  const setRecommend = useRecipeStore((state) => state.setRecommend);
 
-  useEffect(() => () => window.clearTimeout(timerRef.current), []);
+  useEffect(() => {
+    let ignore = false;
+    getMyFridge().then(
+      (myFridge) => {
+        if (ignore) return;
+        setFridge(
+          myFridge
+            ? { status: "success", fridgeId: myFridge.id }
+            : { status: "error", message: "연결된 냉장고가 없어요." },
+        );
+      },
+      (error: unknown) => {
+        if (!ignore) setFridge({ status: "error", message: getErrorInfo(error).message });
+      },
+    );
+    return () => {
+      ignore = true;
+    };
+  }, [fridgeAttempt]);
 
-  const isLoading = status === "loading";
+  const fridgeId = fridge.status === "success" ? fridge.fridgeId : null;
+  const recipes = fridgeId !== null && storedFridgeId === fridgeId ? storedRecipes : [];
+  const isGenerating = recommend.status === "loading";
+  const isLoading = fridge.status === "loading" || isGenerating;
 
-  const handleGenerate = () => {
-    if (isLoading) return;
-    setStatus("loading");
-    // TODO: 추천 API가 정해지면 서버 요청으로 바꾼다. 지금은 로딩 화면을 보여 주기 위한 지연이다.
-    timerRef.current = window.setTimeout(() => setStatus("success"), 1200);
+  const handleFridgeRetry = () => {
+    setRecommend({ status: "idle" });
+    setFridge({ status: "loading" });
+    setFridgeAttempt((prev) => prev + 1);
+  };
+
+  const handleGenerate = async () => {
+    // 다른 화면에 다녀오는 사이 시작된 요청도 막도록 화면 상태 대신 스토어 값을 바로 확인한다.
+    if (fridgeId === null || useRecipeStore.getState().recommend.status === "loading") return;
+    setRecommend({ status: "loading" });
+    const requestToken = useAuthStore.getState().accessToken;
+    // 응답을 기다리는 사이 로그아웃·토큰 만료로 목록을 지웠다면, 늦게 온 결과로 이전 사용자의 목록을 다시 채우지 않는다.
+    const isStale = () => useAuthStore.getState().accessToken !== requestToken;
+    try {
+      const nextRecipes = await recommendRecipes(fridgeId, prioritizeUrgent);
+      if (!isStale()) setRecipes(fridgeId, nextRecipes);
+      // 다른 계정으로 바로 로그인해 토큰만 바뀐 경우에는 목록을 지우는 구독이 돌지 않아, 여기서 버튼 잠금을 풀어야 한다.
+      setRecommend({ status: "idle" });
+    } catch (error) {
+      setRecommend(isStale() ? { status: "idle" } : { status: "error", ...getErrorInfo(error) });
+    }
   };
 
   return (
@@ -59,46 +104,57 @@ function RecipePage() {
         <RecipeGrid aria-busy={isLoading}>
           {isLoading && skeletonKeys.map((key) => <RecipeSkeletonCard key={key} />)}
 
-          {status === "error" && (
+          {fridge.status === "error" && (
             <StatusBox role="alert">
-              <strong>레시피를 불러오지 못했어요.</strong>
-              <p>잠시 후 다시 시도해 주세요. 문제가 계속되면 냉장고 재료를 확인해 주세요.</p>
-              <RetryButton type="button" onClick={handleGenerate}>
+              <strong>냉장고 정보를 불러오지 못했어요.</strong>
+              <p>{fridge.message}</p>
+              <RetryButton type="button" onClick={handleFridgeRetry}>
                 다시 시도
               </RetryButton>
             </StatusBox>
           )}
 
-          {status === "empty" && (
-            <StatusBox>
-              <strong>아직 추천받은 레시피가 없어요.</strong>
-              <p>냉장고 재료를 바탕으로 AI가 바로 만들 수 있는 레시피를 추천해 드려요.</p>
+          {recommend.status === "error" && (
+            <StatusBox role="alert">
+              <strong>레시피를 추천하지 못했어요.</strong>
+              <p>{recommend.message}</p>
+              {recommend.code === "NO_USABLE_INGREDIENT" ? (
+                <RetryLink to="/fridge">냉장고 확인하기</RetryLink>
+              ) : recommend.code === "FRIDGE_NOT_FOUND" ? (
+                // 화면을 연 뒤 냉장고에서 나가졌으면 같은 fridgeId로는 계속 실패해서 냉장고부터 다시 불러온다.
+                <RetryButton type="button" onClick={handleFridgeRetry}>
+                  냉장고 다시 불러오기
+                </RetryButton>
+              ) : (
+                <RetryButton type="button" onClick={handleGenerate}>
+                  다시 시도
+                </RetryButton>
+              )}
             </StatusBox>
           )}
 
-          {status === "success" &&
-            recipesMock.map((recipe, index) => (
-              <RecipeCard key={recipe.id} recipe={recipe} tone={getRecipeTone(index)} />
-            ))}
+          {fridge.status === "success" &&
+            !isGenerating &&
+            recommend.status !== "error" &&
+            recipes.length === 0 && (
+              <StatusBox>
+                <strong>아직 추천받은 레시피가 없어요.</strong>
+                <p>냉장고 재료를 바탕으로 AI가 바로 만들 수 있는 레시피를 추천해 드려요.</p>
+              </StatusBox>
+            )}
+
+          {!isLoading && recipes.map((recipe) => <RecipeCard key={recipe.id} recipe={recipe} />)}
         </RecipeGrid>
 
         <UrgentBox>
           <h2>내 냉장고 임박 재료</h2>
-          {urgentIngredientsMock.length > 0 ? (
-            <UrgentList>
-              {urgentIngredientsMock.map((item) => (
-                <li key={item.id}>
-                  <span aria-hidden="true">{item.emoji}</span>
-                  <strong>{item.name}</strong>
-                  <em>D-{item.daysLeft}</em>
-                </li>
-              ))}
-            </UrgentList>
+          {fridgeId !== null ? (
+            <UrgentIngredientList fridgeId={fridgeId} />
           ) : (
-            <Empty>임박 재료가 없어요.</Empty>
+            <Empty>{fridge.status === "loading" ? "임박 재료를 불러오는 중이에요." : "냉장고 정보가 없어요."}</Empty>
           )}
-          <GenerateButton type="button" onClick={handleGenerate} disabled={isLoading}>
-            {isLoading ? "추천 생성 중" : "AI 추천 생성"}
+          <GenerateButton type="button" onClick={handleGenerate} disabled={fridgeId === null || isGenerating}>
+            {isGenerating ? "추천 생성 중" : "AI 추천 생성"}
           </GenerateButton>
         </UrgentBox>
       </ContentGrid>
@@ -242,15 +298,25 @@ const StatusBox = styled.div`
   }
 `;
 
-const RetryButton = styled.button`
+const retryStyle = `
   margin-top: 6px;
   border: 1px solid var(--text);
   border-radius: 50px;
   background: var(--surface);
+  color: var(--text);
   padding: 10px 18px;
   font-size: 15px;
   font-weight: 480;
+  text-decoration: none;
   cursor: pointer;
+`;
+
+const RetryButton = styled.button`
+  ${retryStyle}
+`;
+
+const RetryLink = styled(Link)`
+  ${retryStyle}
 `;
 
 const UrgentBox = styled.aside`
@@ -264,29 +330,6 @@ const UrgentBox = styled.aside`
     font-size: 24px;
     font-weight: 540;
     letter-spacing: -0.26px;
-  }
-`;
-
-const UrgentList = styled.ul`
-  list-style: none;
-
-  li {
-    min-height: 44px;
-    border-bottom: 1px solid var(--surface);
-    display: grid;
-    grid-template-columns: 24px 1fr auto;
-    align-items: center;
-    gap: 8px;
-    font-size: 14px;
-  }
-
-  strong {
-    font-weight: 800;
-  }
-
-  em {
-    font-style: normal;
-    font-weight: 900;
   }
 `;
 
@@ -305,7 +348,7 @@ const GenerateButton = styled.button`
   cursor: pointer;
 
   &:disabled {
-    cursor: wait;
+    cursor: default;
     opacity: 0.62;
   }
 `;
