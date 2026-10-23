@@ -34,22 +34,19 @@ type RequestOptions = {
   auth?: boolean;
 };
 
-export async function request<T>(
-  path: string,
-  { method = "GET", body, auth = true }: RequestOptions = {},
-): Promise<T> {
+async function send(path: string, { method = "GET", body, auth = true }: RequestOptions) {
   const token = auth ? useAuthStore.getState().accessToken : null;
   const headers: Record<string, string> = {};
   if (body !== undefined) headers["Content-Type"] = "application/json";
   if (token) headers.Authorization = `Bearer ${token}`;
 
-  let response: Response;
   try {
-    response = await fetch(`${API_URL}${path}`, {
+    const response = await fetch(`${API_URL}${path}`, {
       method,
       headers,
       body: body === undefined ? undefined : JSON.stringify(body),
     });
+    return { response, token };
   } catch {
     throw new ApiError(
       0,
@@ -57,7 +54,9 @@ export async function request<T>(
       "서버에 연결하지 못했어요. 인터넷 연결을 확인하고 다시 시도해 주세요.",
     );
   }
+}
 
+async function readData<T>(response: Response, token: string | null): Promise<T> {
   // 프록시 오류 페이지처럼 JSON이 아닌 응답이 올 수 있어 읽지 못하면 null로 둔다.
   const result: ApiResponse<T> | null = await response.json().catch(() => null);
 
@@ -74,4 +73,16 @@ export async function request<T>(
   }
 
   return result.data;
+}
+
+export async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  const { response, token } = await send(path, options);
+  return readData<T>(response, token);
+}
+
+// 삭제처럼 성공하면 본문 없이 204를 주는 API에 쓴다. 실패 응답은 request와 같이 ApiError로 던진다.
+export async function requestNoContent(path: string, options: RequestOptions = {}): Promise<void> {
+  const { response, token } = await send(path, options);
+  if (response.status === 204) return;
+  await readData<unknown>(response, token);
 }
