@@ -4,7 +4,7 @@
  */
 import { useEffect, useState } from "react";
 import styled from "@emotion/styled";
-import { getFridgeItems, type FridgeContents, type FridgeItem } from "../../api/fridge";
+import { getFridgeItems, type FridgeContentsResponse } from "../../api/fridge";
 
 const URGENT_DAYS = 5;
 const MAX_URGENT_ITEMS = 5;
@@ -15,7 +15,7 @@ type UrgentIngredientListProps = {
 };
 
 // 다시 불러오기를 누르거나 냉장고가 바뀌면 requestKey가 바뀌어, 이전 결과 대신 로딩을 보여 준다.
-type ItemsResult = { requestKey: string } & ({ items: FridgeItem[] } | { failed: true });
+type ItemsResult = { requestKey: string } & ({ contents: FridgeContentsResponse } | { failed: true });
 
 // "YYYY-MM-DD"를 new Date()에 그대로 넣으면 UTC 자정으로 읽혀서, 지역 날짜로 바꿔 오늘과 비교한다.
 function getDaysLeft(expiresAt: string) {
@@ -27,17 +27,10 @@ function getDaysLeft(expiresAt: string) {
   return Math.round((target.getTime() - today.getTime()) / DAY_MS);
 }
 
-// 임박 재료는 보관 위치·칸과 상관없이 고르므로 모든 칸의 재료를 한 목록으로 모은다.
-function flattenContents(contents: FridgeContents) {
-  return [contents.fridge, contents.freezer, contents.room].flatMap((storage) => [
-    ...storage.center,
-    ...storage.leftDoor,
-    ...storage.rightDoor,
-  ]);
-}
-
-function getUrgentItems(items: FridgeItem[]) {
-  return items
+// 재료 목록은 구역·칸별로 나뉘어 오므로, 어디에 있든 유통기한만 보고 고르도록 한데 모은다.
+function getUrgentItems({ fridge, freezer, room }: FridgeContentsResponse) {
+  return [fridge, freezer, room]
+    .flatMap((storage) => [...storage.center, ...storage.leftDoor, ...storage.rightDoor])
     .flatMap((item) => (item.expiresAt ? [{ ...item, daysLeft: getDaysLeft(item.expiresAt) }] : []))
     .filter((item) => item.daysLeft >= 0 && item.daysLeft <= URGENT_DAYS)
     .sort((a, b) => a.daysLeft - b.daysLeft)
@@ -53,7 +46,7 @@ function UrgentIngredientList({ fridgeId }: UrgentIngredientListProps) {
     let ignore = false;
     getFridgeItems(fridgeId).then(
       (contents) => {
-        if (!ignore) setResult({ requestKey, items: flattenContents(contents) });
+        if (!ignore) setResult({ requestKey, contents });
       },
       () => {
         if (!ignore) setResult({ requestKey, failed: true });
@@ -79,7 +72,7 @@ function UrgentIngredientList({ fridgeId }: UrgentIngredientListProps) {
     );
   }
 
-  const urgentItems = getUrgentItems(result.items);
+  const urgentItems = getUrgentItems(result.contents);
   if (urgentItems.length === 0) return <Message>임박 재료가 없어요.</Message>;
 
   return (
