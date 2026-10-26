@@ -2,7 +2,7 @@
  * 냉장고·냉장고 재료 API다.
  * 요청·응답 형식은 백엔드 FridgeController·FridgeItemController의 DTO를 따른다.
  */
-import { request } from "./client";
+import { request, requestNoContent } from "./client";
 
 export type MemberRole = "OWNER" | "MEMBER";
 
@@ -70,4 +70,31 @@ export type FridgeItemCreateRequest = {
 // 실패: INVALID_INPUT(400), FRIDGE_NOT_FOUND·CATALOG_NOT_FOUND(404)
 export async function addFridgeItem(fridgeId: number, body: FridgeItemCreateRequest) {
   await request<unknown>(`/api/fridges/${fridgeId}/items`, { method: "POST", body });
+}
+
+export type FridgeItemUpdateRequest = {
+  name: string;
+  // 비우면 아이콘·유통기한을 지운다.
+  emoji: string | null;
+  expiresAt: string | null;
+  // 화면이 재료를 불러올 때 받은 값. 그사이 다른 멤버가 고쳤으면 409 CONCURRENT_MODIFICATION으로 실패한다.
+  version: number;
+};
+
+export type FridgeItemResponse = {
+  id: number;
+  name: string;
+  emoji: string | null;
+  expiresAt: string | null;
+  version: number;
+};
+
+// 실패: INVALID_INPUT(400), FRIDGE_ITEM_NOT_FOUND(404), CONCURRENT_MODIFICATION(409)
+export function updateFridgeItem(itemId: number, body: FridgeItemUpdateRequest) {
+  return request<FridgeItemResponse>(`/api/fridge-items/${itemId}`, { method: "PUT", body });
+}
+
+// 실패: FRIDGE_ITEM_NOT_FOUND(404), CONCURRENT_MODIFICATION(409)
+export function deleteFridgeItem(itemId: number, version: number) {
+  return requestNoContent(`/api/fridge-items/${itemId}?version=${version}`, { method: "DELETE" });
 }
