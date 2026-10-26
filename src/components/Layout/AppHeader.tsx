@@ -1,15 +1,16 @@
 /*
  * 로그인 뒤 화면들이 함께 쓰는 상단 헤더다.
- * 브랜드와 냉장고·식재료 도감·AI 레시피 메뉴를 보여 주고, 지금 보고 있는 화면의 메뉴에 밑줄을 긋는다.
+ * 브랜드와 냉장고·식재료 도감·AI 레시피·냉장고 공유 메뉴를 보여 주고, 지금 보고 있는 화면의 메뉴에 밑줄을 긋는다.
  */
 import styled from "@emotion/styled";
-import { BookOpen, Bot, Refrigerator } from "lucide-react";
+import { BookOpen, Bot, Refrigerator, Users } from "lucide-react";
 import { Link, NavLink } from "react-router";
 
 const menus = [
   { to: "/fridge", label: "내 냉장고", icon: Refrigerator },
   { to: "/library", label: "식재료 도감", icon: BookOpen },
   { to: "/recipes", label: "AI 레시피", icon: Bot },
+  { to: "/share", label: "냉장고 공유", icon: Users },
 ];
 
 function AppHeader() {
@@ -51,6 +52,11 @@ const Header = styled.header`
   grid-template-columns: 170px minmax(0, 1fr) 170px;
   align-items: center;
   gap: 16px;
+
+  /* 메뉴가 네 개라 좁은 화면에서는 양옆 칸을 줄여 가운데 메뉴 자리를 넓힌다. */
+  @media (max-width: 1000px) {
+    grid-template-columns: 120px minmax(0, 1fr) 120px;
+  }
 
   @media (max-width: 760px) {
     height: auto;
@@ -100,6 +106,10 @@ const Menu = styled.nav`
   justify-content: center;
   gap: 24px;
   min-width: 0;
+
+  @media (max-width: 1000px) {
+    gap: 16px;
+  }
 
   @media (max-width: 760px) {
     justify-content: flex-start;
