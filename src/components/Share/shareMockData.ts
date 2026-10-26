@@ -78,10 +78,10 @@ export function createInviteMock(): InviteCode {
   return { code, expiresAt: hoursLater(INVITE_VALID_HOURS) };
 }
 
-// 성공하면 참여한 냉장고 이름을 돌려준다. 실패 문구는 서버 안내를 흉내 낸다.
+// 성공하면 참여한 냉장고 이름을 돌려준다. 실패 문구는 백엔드 오류 메시지와 같게 둔다.
 export function joinFridgeMock(code: string, myInviteCode: string | null) {
-  if (code === myInviteCode) throw new Error("이미 참여한 냉장고예요.");
-  if (code === MOCK_JOIN_CODES.expired) throw new Error("만료된 초대 코드예요. 새 코드를 받아 주세요.");
-  if (code !== MOCK_JOIN_CODES.success) throw new Error("초대 코드를 찾을 수 없어요. 코드를 다시 확인해 주세요.");
+  if (code === myInviteCode) throw new Error("이미 이 냉장고의 멤버입니다.");
+  if (code === MOCK_JOIN_CODES.expired) throw new Error("만료된 초대 코드입니다. 새 코드를 받아 주세요.");
+  if (code !== MOCK_JOIN_CODES.success) throw new Error("초대 코드를 찾을 수 없습니다.");
   return "민지네 냉장고";
 }
