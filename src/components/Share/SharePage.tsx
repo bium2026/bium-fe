@@ -32,6 +32,8 @@ function SharePage() {
   const shouldFail = preview === "fail";
   const [status, setStatus] = useState<ShareStatus>(() => getPreviewStatus(preview));
   const [data, setData] = useState<ShareData>(() => getShareMock(preview));
+  // 멤버를 내보내면 서버가 지금 초대 코드도 함께 끈다. 코드가 사라진 이유를 초대 코드 칸에 알려 준다.
+  const [isInviteRevoked, setIsInviteRevoked] = useState(false);
   const timerRef = useRef<number | undefined>(undefined);
 
   useEffect(() => () => window.clearTimeout(timerRef.current), []);
@@ -48,6 +50,7 @@ function SharePage() {
   const handleCreateInvite = async () => {
     const invite = await mockRequest(createInviteMock, shouldFail);
     setData((prev) => ({ ...prev, invite }));
+    setIsInviteRevoked(false);
   };
 
   const handleJoin = (code: string) =>
@@ -55,7 +58,13 @@ function SharePage() {
 
   const handleRemove = async (member: FridgeMember) => {
     await mockRequest(() => undefined, shouldFail);
-    setData((prev) => ({ ...prev, members: prev.members.filter((item) => item.userId !== member.userId) }));
+    // 내보낸 사람이 같은 코드로 다시 들어오지 못하게 서버가 코드를 끄므로, API 연동 때는 지금 코드를 다시 불러온다.
+    setData((prev) => ({
+      ...prev,
+      invite: null,
+      members: prev.members.filter((item) => item.userId !== member.userId),
+    }));
+    setIsInviteRevoked(data.invite !== null);
   };
 
   // 나가면 이 냉장고를 더 볼 수 없으므로 내 냉장고 화면으로 보낸다.
@@ -100,7 +109,12 @@ function SharePage() {
         <>
           <Grid>
             <Column>
-              <InvitePanel invite={data.invite} canInvite={isOwner} onCreate={handleCreateInvite} />
+              <InvitePanel
+                invite={data.invite}
+                isRevoked={isInviteRevoked}
+                canInvite={isOwner}
+                onCreate={handleCreateInvite}
+              />
               <JoinPanel onJoin={handleJoin} />
             </Column>
             <MemberPanel

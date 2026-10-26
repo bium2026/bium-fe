@@ -13,13 +13,15 @@ const COPIED_FEEDBACK_MS = 2000;
 
 type InvitePanelProps = {
   invite: InviteCode | null;
+  // 멤버를 내보내 지금 코드가 꺼졌을 때 true
+  isRevoked: boolean;
   canInvite: boolean;
   onCreate: () => Promise<void>;
 };
 
 type CopyState = "idle" | "copied" | "failed";
 
-function InvitePanel({ invite, canInvite, onCreate }: InvitePanelProps) {
+function InvitePanel({ invite, isRevoked, canInvite, onCreate }: InvitePanelProps) {
   const [isCreating, setIsCreating] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [copyState, setCopyState] = useState<CopyState>("idle");
@@ -110,11 +112,16 @@ function InvitePanel({ invite, canInvite, onCreate }: InvitePanelProps) {
           <Note>새 코드를 만들면 지금 코드는 바로 쓸 수 없게 돼요.</Note>
         </>
       ) : (
-        <Actions>
-          <PrimaryButton type="button" onClick={handleCreate} aria-disabled={isCreating || undefined}>
-            {isCreating ? "만드는 중..." : "초대 코드 만들기"}
-          </PrimaryButton>
-        </Actions>
+        <>
+          {isRevoked && (
+            <Feedback role="status">멤버를 내보내서 이전 초대 코드는 더 이상 쓸 수 없어요. 새 코드를 만들어 주세요.</Feedback>
+          )}
+          <Actions>
+            <PrimaryButton type="button" onClick={handleCreate} aria-disabled={isCreating || undefined}>
+              {isCreating ? "만드는 중..." : "초대 코드 만들기"}
+            </PrimaryButton>
+          </Actions>
+        </>
       )}
 
       <div aria-live="polite">

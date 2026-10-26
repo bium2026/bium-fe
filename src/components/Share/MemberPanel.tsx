@@ -123,7 +123,7 @@ function MemberPanel({ members, myRole, onRemove, onLeave }: MemberPanelProps) {
                   <p>
                     {member.isMe
                       ? "이 냉장고에서 나갈까요? 다시 들어오려면 초대 코드를 받아야 해요."
-                      : `${member.nickname} 님을 냉장고에서 내보낼까요?`}
+                      : `${member.nickname} 님을 냉장고에서 내보낼까요? 지금 초대 코드도 함께 못 쓰게 돼요.`}
                   </p>
                   <ConfirmButtons>
                     {/* 실수로 내보내지 않도록 취소에 먼저 포커스를 둔다. */}
