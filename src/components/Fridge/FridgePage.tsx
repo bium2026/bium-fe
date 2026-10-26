@@ -2,14 +2,19 @@
  * 내 냉장고 화면이다.
  * 좌우 화살표로 냉장실·냉동실·실온을 넘겨 보며, 지금 보는 구역은 주소(?zone=)에 남겨 새로고침해도 유지한다.
  * 지금은 퍼블리싱 단계라 목데이터를 쓰고, 서버 연동 때 냉장고 조회 API로 바꾼다.
+ * 재료를 누르면 수정 모달을 열고, 저장·삭제는 서버에 반영된 뒤에 화면에 반영한다.
  */
 import { useEffect, useRef, useState } from "react";
 import { keyframes } from "@emotion/react";
 import styled from "@emotion/styled";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useSearchParams } from "react-router";
+import { ApiError } from "../../api/client";
+import { deleteFridgeItem, updateFridgeItem } from "../../api/fridge";
 import FridgeBoard from "./FridgeBoard";
+import IngredientEditModal, { type IngredientEditValues } from "./IngredientEditModal";
 import { emptyFridgeMock, fridgeMock } from "./fridgeMockData";
+import type { FridgeContents, FridgeIngredient, ZoneIngredients } from "./fridgeTypes";
 import { isZoneId, zoneMeta, zoneOrder } from "./fridgeZones";
 
 type FridgeStatus = "loading" | "success" | "error";
@@ -21,14 +26,41 @@ function getPreviewStatus(value: string | null): FridgeStatus {
   return "success";
 }
 
+// 재료가 어느 구역·칸에 있든 id로 찾아 next로 바꾸고, next가 null이면 뺀다.
+function replaceIngredient(contents: FridgeContents, id: number, next: FridgeIngredient | null): FridgeContents {
+  const update = (items: FridgeIngredient[]) =>
+    items.flatMap((item) => (item.id !== id ? [item] : next ? [next] : []));
+  const updateZone = (zone: ZoneIngredients): ZoneIngredients => ({
+    shelf: update(zone.shelf),
+    leftDoor: update(zone.leftDoor),
+    rightDoor: update(zone.rightDoor),
+  });
+  return {
+    fridge: updateZone(contents.fridge),
+    freezer: updateZone(contents.freezer),
+    pantry: updateZone(contents.pantry),
+  };
+}
+
 function FridgePage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const preview = searchParams.get("preview");
   const [status, setStatus] = useState<FridgeStatus>(() => getPreviewStatus(preview));
   const [direction, setDirection] = useState<SlideDirection>("next");
+  const [fridgeContents, setFridgeContents] = useState(() => (preview === "empty" ? emptyFridgeMock : fridgeMock));
+  const [selectedIngredient, setSelectedIngredient] = useState<FridgeIngredient | null>(null);
   const timerRef = useRef<number | undefined>(undefined);
+  const zoneTitleRef = useRef<HTMLHeadingElement>(null);
+  const removedWhileOpenRef = useRef(false);
 
   useEffect(() => () => window.clearTimeout(timerRef.current), []);
+
+  // 모달을 연 재료 카드가 지워졌으면 모달이 닫힐 때 포커스를 돌려줄 곳이 없어 구역 제목으로 옮긴다.
+  useEffect(() => {
+    if (selectedIngredient !== null || !removedWhileOpenRef.current) return;
+    removedWhileOpenRef.current = false;
+    zoneTitleRef.current?.focus();
+  }, [selectedIngredient]);
 
   const zoneParam = searchParams.get("zone");
   const zoneId = isZoneId(zoneParam) ? zoneParam : zoneOrder[0];
@@ -37,7 +69,7 @@ function FridgePage() {
   const prevZone = zoneMeta[zoneOrder[(zoneIndex + zoneOrder.length - 1) % zoneOrder.length]];
   const nextZone = zoneMeta[zoneOrder[(zoneIndex + 1) % zoneOrder.length]];
 
-  const contents = (preview === "empty" ? emptyFridgeMock : fridgeMock)[zoneId];
+  const contents = fridgeContents[zoneId];
   const itemCount = contents.shelf.length + contents.leftDoor.length + contents.rightDoor.length;
   const isLoading = status === "loading";
 
@@ -55,6 +87,46 @@ function FridgePage() {
     );
   };
 
+  const removeIngredient = (id: number) => {
+    removedWhileOpenRef.current = true;
+    setFridgeContents((prev) => replaceIngredient(prev, id, null));
+  };
+
+  // 다른 멤버가 이미 지운 재료면 다시 눌러도 계속 실패하므로, 오류는 모달에 그대로 보여 주고 화면에서도 뺀다.
+  const removeIfGone = (id: number, error: unknown) => {
+    if (error instanceof ApiError && error.code === "FRIDGE_ITEM_NOT_FOUND") removeIngredient(id);
+  };
+
+  // 실패하면 모달이 오류를 보여 주고, 화면은 서버에 반영된 뒤에만 바꾸므로 되돌릴 것이 없다.
+  const handleSave = async (ingredient: FridgeIngredient, values: IngredientEditValues) => {
+    try {
+      const updated = await updateFridgeItem(ingredient.id, { ...values, version: ingredient.version });
+      // 모달이 아이콘·유통기한을 꼭 받아서 보내므로 서버도 비워서 돌려주지 않지만, 응답 타입은 null을 허용해 보낸 값으로 채운다.
+      setFridgeContents((prev) =>
+        replaceIngredient(prev, ingredient.id, {
+          ...ingredient,
+          name: updated.name,
+          emoji: updated.emoji ?? values.emoji,
+          expiresAt: updated.expiresAt ?? values.expiresAt,
+          version: updated.version,
+        }),
+      );
+    } catch (error) {
+      removeIfGone(ingredient.id, error);
+      throw error;
+    }
+  };
+
+  const handleDelete = async (ingredient: FridgeIngredient) => {
+    try {
+      await deleteFridgeItem(ingredient.id, ingredient.version);
+      removeIngredient(ingredient.id);
+    } catch (error) {
+      removeIfGone(ingredient.id, error);
+      throw error;
+    }
+  };
+
   const handleRetry = () => {
     if (isLoading) return;
     setStatus("loading");
@@ -69,7 +141,9 @@ function FridgePage() {
           <ChevronLeft size={28} aria-hidden="true" />
         </ArrowButton>
         <ZoneHeading aria-live="polite">
-          <ZoneTitle $tone={zone.tone}>{zone.title}</ZoneTitle>
+          <ZoneTitle ref={zoneTitleRef} tabIndex={-1} $tone={zone.tone}>
+            {zone.title}
+          </ZoneTitle>
           <ZoneSubtitle>
             {zone.subtitle}
             {status === "success" && ` · 재료 ${itemCount}개`}
@@ -91,9 +165,21 @@ function FridgePage() {
       ) : (
         // 구역이 바뀔 때마다 key가 바뀌어 슬라이드 애니메이션이 다시 재생된다.
         <SlidingStage key={zoneId} $direction={direction}>
-          <FridgeBoard zone={zone} contents={contents} loading={isLoading} />
+          <FridgeBoard
+            zone={zone}
+            contents={contents}
+            loading={isLoading}
+            onSelectIngredient={setSelectedIngredient}
+          />
         </SlidingStage>
       )}
+
+      <IngredientEditModal
+        ingredient={selectedIngredient}
+        onClose={() => setSelectedIngredient(null)}
+        onSave={handleSave}
+        onDelete={handleDelete}
+      />
     </Wrapper>
   );
 }
