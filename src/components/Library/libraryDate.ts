@@ -11,8 +11,9 @@ export function getDateAfter(days: number) {
   return `${date.getFullYear()}-${month}-${day}`;
 }
 
-// "2026-10-28" → "10월 28일"
-export function formatMonthDay(date: string) {
-  const [, month, day] = date.split("-").map(Number);
-  return `${month}월 ${day}일`;
+// "2026-10-28" → "10월 28일". 기본 유통기한이 1년 가까이 되면 해가 넘어가므로 올해가 아니면 연도를 붙인다.
+export function formatDate(date: string) {
+  const [year, month, day] = date.split("-").map(Number);
+  const yearText = year === new Date().getFullYear() ? "" : `${year}년 `;
+  return `${yearText}${month}월 ${day}일`;
 }

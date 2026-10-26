@@ -1,20 +1,38 @@
 /*
  * 식재료 도감 오른쪽의 장본 음식 패널이다.
- * 도감에서 담은 재료를 최근에 담은 순서로 보여 주고, 잘못 담은 재료는 뺄 수 있다.
+ * 냉장고에 담긴 장본 음식을 최근에 담은 순서로 보여 주고, 잘못 담은 재료는 뺄 수 있다.
+ * 서버에서 빠진 뒤에 목록에서 사라지고, 빼지 못하면 그 재료 아래에 오류를 보여 준다.
  */
-import { useId } from "react";
+import { useId, useState } from "react";
 import styled from "@emotion/styled";
 import { ShoppingBag, X } from "lucide-react";
-import { formatMonthDay } from "./libraryDate";
-import type { GroceryItem } from "./libraryTypes";
+import type { PurchasedItem } from "../../api/purchasedItem";
+import { formatDate } from "./libraryDate";
 
 type GroceryBagProps = {
-  items: GroceryItem[];
-  onRemove: (item: GroceryItem) => void;
+  items: PurchasedItem[];
+  onRemove: (item: PurchasedItem) => Promise<void>;
 };
 
 function GroceryBag({ items, onRemove }: GroceryBagProps) {
   const titleId = useId();
+  // 여러 재료를 연달아 뺄 수 있게 빼는 중인 재료와 빼지 못한 재료를 재료마다 따로 둔다.
+  const [removingIds, setRemovingIds] = useState<number[]>([]);
+  const [failedIds, setFailedIds] = useState<number[]>([]);
+
+  const handleRemove = async (item: PurchasedItem) => {
+    if (removingIds.includes(item.id)) return;
+    setRemovingIds((prev) => [...prev, item.id]);
+    setFailedIds((prev) => prev.filter((id) => id !== item.id));
+    try {
+      // 성공하면 재료가 목록에서 빠지므로 따로 알리지 않는다.
+      await onRemove(item);
+    } catch {
+      setFailedIds((prev) => [...prev, item.id]);
+    } finally {
+      setRemovingIds((prev) => prev.filter((id) => id !== item.id));
+    }
+  };
 
   return (
     <Panel aria-labelledby={titleId}>
@@ -37,12 +55,18 @@ function GroceryBag({ items, onRemove }: GroceryBagProps) {
         <List>
           {items.map((item) => (
             <Item key={item.id}>
-              <ItemIcon aria-hidden="true">{item.icon}</ItemIcon>
+              <ItemIcon aria-hidden="true">{item.emoji}</ItemIcon>
               <ItemText>
                 <strong>{item.name}</strong>
-                <span>{formatMonthDay(item.expiresAt)}까지</span>
+                <span>{formatDate(item.expiresAt)}까지</span>
+                {failedIds.includes(item.id) && <RemoveError role="alert">빼지 못했어요. 다시 눌러 주세요.</RemoveError>}
               </ItemText>
-              <RemoveButton type="button" aria-label={`${item.name} 장본 음식에서 빼기`} onClick={() => onRemove(item)}>
+              <RemoveButton
+                type="button"
+                aria-label={`${item.name} 장본 음식에서 빼기`}
+                disabled={removingIds.includes(item.id)}
+                onClick={() => handleRemove(item)}
+              >
                 <X size={16} aria-hidden="true" />
               </RemoveButton>
             </Item>
@@ -136,7 +160,7 @@ const Item = styled.li`
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--surface);
-  padding: 8px 8px 8px 12px;
+  padding: 8px 12px;
   display: grid;
   grid-template-columns: 28px minmax(0, 1fr) 36px;
   align-items: center;
@@ -167,6 +191,13 @@ const ItemText = styled.div`
   }
 `;
 
+const RemoveError = styled.p`
+  font-size: 12px;
+  font-weight: 540;
+  line-height: 1.4;
+  word-break: keep-all;
+`;
+
 const RemoveButton = styled.button`
   width: 36px;
   height: 36px;
@@ -179,5 +210,10 @@ const RemoveButton = styled.button`
 
   &:hover {
     background: var(--block-pink);
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.3;
   }
 `;
