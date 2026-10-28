@@ -10,6 +10,7 @@ import { ApiError } from "../../api/client";
 import type { Fridge } from "../../api/fridge";
 import { joinFridge } from "../../api/fridgeShare";
 import JoinFridgeModal from "../Share/JoinFridgeModal";
+import { useAuthStore } from "../../store/authStore";
 import { pickFridge, useFridgeStore } from "../../store/fridgeStore";
 
 function FridgeSwitcher() {
@@ -62,8 +63,11 @@ function FridgeSwitcher() {
   // 응답으로 받은 냉장고를 목록에 바로 넣어, 목록을 다시 받지 않고도 '보러 가기'로 그 냉장고를 고를 수 있게 한다.
   // 실패하면 모달이 오류를 보여 주도록 그대로 던진다.
   const handleJoin = async (code: string) => {
+    const requestToken = useAuthStore.getState().accessToken;
     try {
       const fridge = await joinFridge(code);
+      // 기다리는 사이 로그아웃했거나 다른 계정으로 바뀌었으면, 이전 계정이 참여한 냉장고를 지금 계정의 목록에 넣지 않는다.
+      if (useAuthStore.getState().accessToken !== requestToken) throw new Error("로그인한 계정이 바뀌었어요.");
       addFridge(fridge);
       return fridge;
     } catch (error) {

@@ -193,7 +193,8 @@ function ShareContent({ fridge }: ShareContentProps) {
     // 나간 냉장고를 헤더 목록에서 바로 빼고, 서버 기준 목록도 다시 불러온다.
     removeFridge(fridgeId);
     loadFridges();
-    selectFridge(null);
+    // 기다리는 사이 헤더에서 다른 냉장고를 골랐으면 그 선택은 그대로 둔다.
+    if (useFridgeStore.getState().selectedFridgeId === fridgeId) selectFridge(null);
   };
 
   if (share.status === "loading") return <ShareSkeleton />;
