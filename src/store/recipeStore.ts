@@ -16,7 +16,7 @@ export type RecommendState =
 export type TargetState =
   | { status: "idle" }
   | { status: "loading"; dishName: string }
-  | { status: "error"; dishName: string; code: string; message: string }
+  | { status: "error"; dishName: string; httpStatus: number; code: string; message: string }
   // 기다리는 사이 다른 화면으로 가서 상세 화면으로 바로 보내지 못한 결과다. 레시피 화면에 돌아오면 보여 준다.
   | { status: "done"; recipeId: number; recipeName: string };
 

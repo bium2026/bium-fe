@@ -24,8 +24,14 @@ type TargetRecipeFormProps = {
 };
 
 function getErrorInfo(error: unknown) {
-  if (error instanceof ApiError) return { code: error.code, message: error.message };
-  return { code: "UNKNOWN_ERROR", message: "요청을 처리하지 못했어요. 잠시 후 다시 시도해 주세요." };
+  if (error instanceof ApiError) return { httpStatus: error.status, code: error.code, message: error.message };
+  return { httpStatus: 0, code: "UNKNOWN_ERROR", message: "요청을 처리하지 못했어요. 잠시 후 다시 시도해 주세요." };
+}
+
+// 400은 빈 이름·50자 초과·제어 문자 말고도 형식이 틀린 본문(BAD_REQUEST)이 같이 와서 코드 대신 상태로 본다.
+// 알아볼 수 없는 음식(422)과 함께 다시 시도해도 같은 결과라 이름을 고치게 한다.
+function isDishNameError({ httpStatus, code }: { httpStatus: number; code: string }) {
+  return httpStatus === 400 || code === "DISH_NOT_RECOGNIZED";
 }
 
 function TargetRecipeForm({ fridgeId, onFridgeRetry }: TargetRecipeFormProps) {
@@ -91,8 +97,7 @@ function TargetRecipeForm({ fridgeId, onFridgeRetry }: TargetRecipeFormProps) {
       }
       const errorInfo = getErrorInfo(error);
       setTarget({ status: "error", dishName, ...errorInfo });
-      // 다시 시도해도 같은 결과라 음식 이름을 고칠 수 있게 입력칸으로 돌아간다.
-      if (errorInfo.code === "DISH_NOT_RECOGNIZED" && isMountedRef.current) {
+      if (isDishNameError(errorInfo) && isMountedRef.current) {
         requestAnimationFrame(() => inputRef.current?.select());
       }
     }
@@ -171,8 +176,7 @@ function TargetRecipeForm({ fridgeId, onFridgeRetry }: TargetRecipeFormProps) {
               냉장고 다시 불러오기
             </ActionButton>
           ) : (
-            target.code !== "DISH_NOT_RECOGNIZED" &&
-            target.code !== "INVALID_INPUT" && (
+            !isDishNameError(target) && (
               <ActionButton type="button" onClick={() => handleSubmit()} disabled={fridgeId === null || !dishName}>
                 다시 시도
               </ActionButton>
