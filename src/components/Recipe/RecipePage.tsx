@@ -2,6 +2,7 @@
  * 냉장고 재료로 AI 레시피를 추천받는 화면이다.
  * 내 냉장고를 불러온 뒤 추천 카드 목록과 유통기한 임박 재료, 추천 생성 버튼을 보여 준다.
  * 마지막 추천 결과는 스토어에 남겨 상세 화면에 다녀와도 다시 보여 준다.
+ * 만들고 싶은 음식 이름으로 레시피를 만드는 입력 영역도 함께 둔다.
  */
 import { useEffect, useState } from "react";
 import styled from "@emotion/styled";
@@ -13,6 +14,7 @@ import { useAuthStore } from "../../store/authStore";
 import { useRecipeStore } from "../../store/recipeStore";
 import RecipeCard from "./RecipeCard";
 import RecipeSkeletonCard from "./RecipeSkeletonCard";
+import TargetRecipeForm from "./TargetRecipeForm";
 import UrgentIngredientList from "./UrgentIngredientList";
 
 type FridgeState =
@@ -62,10 +64,14 @@ function RecipePage() {
   const isGenerating = recommend.status === "loading";
   const isLoading = fridge.status === "loading" || isGenerating;
 
-  const handleFridgeRetry = () => {
-    setRecommend({ status: "idle" });
+  const reloadFridge = () => {
     setFridge({ status: "loading" });
     setFridgeAttempt((prev) => prev + 1);
+  };
+
+  const handleFridgeRetry = () => {
+    setRecommend({ status: "idle" });
+    reloadFridge();
   };
 
   const handleGenerate = async () => {
@@ -99,6 +105,8 @@ function RecipePage() {
           <ToggleText>임박 재료 우선 사용</ToggleText>
         </ToggleLabel>
       </Header>
+
+      <TargetRecipeForm fridgeId={fridgeId} onFridgeRetry={reloadFridge} />
 
       <ContentGrid>
         <RecipeGrid aria-busy={isLoading}>

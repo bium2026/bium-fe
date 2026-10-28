@@ -1,13 +1,16 @@
 /*
  * 추천 레시피 한 개의 상세 화면이다.
  * 주소의 id로 레시피를 불러와 조리 순서, 활용 팁, 재료, 냉장고 매칭, 영양 정보를 보여 준다.
+ * 재료는 냉장고 보유·기본 양념·부족으로 나눠 표시하고, 부족 재료가 있으면 위쪽에 모아 보여 준다.
+ * 부족 재료는 확인 모달에서 골라 장보기 목록에 담는다. 방금 만든 레시피면 모달을 한 번 먼저 띄운다.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import styled from "@emotion/styled";
-import { ArrowLeft, ChefHat, Clock3, Flame, Sparkles, Users } from "lucide-react";
+import { ArrowLeft, ChefHat, Clock3, Flame, ShoppingCart, Sparkles, Users } from "lucide-react";
 import { Link, useParams } from "react-router";
 import { ApiError } from "../../api/client";
-import { getRecipe, type Recipe, type RecipeIngredient } from "../../api/recipe";
+import { getRecipe, type IngredientSource, type Recipe, type RecipeIngredient } from "../../api/recipe";
+import { useRecipeStore } from "../../store/recipeStore";
 import {
   DEFAULT_RECIPE_EMOJI,
   formatCalories,
@@ -17,6 +20,7 @@ import {
   formatServings,
   getNutritionItems,
 } from "./recipeFormat";
+import MissingIngredientModal from "./MissingIngredientModal";
 import { getRecipeTone } from "./recipeTone";
 
 type DetailView =
@@ -28,6 +32,17 @@ type DetailView =
 // 다시 시도를 누르거나 주소의 id가 바뀌면 requestKey가 바뀌어, 이전 결과 대신 로딩을 보여 준다.
 type DetailResult = { requestKey: string } & Exclude<DetailView, { status: "loading" }>;
 
+// AI가 같은 재료를 두 번 줄 수 있어 이름이 같으면 하나로 합친다. 한 번이라도 필수로 나오면 필수로 본다.
+function getMissingIngredients(ingredients: RecipeIngredient[]) {
+  const missing = ingredients.filter((item) => item.source === "MISSING");
+  return missing
+    .filter((item, index) => missing.findIndex((other) => other.name === item.name) === index)
+    .map((item) => ({
+      ...item,
+      required: missing.some((other) => other.name === item.name && other.required),
+    }));
+}
+
 // "12abc"나 "1e3"처럼 Number()가 받아 주는 값까지 서버로 보내지 않게 숫자만 받는다.
 function parseRecipeId(value: string | undefined) {
   if (!value || !/^[1-9]\d*$/.test(value)) return null;
@@ -37,8 +52,11 @@ function parseRecipeId(value: string | undefined) {
 
 function RecipeDetailPage() {
   const recipeId = parseRecipeId(useParams().recipeId);
+  const missingTitleId = useId();
   const [attempt, setAttempt] = useState(0);
   const [result, setResult] = useState<DetailResult | null>(null);
+  const [isShoppingOpen, setIsShoppingOpen] = useState(false);
+  const shoppingButtonRef = useRef<HTMLButtonElement>(null);
   const requestKey = `${recipeId}-${attempt}`;
 
   useEffect(() => {
@@ -46,7 +64,13 @@ function RecipeDetailPage() {
     let ignore = false;
     getRecipe(recipeId).then(
       (recipe) => {
-        if (!ignore) setResult({ requestKey, status: "success", recipe });
+        if (ignore) return;
+        setResult({ requestKey, status: "success", recipe });
+        const { askShoppingRecipeId, setAskShoppingRecipeId } = useRecipeStore.getState();
+        if (askShoppingRecipeId === recipe.id) {
+          setAskShoppingRecipeId(null);
+          if (recipe.ingredients.some((item) => item.source === "MISSING")) setIsShoppingOpen(true);
+        }
       },
       (error: unknown) => {
         if (ignore) return;
@@ -119,6 +143,7 @@ function RecipeDetailPage() {
   const { recipe } = view;
   const requiredIngredients = recipe.ingredients.filter((item) => item.required);
   const optionalIngredients = recipe.ingredients.filter((item) => !item.required);
+  const missingIngredients = getMissingIngredients(recipe.ingredients);
 
   return (
     <DetailWrap>
@@ -155,6 +180,34 @@ function RecipeDetailPage() {
           <FoodEmoji aria-hidden="true">{recipe.emoji ?? DEFAULT_RECIPE_EMOJI}</FoodEmoji>
         </HeroVisual>
       </Hero>
+
+      {missingIngredients.length > 0 && (
+        <MissingBanner aria-labelledby={missingTitleId}>
+          <MissingCopy>
+            <h2 id={missingTitleId}>냉장고에 없는 재료 {missingIngredients.length}개</h2>
+            <p>이 레시피를 만들려면 사야 하는 재료예요.</p>
+            <MissingList>
+              {missingIngredients.map((item) => (
+                <li key={item.name}>
+                  {item.name}
+                  {!item.required && <span>선택</span>}
+                </li>
+              ))}
+            </MissingList>
+          </MissingCopy>
+          <ShoppingButton ref={shoppingButtonRef} type="button" onClick={() => setIsShoppingOpen(true)}>
+            <ShoppingCart size={18} aria-hidden="true" />
+            부족 재료 장보기 목록에 담기
+          </ShoppingButton>
+          <MissingIngredientModal
+            recipeId={recipe.id}
+            ingredients={missingIngredients}
+            isOpen={isShoppingOpen}
+            onClose={() => setIsShoppingOpen(false)}
+            returnFocusRef={shoppingButtonRef}
+          />
+        </MissingBanner>
+      )}
 
       <DetailGrid>
         <MainColumn>
@@ -235,7 +288,7 @@ function IngredientPanel({ title, ingredients }: IngredientPanelProps) {
             <li key={`${index}-${item.name}`}>
               <strong>{item.name}</strong>
               {item.amount && <span>{item.amount}</span>}
-              {sourceLabel && <em>{sourceLabel}</em>}
+              {item.source && <SourceTag $source={item.source}>{sourceLabel}</SourceTag>}
             </li>
           );
         })}
@@ -397,6 +450,90 @@ const FoodEmoji = styled.span`
   filter: drop-shadow(var(--shadow-sm));
 `;
 
+const MissingBanner = styled.section`
+  border-radius: 8px;
+  background: var(--block-pink);
+  padding: 22px 24px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px 24px;
+
+  @media (max-width: 760px) {
+    padding: 20px;
+  }
+`;
+
+const MissingCopy = styled.div`
+  flex: 1 1 320px;
+  min-width: 0;
+  display: grid;
+  gap: 8px;
+
+  h2 {
+    font-size: 24px;
+    font-weight: 540;
+    letter-spacing: -0.26px;
+  }
+
+  p {
+    font-size: 15px;
+    line-height: 1.5;
+  }
+`;
+
+const MissingList = styled.ul`
+  margin-top: 4px;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+
+  li {
+    min-width: 0;
+    border-radius: 50px;
+    background: var(--surface);
+    padding: 8px 12px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 14px;
+    font-weight: 700;
+    overflow-wrap: anywhere;
+  }
+
+  span {
+    font-size: 12px;
+    font-weight: 330;
+  }
+`;
+
+const ShoppingButton = styled.button`
+  min-height: 48px;
+  border: 0;
+  border-radius: 50px;
+  background: var(--text);
+  color: var(--surface);
+  padding: 12px 20px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 16px;
+  font-weight: 480;
+  cursor: pointer;
+
+  &:focus-visible {
+    outline: 2px solid var(--text);
+    outline-offset: 2px;
+  }
+
+  @media (max-width: 760px) {
+    width: 100%;
+    justify-content: center;
+  }
+`;
+
 const DetailGrid = styled.div`
   display: grid;
   grid-template-columns: minmax(0, 1fr) 360px;
@@ -507,13 +644,24 @@ const IngredientList = styled.ul`
     font-size: 14px;
     font-weight: 700;
   }
+`;
 
-  em {
-    grid-column: 1 / -1;
-    font-size: 12px;
-    font-style: normal;
-    font-weight: 330;
-  }
+// 부족 재료는 사야 하는 재료라 다른 출처보다 눈에 띄게 진한 글자와 핑크 배경으로 보여 준다.
+const sourceTones: Record<IngredientSource, string> = {
+  FRIDGE: "var(--block-lime)",
+  BASIC: "var(--surface-soft)",
+  MISSING: "var(--block-pink)",
+};
+
+const SourceTag = styled.em<{ $source: IngredientSource }>`
+  grid-column: 1 / -1;
+  width: fit-content;
+  border-radius: 50px;
+  background: ${(props) => sourceTones[props.$source]};
+  padding: 3px 9px;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: ${(props) => (props.$source === "MISSING" ? 700 : 480)};
 `;
 
 const MatchList = styled.ul`

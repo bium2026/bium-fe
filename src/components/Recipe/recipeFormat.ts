@@ -18,6 +18,7 @@ const difficultyLabels: Record<RecipeDifficulty, string> = {
 const sourceLabels: Record<IngredientSource, string> = {
   FRIDGE: "냉장고 보유",
   BASIC: "기본 양념",
+  MISSING: "부족",
 };
 
 export function formatDifficulty(difficulty: RecipeDifficulty | null) {
