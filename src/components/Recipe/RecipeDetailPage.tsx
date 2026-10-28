@@ -2,13 +2,15 @@
  * 추천 레시피 한 개의 상세 화면이다.
  * 주소의 id로 레시피를 불러와 조리 순서, 활용 팁, 재료, 냉장고 매칭, 영양 정보를 보여 준다.
  * 재료는 냉장고 보유·기본 양념·부족으로 나눠 표시하고, 부족 재료가 있으면 위쪽에 모아 보여 준다.
+ * 부족 재료는 확인 모달에서 골라 장보기 목록에 담는다. 방금 만든 레시피면 모달을 한 번 먼저 띄운다.
  */
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import styled from "@emotion/styled";
-import { ArrowLeft, ChefHat, Clock3, Flame, Sparkles, Users } from "lucide-react";
+import { ArrowLeft, ChefHat, Clock3, Flame, ShoppingCart, Sparkles, Users } from "lucide-react";
 import { Link, useParams } from "react-router";
 import { ApiError } from "../../api/client";
 import { getRecipe, type IngredientSource, type Recipe, type RecipeIngredient } from "../../api/recipe";
+import { useRecipeStore } from "../../store/recipeStore";
 import {
   DEFAULT_RECIPE_EMOJI,
   formatCalories,
@@ -18,6 +20,7 @@ import {
   formatServings,
   getNutritionItems,
 } from "./recipeFormat";
+import MissingIngredientModal from "./MissingIngredientModal";
 import { getRecipeTone } from "./recipeTone";
 
 type DetailView =
@@ -52,6 +55,8 @@ function RecipeDetailPage() {
   const missingTitleId = useId();
   const [attempt, setAttempt] = useState(0);
   const [result, setResult] = useState<DetailResult | null>(null);
+  const [isShoppingOpen, setIsShoppingOpen] = useState(false);
+  const shoppingButtonRef = useRef<HTMLButtonElement>(null);
   const requestKey = `${recipeId}-${attempt}`;
 
   useEffect(() => {
@@ -59,7 +64,13 @@ function RecipeDetailPage() {
     let ignore = false;
     getRecipe(recipeId).then(
       (recipe) => {
-        if (!ignore) setResult({ requestKey, status: "success", recipe });
+        if (ignore) return;
+        setResult({ requestKey, status: "success", recipe });
+        const { askShoppingRecipeId, setAskShoppingRecipeId } = useRecipeStore.getState();
+        if (askShoppingRecipeId === recipe.id) {
+          setAskShoppingRecipeId(null);
+          if (recipe.ingredients.some((item) => item.source === "MISSING")) setIsShoppingOpen(true);
+        }
       },
       (error: unknown) => {
         if (ignore) return;
@@ -184,6 +195,17 @@ function RecipeDetailPage() {
               ))}
             </MissingList>
           </MissingCopy>
+          <ShoppingButton ref={shoppingButtonRef} type="button" onClick={() => setIsShoppingOpen(true)}>
+            <ShoppingCart size={18} aria-hidden="true" />
+            부족 재료 장보기 목록에 담기
+          </ShoppingButton>
+          <MissingIngredientModal
+            recipeId={recipe.id}
+            ingredients={missingIngredients}
+            isOpen={isShoppingOpen}
+            onClose={() => setIsShoppingOpen(false)}
+            returnFocusRef={shoppingButtonRef}
+          />
         </MissingBanner>
       )}
 
@@ -484,6 +506,31 @@ const MissingList = styled.ul`
   span {
     font-size: 12px;
     font-weight: 330;
+  }
+`;
+
+const ShoppingButton = styled.button`
+  min-height: 48px;
+  border: 0;
+  border-radius: 50px;
+  background: var(--text);
+  color: var(--surface);
+  padding: 12px 20px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 16px;
+  font-weight: 480;
+  cursor: pointer;
+
+  &:focus-visible {
+    outline: 2px solid var(--text);
+    outline-offset: 2px;
+  }
+
+  @media (max-width: 760px) {
+    width: 100%;
+    justify-content: center;
   }
 `;
 

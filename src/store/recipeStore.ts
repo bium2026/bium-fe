@@ -27,9 +27,13 @@ type RecipeState = {
   recommend: RecommendState;
   // 만들고 싶은 음식 레시피도 AI를 불러 몇 초 걸려서 추천과 같은 이유로 화면 밖에 둔다.
   target: TargetState;
+  // 방금 만든 레시피의 id. 상세 화면이 이 레시피를 열 때 한 번만 부족 재료를 담을지 묻고 지운다.
+  // 저장하지 않아서 새로고침하거나 나중에 다시 들어오면 묻지 않는다.
+  askShoppingRecipeId: number | null;
   setRecipes: (fridgeId: number, recipes: Recipe[]) => void;
   setRecommend: (recommend: RecommendState) => void;
   setTarget: (target: TargetState) => void;
+  setAskShoppingRecipeId: (recipeId: number | null) => void;
   clearRecipes: () => void;
 };
 
@@ -40,11 +44,19 @@ export const useRecipeStore = create<RecipeState>()(
       recipes: [],
       recommend: { status: "idle" },
       target: { status: "idle" },
+      askShoppingRecipeId: null,
       setRecipes: (fridgeId, recipes) => set({ fridgeId, recipes }),
       setRecommend: (recommend) => set({ recommend }),
       setTarget: (target) => set({ target }),
+      setAskShoppingRecipeId: (askShoppingRecipeId) => set({ askShoppingRecipeId }),
       clearRecipes: () =>
-        set({ fridgeId: null, recipes: [], recommend: { status: "idle" }, target: { status: "idle" } }),
+        set({
+          fridgeId: null,
+          recipes: [],
+          recommend: { status: "idle" },
+          target: { status: "idle" },
+          askShoppingRecipeId: null,
+        }),
     }),
     {
       name: "bium-recipes",

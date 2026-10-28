@@ -35,6 +35,7 @@ function TargetRecipeForm({ fridgeId, onFridgeRetry }: TargetRecipeFormProps) {
   const navigate = useNavigate();
   const target = useRecipeStore((state) => state.target);
   const setTarget = useRecipeStore((state) => state.setTarget);
+  const setAskShoppingRecipeId = useRecipeStore((state) => state.setAskShoppingRecipeId);
   // 다른 화면에 다녀와도 입력칸이 비지 않게, 진행 중이거나 실패한 요청의 음식 이름으로 채운다.
   const [value, setValue] = useState(() =>
     target.status === "loading" || target.status === "error" ? target.dishName : "",
@@ -74,6 +75,7 @@ function TargetRecipeForm({ fridgeId, onFridgeRetry }: TargetRecipeFormProps) {
         return;
       }
       setTarget({ status: "idle" });
+      setAskShoppingRecipeId(recipe.id);
       navigate(`/recipes/${recipe.id}`);
     } catch (error) {
       if (isStale()) {
@@ -87,6 +89,11 @@ function TargetRecipeForm({ fridgeId, onFridgeRetry }: TargetRecipeFormProps) {
         requestAnimationFrame(() => inputRef.current?.select());
       }
     }
+  };
+
+  const handleOpenDone = (recipeId: number) => {
+    setTarget({ status: "idle" });
+    setAskShoppingRecipeId(recipeId);
   };
 
   const handleFridgeRetry = () => {
@@ -167,7 +174,7 @@ function TargetRecipeForm({ fridgeId, onFridgeRetry }: TargetRecipeFormProps) {
       {target.status === "done" && (
         <Done role="status">
           <p>‘{target.recipeName}’ 레시피를 만들었어요.</p>
-          <ActionLink to={`/recipes/${target.recipeId}`} onClick={() => setTarget({ status: "idle" })}>
+          <ActionLink to={`/recipes/${target.recipeId}`} onClick={() => handleOpenDone(target.recipeId)}>
             레시피 보기
           </ActionLink>
         </Done>
