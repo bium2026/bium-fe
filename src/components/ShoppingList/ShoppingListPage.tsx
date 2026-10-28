@@ -83,6 +83,8 @@ function ShoppingListPage() {
   // 담기·체크·빼기 결과를 스크린 리더에 알려 준다. 화면에는 보이지 않는다.
   const [announcement, setAnnouncement] = useState("");
   const checkboxRefs = useRef(new Map<number, HTMLInputElement>());
+  // 서로 다른 재료에서 동시에 다시 불러오면 늦게 온 이전 응답이 새 목록을 덮지 않게 요청마다 번호를 매긴다.
+  const refreshIdRef = useRef(0);
 
   useEffect(() => {
     let ignore = false;
@@ -126,8 +128,11 @@ function ShoppingListPage() {
   // 부른 쪽이 화면을 되돌리고 다시 누르게 한다.
   const refreshAfterConflict = async (item: ShoppingListItem) => {
     if (page.status !== "success") return false;
+    const refreshId = ++refreshIdRef.current;
     try {
       const freshItems = await getShoppingListItems(page.fridge.id);
+      // 뒤에 보낸 요청이 있으면 그 응답이 목록을 맞추므로 이 응답은 버린다.
+      if (refreshId !== refreshIdRef.current) return true;
       updateItems(() => freshItems);
       // 내보내져서 없는 경우도 같은 404라, 누가 뺐는지는 단정하지 않는다.
       setNotice(
