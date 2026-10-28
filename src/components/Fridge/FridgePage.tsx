@@ -3,22 +3,37 @@
  * 좌우 화살표로 냉장실·냉동실·실온을 넘겨 보며, 지금 보는 구역은 주소(?zone=)에 남겨 새로고침해도 유지한다.
  * 지금은 퍼블리싱 단계라 목데이터를 쓰고, 서버 연동 때 냉장고 조회 API로 바꾼다.
  * 재료를 누르면 수정 모달을 열고, 저장·삭제는 서버에 반영된 뒤에 화면에 반영한다.
+ * 영수증 사진을 고르면 AI가 읽은 재료를 모달로 보여 주고, 확인한 재료를 냉장고에 한꺼번에 넣는다.
  */
 import { useEffect, useRef, useState } from "react";
 import { keyframes } from "@emotion/react";
 import styled from "@emotion/styled";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, ReceiptText } from "lucide-react";
 import { useSearchParams } from "react-router";
 import { ApiError } from "../../api/client";
-import { deleteFridgeItem, updateFridgeItem } from "../../api/fridge";
+import {
+  addFridgeItems,
+  deleteFridgeItem,
+  updateFridgeItem,
+  type FridgeItemResponse,
+  type StorageType,
+} from "../../api/fridge";
 import FridgeBoard from "./FridgeBoard";
 import IngredientEditModal, { type IngredientEditValues } from "./IngredientEditModal";
+import ReceiptScanModal, { ReceiptFileInput, type ReceiptItemValues } from "./ReceiptScanModal";
 import { emptyFridgeMock, fridgeMock } from "./fridgeMockData";
-import type { FridgeContents, FridgeIngredient, ZoneIngredients } from "./fridgeTypes";
+import type { FridgeContents, FridgeIngredient, ZoneId, ZoneIngredients } from "./fridgeTypes";
 import { isZoneId, zoneMeta, zoneOrder } from "./fridgeZones";
+import { startReceiptScan, type ReceiptScan } from "./receiptScan";
 
 type FridgeStatus = "loading" | "success" | "error";
 type SlideDirection = "prev" | "next";
+
+const storageZone: Record<StorageType, ZoneId> = {
+  FRIDGE: "fridge",
+  FREEZER: "freezer",
+  ROOM: "pantry",
+};
 
 // 퍼블리싱 확인용: ?preview=loading|empty|error 로 각 상태 화면을 볼 수 있다. API 연동 시 지운다.
 function getPreviewStatus(value: string | null): FridgeStatus {
@@ -42,6 +57,20 @@ function replaceIngredient(contents: FridgeContents, id: number, next: FridgeIng
   };
 }
 
+// 서버가 새 재료를 보관 위치의 중앙 칸 맨 뒤에 놓으므로 화면에서도 선반 맨 뒤에 붙인다.
+function appendToShelf(contents: FridgeContents, added: { zoneId: ZoneId; ingredient: FridgeIngredient }[]) {
+  const next = { ...contents };
+  for (const { zoneId, ingredient } of added) {
+    next[zoneId] = { ...next[zoneId], shelf: [...next[zoneId].shelf, ingredient] };
+  }
+  return next;
+}
+
+// 영수증 모달이 아이콘·유통기한을 꼭 받아서 보내므로 서버도 비워서 돌려주지 않지만, 응답 타입은 null을 허용한다.
+function toIngredient(item: FridgeItemResponse): FridgeIngredient {
+  return { ...item, emoji: item.emoji ?? "", expiresAt: item.expiresAt ?? "" };
+}
+
 function FridgePage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const preview = searchParams.get("preview");
@@ -49,9 +78,13 @@ function FridgePage() {
   const [direction, setDirection] = useState<SlideDirection>("next");
   const [fridgeContents, setFridgeContents] = useState(() => (preview === "empty" ? emptyFridgeMock : fridgeMock));
   const [selectedIngredient, setSelectedIngredient] = useState<FridgeIngredient | null>(null);
+  // 고른 영수증 사진을 읽는 요청. null이면 영수증 모달이 닫힌다.
+  const [receiptScan, setReceiptScan] = useState<ReceiptScan | null>(null);
+  const [receiptNotice, setReceiptNotice] = useState("");
   const timerRef = useRef<number | undefined>(undefined);
   const zoneTitleRef = useRef<HTMLHeadingElement>(null);
   const removedWhileOpenRef = useRef(false);
+  const receiptInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => () => window.clearTimeout(timerRef.current), []);
 
@@ -134,6 +167,24 @@ function FridgePage() {
     timerRef.current = window.setTimeout(() => setStatus("success"), 1200);
   };
 
+  const handleReceiptSelect = (file: File) => {
+    setReceiptNotice("");
+    setReceiptScan(startReceiptScan(file));
+  };
+
+  // 냉장고 화면은 아직 목데이터라 다시 불러오지 않고, 넣은 재료를 응답으로 바로 붙인다.
+  const handleReceiptAdd = async (fridgeId: number, items: ReceiptItemValues[]) => {
+    const added = await addFridgeItems(fridgeId, items);
+    // 응답은 보낸 순서대로 오므로 같은 자리의 보관 위치로 구역을 정한다.
+    setFridgeContents((prev) =>
+      appendToShelf(
+        prev,
+        added.map((item, index) => ({ zoneId: storageZone[items[index].storage], ingredient: toIngredient(item) })),
+      ),
+    );
+    setReceiptNotice(`${added.length}개를 냉장고에 넣었어요.`);
+  };
+
   return (
     <Wrapper>
       <Pager>
@@ -153,6 +204,15 @@ function FridgePage() {
           <ChevronRight size={28} aria-hidden="true" />
         </ArrowButton>
       </Pager>
+
+      <Toolbar>
+        <ReceiptNotice role="status">{receiptNotice}</ReceiptNotice>
+        <ReceiptButton type="button" onClick={() => receiptInputRef.current?.click()}>
+          <ReceiptText size={18} aria-hidden="true" />
+          영수증으로 추가
+        </ReceiptButton>
+        <ReceiptFileInput ref={receiptInputRef} onSelect={handleReceiptSelect} />
+      </Toolbar>
 
       {status === "error" ? (
         <StatusBox role="alert">
@@ -179,6 +239,13 @@ function FridgePage() {
         onClose={() => setSelectedIngredient(null)}
         onSave={handleSave}
         onDelete={handleDelete}
+      />
+
+      <ReceiptScanModal
+        scan={receiptScan}
+        onPickFile={handleReceiptSelect}
+        onClose={() => setReceiptScan(null)}
+        onAdd={handleReceiptAdd}
       />
     </Wrapper>
   );
@@ -223,6 +290,38 @@ const ArrowButton = styled.button`
   display: grid;
   place-items: center;
   cursor: pointer;
+`;
+
+const Toolbar = styled.div`
+  width: min(940px, 100%);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+`;
+
+const ReceiptNotice = styled.p`
+  font-size: 14px;
+  font-weight: 480;
+`;
+
+const ReceiptButton = styled.button`
+  min-height: 44px;
+  border: 1px solid var(--text);
+  border-radius: 50px;
+  background: var(--surface);
+  padding: 10px 18px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 15px;
+  font-weight: 480;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--surface-soft);
+  }
 `;
 
 const ZoneHeading = styled.div`
