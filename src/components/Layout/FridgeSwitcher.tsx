@@ -1,20 +1,25 @@
 /*
  * 헤더에서 지금 보고 있는 냉장고를 보여 주고, 내가 속한 다른 냉장고로 바꾸는 버튼이다.
- * 내가 주인인 냉장고와 초대 코드로 참여한 냉장고가 함께 나온다.
+ * 내가 주인인 냉장고와 초대 코드로 참여한 냉장고가 함께 나오고, 목록 아래에서 초대 코드로 새 냉장고에 참여할 수 있다.
  */
 import { useEffect, useId, useRef, useState } from "react";
 import styled from "@emotion/styled";
-import { Check, ChevronDown, Refrigerator } from "lucide-react";
+import { Check, ChevronDown, Refrigerator, UserPlus } from "lucide-react";
+import { useNavigate } from "react-router";
 import type { Fridge } from "../../api/fridge";
+import JoinFridgeModal from "../Share/JoinFridgeModal";
+import { joinFridgeMock, mockRequest } from "../Share/shareMockData";
 import { pickFridge, useFridgeStore } from "../../store/fridgeStore";
 
 function FridgeSwitcher() {
   const menuId = useId();
+  const navigate = useNavigate();
   const list = useFridgeStore((state) => state.list);
   const selectedFridgeId = useFridgeStore((state) => state.selectedFridgeId);
   const selectFridge = useFridgeStore((state) => state.selectFridge);
   const loadFridges = useFridgeStore((state) => state.loadFridges);
   const [isOpen, setIsOpen] = useState(false);
+  const [isJoinOpen, setIsJoinOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
 
@@ -45,6 +50,25 @@ function FridgeSwitcher() {
   const handleSelect = (fridge: Fridge) => {
     selectFridge(fridge.id);
     close();
+  };
+
+  const openJoin = () => {
+    setIsOpen(false);
+    setIsJoinOpen(true);
+  };
+
+  // TODO: 공유 API 연동 때 POST /api/fridges/join으로 바꾼다. 지금은 퍼블리싱용 가짜 요청이다.
+  // 참여하면 목록에 새 냉장고가 생기도록 다시 불러온다. 실패하면 모달이 오류를 보여 주도록 그대로 던진다.
+  const handleJoin = async (code: string) => {
+    const fridge = await mockRequest(() => joinFridgeMock(code), false);
+    loadFridges();
+    return fridge;
+  };
+
+  const handleOpenFridge = (fridge: Fridge) => {
+    setIsJoinOpen(false);
+    selectFridge(fridge.id);
+    navigate("/fridge");
   };
 
   return (
@@ -85,8 +109,21 @@ function FridgeSwitcher() {
             })}
           </Options>
           {list.fridges.length === 1 && <Hint>초대 코드로 다른 냉장고에 참여하면 여기서 바꿔 볼 수 있어요.</Hint>}
+          <JoinButton type="button" onClick={openJoin}>
+            <UserPlus size={16} aria-hidden="true" />
+            초대 코드로 참여
+          </JoinButton>
         </Popover>
       )}
+
+      <JoinFridgeModal
+        isOpen={isJoinOpen}
+        onClose={() => setIsJoinOpen(false)}
+        // 모달을 연 목록 버튼은 이미 사라져서, 닫히면 헤더의 냉장고 버튼으로 포커스를 돌려놓는다.
+        returnFocusRef={triggerRef}
+        onJoin={handleJoin}
+        onOpenFridge={handleOpenFridge}
+      />
     </Root>
   );
 }
@@ -206,6 +243,32 @@ const RoleBadge = styled.span<{ $owner: boolean }>`
 const CheckMark = styled.span`
   display: grid;
   place-items: center;
+`;
+
+const JoinButton = styled.button`
+  min-height: 42px;
+  border: 0;
+  border-top: 1px solid var(--border-soft);
+  border-radius: 0 0 10px 10px;
+  background: transparent;
+  color: var(--text);
+  padding: 0 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 540;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--surface-soft);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--text);
+    outline-offset: -2px;
+  }
 `;
 
 const Hint = styled.p`

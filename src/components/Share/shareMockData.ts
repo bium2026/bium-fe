@@ -2,6 +2,7 @@
  * 냉장고 공유 화면 퍼블리싱용 목데이터와 가짜 요청이다.
  * 공유 API가 나오면 src/api 함수로 바꾸고 이 파일은 지운다.
  */
+import type { Fridge } from "../../api/fridge";
 import type { Activity, FridgeMember, InviteCode, ShareData } from "./shareTypes";
 
 const MOCK_DELAY_MS = 700;
@@ -12,6 +13,7 @@ const CODE_CHARACTERS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 export const MOCK_JOIN_CODES = {
   success: "BIUM2026",
   expired: "OLDCODE1",
+  alreadyMember: "K7Q2M9XA",
 };
 
 function minutesAgo(minutes: number) {
@@ -78,10 +80,10 @@ export function createInviteMock(): InviteCode {
   return { code, expiresAt: hoursLater(INVITE_VALID_HOURS) };
 }
 
-// 성공하면 참여한 냉장고 이름을 돌려준다. 실패 문구는 백엔드 오류 메시지와 같게 둔다.
-export function joinFridgeMock(code: string, myInviteCode: string | null) {
-  if (code === myInviteCode) throw new Error("이미 이 냉장고의 멤버입니다.");
+// 성공하면 참여한 냉장고를 백엔드 응답({ id, name, role })과 같은 모양으로 돌려준다. 실패 문구는 백엔드 오류 메시지와 같다.
+export function joinFridgeMock(code: string): Fridge {
+  if (code === MOCK_JOIN_CODES.alreadyMember) throw new Error("이미 이 냉장고의 멤버입니다.");
   if (code === MOCK_JOIN_CODES.expired) throw new Error("만료된 초대 코드입니다. 새 코드를 받아 주세요.");
   if (code !== MOCK_JOIN_CODES.success) throw new Error("초대 코드를 찾을 수 없습니다.");
-  return "민지네 냉장고";
+  return { id: 9, name: "공유 냉장고", role: "MEMBER" };
 }

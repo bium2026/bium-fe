@@ -34,13 +34,15 @@ export const useFridgeStore = create<FridgeState>()(
       selectedFridgeId: null,
       list: { status: "idle" },
       selectFridge: (selectedFridgeId) => set({ selectedFridgeId }),
+      // 이미 받은 목록이 있으면 다시 불러오는 동안에도 그대로 둔다.
+      // 목록이 잠깐 비면 헤더의 냉장고 버튼과 그 안의 참여 모달이 사라졌다가 처음 상태로 다시 그려진다.
       loadFridges: async () => {
-        set({ list: { status: "loading" } });
+        set((state) => (state.list.status === "success" ? state : { list: { status: "loading" } }));
         try {
           const fridges = await getMyFridges();
           set({ list: { status: "success", fridges } });
         } catch {
-          set({ list: { status: "error" } });
+          set((state) => (state.list.status === "success" ? state : { list: { status: "error" } }));
         }
       },
     }),

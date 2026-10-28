@@ -1,6 +1,7 @@
 /*
  * 냉장고 공유 화면이다.
- * 초대 코드로 다른 사람을 부르거나 받은 코드로 참여하고, 멤버와 활동 기록을 본다.
+ * 지금 보고 있는 냉장고에 초대 코드로 다른 사람을 부르고, 멤버와 활동 기록을 본다.
+ * 받은 코드로 다른 냉장고에 참여하는 것은 헤더의 냉장고 목록에서 한다.
  * 냉장고 이름과 내 역할은 헤더에서 고른 냉장고를 따르고, 나머지는 퍼블리싱 단계라 목데이터와 가짜 요청을 쓴다.
  * 공유 API가 나오면 서버 요청으로 바꾼다.
  */
@@ -12,9 +13,8 @@ import type { Fridge } from "../../api/fridge";
 import { pickFridge, useFridgeStore } from "../../store/fridgeStore";
 import ActivityPanel from "./ActivityPanel";
 import InvitePanel from "./InvitePanel";
-import JoinPanel from "./JoinPanel";
 import MemberPanel from "./MemberPanel";
-import { createInviteMock, getShareMock, joinFridgeMock, mockRequest } from "./shareMockData";
+import { createInviteMock, getShareMock, mockRequest } from "./shareMockData";
 import { OutlineButton, ScreenReaderText } from "./shareStyles";
 import type { FridgeMember, ShareData } from "./shareTypes";
 
@@ -88,14 +88,6 @@ function ShareContent({ preview, currentFridge }: ShareContentProps) {
     setIsInviteRevoked(false);
   };
 
-  // 참여하면 헤더의 냉장고 목록에 새 냉장고가 생기도록 목록을 다시 불러온다.
-  // API 연동 때는 응답의 냉장고 id로 바로 바꿔 보여 준다.
-  const handleJoin = async (code: string) => {
-    const name = await mockRequest(() => joinFridgeMock(code, data.invite?.code ?? null), shouldFail);
-    loadFridges();
-    return name;
-  };
-
   const handleRemove = async (member: FridgeMember) => {
     await mockRequest(() => undefined, shouldFail);
     // 내보낸 사람이 같은 코드로 다시 들어오지 못하게 서버가 코드를 끄므로, API 연동 때는 지금 코드를 다시 불러온다.
@@ -150,15 +142,12 @@ function ShareContent({ preview, currentFridge }: ShareContentProps) {
       {status === "success" && (
         <>
           <Grid>
-            <Column>
-              <InvitePanel
-                invite={data.invite}
-                isRevoked={isInviteRevoked}
-                canInvite={isOwner}
-                onCreate={handleCreateInvite}
-              />
-              <JoinPanel onJoin={handleJoin} />
-            </Column>
+            <InvitePanel
+              invite={data.invite}
+              isRevoked={isInviteRevoked}
+              canInvite={isOwner}
+              onCreate={handleCreateInvite}
+            />
             <MemberPanel
               members={data.members}
               myRole={data.fridge.myRole}
@@ -243,16 +232,6 @@ const Grid = styled.div`
 
   @media (max-width: 900px) {
     grid-template-columns: minmax(0, 1fr);
-    gap: 16px;
-  }
-`;
-
-const Column = styled.div`
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 24px;
-
-  @media (max-width: 900px) {
     gap: 16px;
   }
 `;
