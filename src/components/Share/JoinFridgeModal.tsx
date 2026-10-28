@@ -8,9 +8,18 @@ import type { FormEvent, MouseEvent, RefObject, SyntheticEvent } from "react";
 import { keyframes } from "@emotion/react";
 import styled from "@emotion/styled";
 import { X } from "lucide-react";
+import { ApiError } from "../../api/client";
 import type { Fridge } from "../../api/fridge";
 import { getInviteCodeError, getShareErrorMessage, normalizeInviteCode } from "./shareFormat";
 import { Feedback, OutlineButton, PrimaryButton } from "./shareStyles";
+
+// 코드 검사 실패(INVALID_INPUT)와 형식이 틀린 요청 본문(BAD_REQUEST)이 모두 400으로 와서 오류 코드 대신 상태로 본다.
+function getJoinErrorMessage(error: unknown) {
+  if (error instanceof ApiError && error.status === 400) {
+    return "초대 코드 형식이 올바르지 않아요. 받은 코드를 다시 확인해 주세요.";
+  }
+  return getShareErrorMessage(error, "냉장고에 참여하지 못했어요. 잠시 후 다시 시도해 주세요.");
+}
 
 type JoinFridgeModalProps = {
   isOpen: boolean;
@@ -107,7 +116,7 @@ function JoinForm({ titleId, isJoining, onJoiningChange, onClose, onJoin, onOpen
     try {
       setJoinedFridge(await onJoin(code));
     } catch (error) {
-      setErrorMessage(getShareErrorMessage(error, "냉장고에 참여하지 못했어요. 잠시 후 다시 시도해 주세요."));
+      setErrorMessage(getJoinErrorMessage(error));
       // 코드를 고쳐 다시 넣을 수 있게 입력칸으로 돌아간다.
       requestAnimationFrame(() => inputRef.current?.focus());
     } finally {
