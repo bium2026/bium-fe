@@ -71,6 +71,32 @@ export async function addFridgeItem(fridgeId: number, body: FridgeItemCreateRequ
   await request<unknown>(`/api/fridges/${fridgeId}/items`, { method: "POST", body });
 }
 
+// 영수증에서 읽은 재료처럼 도감에 없는 재료를 여러 개 한 번에 넣을 때 보낸다.
+export type FridgeItemBulkCreateItem = {
+  // 50자까지
+  name: string;
+  // 비워 보내면 아이콘 없이 넣는다.
+  emoji: string;
+  storage: StorageType;
+  // "YYYY-MM-DD", null이면 유통기한 없이 넣는다.
+  expiresAt: string | null;
+};
+
+type FridgeItemBulkCreateResponse = {
+  items: FridgeItemResponse[];
+};
+
+// 1~50개를 한꺼번에 넣고, 하나라도 잘못되면 아무것도 넣지 않는다.
+// 재료마다 고른 보관 위치의 중앙 칸 맨 뒤에 놓이며, 응답은 보낸 순서 그대로 온다.
+// 실패: INVALID_INPUT(400), FRIDGE_NOT_FOUND(404)
+export async function addFridgeItems(fridgeId: number, items: FridgeItemBulkCreateItem[]) {
+  const { items: added } = await request<FridgeItemBulkCreateResponse>(`/api/fridges/${fridgeId}/items/bulk`, {
+    method: "POST",
+    body: { items },
+  });
+  return added;
+}
+
 export type FridgeItemUpdateRequest = {
   name: string;
   // 비우면 아이콘·유통기한을 지운다.

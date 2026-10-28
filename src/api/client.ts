@@ -36,15 +36,17 @@ type RequestOptions = {
 
 async function send(path: string, { method = "GET", body, auth = true }: RequestOptions) {
   const token = auth ? useAuthStore.getState().accessToken : null;
+  // 사진처럼 FormData로 보내는 요청은 브라우저가 경계값(boundary)이 든 Content-Type을 직접 붙이므로 그대로 넘긴다.
+  const isFormData = body instanceof FormData;
   const headers: Record<string, string> = {};
-  if (body !== undefined) headers["Content-Type"] = "application/json";
+  if (body !== undefined && !isFormData) headers["Content-Type"] = "application/json";
   if (token) headers.Authorization = `Bearer ${token}`;
 
   try {
     const response = await fetch(`${API_URL}${path}`, {
       method,
       headers,
-      body: body === undefined ? undefined : JSON.stringify(body),
+      body: body === undefined || isFormData ? body : JSON.stringify(body),
     });
     return { response, token };
   } catch {
