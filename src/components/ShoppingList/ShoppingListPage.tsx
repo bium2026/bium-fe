@@ -183,12 +183,13 @@ function ShoppingListPage() {
     }
   };
 
-  const handleRetry = () => {
-    // 냉장고에서 나가졌거나 헤더가 냉장고 목록을 받지 못한 경우도 있어, 헤더의 냉장고 목록도 함께 다시 불러온다.
-    loadFridges();
+  const handleRetry = async () => {
     setPage({ status: "loading" });
     setItemErrors({});
     setNotice("");
+    // 냉장고에서 나가졌거나 헤더가 냉장고 목록을 받지 못한 경우도 있어, 헤더의 냉장고 목록부터 다시 불러온다.
+    // getMyFridge()는 헤더 목록에서 냉장고를 고르므로, 새 목록을 받은 뒤에 장보기 목록을 불러와야 나간 냉장고를 다시 고르지 않는다.
+    await loadFridges();
     setLoadAttempt((prev) => prev + 1);
   };
 
