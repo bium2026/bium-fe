@@ -79,18 +79,12 @@ function ShoppingSection({
                     <ItemName $checked={item.checked}>{item.name}</ItemName>
                   </CheckLabel>
 
-                  {item.recipeName &&
-                    (item.recipeId !== null ? (
-                      <RecipeLink to={`/recipes/${item.recipeId}`}>
-                        <ChefHat size={13} aria-hidden="true" />
-                        <span>{item.recipeName} 레시피</span>
-                      </RecipeLink>
-                    ) : (
-                      <RecipeText>
-                        <ChefHat size={13} aria-hidden="true" />
-                        <span>{item.recipeName} 레시피</span>
-                      </RecipeText>
-                    ))}
+                  {item.recipeId !== null && item.recipeName && (
+                    <RecipeLink to={`/recipes/${item.recipeId}`}>
+                      <ChefHat size={13} aria-hidden="true" />
+                      <span>{item.recipeName} 레시피</span>
+                    </RecipeLink>
+                  )}
 
                   {error && (
                     <ItemError id={errorId} role="alert">
@@ -247,7 +241,7 @@ const ItemName = styled.span<{ $checked: boolean }>`
 `;
 
 // 레시피와 오류는 체크 상자(24px)와 간격(10px)만큼 들여 재료 이름 아래에 맞춘다.
-const recipeTagStyle = `
+const RecipeLink = styled(Link)`
   margin-left: 34px;
   max-width: calc(100% - 34px);
   border-radius: 999px;
@@ -260,6 +254,7 @@ const recipeTagStyle = `
   font-size: 12px;
   font-weight: 540;
   line-height: 1.5;
+  text-decoration: none;
 
   svg {
     flex-shrink: 0;
@@ -271,11 +266,6 @@ const recipeTagStyle = `
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-`;
-
-const RecipeLink = styled(Link)`
-  ${recipeTagStyle}
-  text-decoration: none;
 
   &:hover {
     text-decoration: underline;
@@ -285,10 +275,6 @@ const RecipeLink = styled(Link)`
     outline: 2px solid var(--text);
     outline-offset: 2px;
   }
-`;
-
-const RecipeText = styled.span`
-  ${recipeTagStyle}
 `;
 
 const ItemError = styled.p`
