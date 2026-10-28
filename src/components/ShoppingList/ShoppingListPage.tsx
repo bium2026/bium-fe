@@ -2,7 +2,8 @@
  * 장보기 목록 화면이다.
  * 헤더에서 고른 냉장고의 장보기 목록을 불러와 살 것과 산 것으로 나눠 보여 준다.
  * 장보기 목록은 냉장고에 묶여 있어, 냉장고 멤버 누구나 같은 목록을 보고 담기·체크·빼기를 할 수 있다.
- * 체크와 빼기는 화면에 먼저 반영하고 서버 요청이 실패하면 되돌린다. 담기는 서버에 담긴 뒤 응답으로 받은 재료를 넣는다.
+ * 체크와 빼기는 화면에 먼저 반영하고 서버 요청이 실패하면 되돌린다. 이미 빠졌거나 그사이 바뀐 재료면 목록을 새로 불러온다.
+ * 담기는 서버에 담긴 뒤 응답으로 받은 재료를 넣는다.
  */
 import { useEffect, useRef, useState } from "react";
 import { keyframes } from "@emotion/react";
@@ -34,8 +35,13 @@ function isFridgeGone(error: unknown) {
   return error instanceof ApiError && error.code === "FRIDGE_NOT_FOUND";
 }
 
-function isItemGone(error: unknown) {
-  return error instanceof ApiError && error.code === "SHOPPING_LIST_ITEM_NOT_FOUND";
+// 서버에 없는 재료(다른 멤버가 뺐거나 내가 냉장고에서 내보내진 경우 모두 404)나 거의 동시에 바뀐 재료(409)는
+// 같은 요청을 다시 보내도 맞지 않으므로 목록을 새로 불러와 서버와 맞춘다.
+function needsRefresh(error: unknown) {
+  return (
+    error instanceof ApiError &&
+    (error.code === "SHOPPING_LIST_ITEM_NOT_FOUND" || error.code === "CONCURRENT_MODIFICATION")
+  );
 }
 
 function getErrorState(error: unknown): PageState {
@@ -72,7 +78,7 @@ function ShoppingListPage() {
   // 여러 재료를 이어서 체크하거나 뺄 수 있게 요청 중인 재료와 실패한 재료의 오류를 재료마다 따로 둔다.
   const [pendingIds, setPendingIds] = useState<number[]>([]);
   const [itemErrors, setItemErrors] = useState<Record<number, string>>({});
-  // 다른 멤버가 먼저 뺀 재료처럼 내가 하려던 것과 다르게 목록이 바뀐 이유를 알려 준다.
+  // 이미 빠진 재료처럼 내가 하려던 것과 다르게 목록이 바뀐 이유를 알려 준다.
   const [notice, setNotice] = useState("");
   // 담기·체크·빼기 결과를 스크린 리더에 알려 준다. 화면에는 보이지 않는다.
   const [announcement, setAnnouncement] = useState("");
@@ -116,10 +122,26 @@ function ShoppingListPage() {
     });
   };
 
-  // 다른 멤버가 먼저 빼서 서버에 없는 재료는 다시 눌러도 계속 실패하므로 목록에서 빼고 알려 준다.
-  const removeGoneItem = (item: ShoppingListItem) => {
-    updateItems((prev) => prev.filter((prevItem) => prevItem.id !== item.id));
-    setNotice(`‘${item.name}’은(는) 다른 멤버가 이미 목록에서 뺐어요.`);
+  // 목록을 새로 불러와 서버와 맞추고 그 재료가 어떻게 됐는지 알려 준다. 다시 불러오지 못하면 false를 돌려줘,
+  // 부른 쪽이 화면을 되돌리고 다시 누르게 한다.
+  const refreshAfterConflict = async (item: ShoppingListItem) => {
+    if (page.status !== "success") return false;
+    try {
+      const freshItems = await getShoppingListItems(page.fridge.id);
+      updateItems(() => freshItems);
+      // 내보내져서 없는 경우도 같은 404라, 누가 뺐는지는 단정하지 않는다.
+      setNotice(
+        freshItems.some((freshItem) => freshItem.id === item.id)
+          ? `‘${item.name}’은(는) 그사이 바뀌어서 목록을 새로 불러왔어요. 확인한 뒤 다시 눌러 주세요.`
+          : `‘${item.name}’은(는) 이미 목록에서 빠졌어요. 목록을 새로 불러왔어요.`,
+      );
+      return true;
+    } catch (error) {
+      // 냉장고에서 내보내졌으면 '냉장고 다시 불러오기'로 이어 간다.
+      if (!isFridgeGone(error)) return false;
+      setPage(getErrorState(error));
+      return true;
+    }
   };
 
   // 실패하면 입력칸이 오류를 보여 주도록 그대로 던진다.
@@ -149,14 +171,11 @@ function ShoppingListPage() {
       updateItems((prev) => prev.map((prevItem) => (prevItem.id === item.id ? updated : prevItem)));
       setAnnouncement(checked ? `${item.name}을(를) 산 것으로 옮겼어요.` : `${item.name}을(를) 살 것으로 되돌렸어요.`);
     } catch (error) {
-      if (isItemGone(error)) {
-        removeGoneItem(item);
-      } else {
-        updateItems((prev) =>
-          prev.map((prevItem) => (prevItem.id === item.id ? { ...prevItem, checked: item.checked } : prevItem)),
-        );
-        setItemError(item.id, checked ? "산 것으로 옮기지 못했어요. 다시 눌러 주세요." : "살 것으로 되돌리지 못했어요. 다시 눌러 주세요.");
-      }
+      if (needsRefresh(error) && (await refreshAfterConflict(item))) return;
+      updateItems((prev) =>
+        prev.map((prevItem) => (prevItem.id === item.id ? { ...prevItem, checked: item.checked } : prevItem)),
+      );
+      setItemError(item.id, checked ? "산 것으로 옮기지 못했어요. 다시 눌러 주세요." : "살 것으로 되돌리지 못했어요. 다시 눌러 주세요.");
     } finally {
       setPending(item.id, false);
     }
@@ -169,15 +188,14 @@ function ShoppingListPage() {
     updateItems((prev) => prev.filter((prevItem) => prevItem.id !== item.id));
     try {
       await removeShoppingListItem(item.id);
+      // 기다리는 사이 다른 재료 때문에 목록을 새로 불러왔으면 이 재료가 다시 들어 있을 수 있어 한 번 더 뺀다.
+      updateItems((prev) => prev.filter((prevItem) => prevItem.id !== item.id));
       setAnnouncement(`${item.name}을(를) 장보기 목록에서 뺐어요.`);
     } catch (error) {
-      if (isItemGone(error)) {
-        removeGoneItem(item);
-      } else {
-        // 순서는 담은 시각으로 정하므로 맨 뒤에 붙여도 원래 자리로 돌아간다.
-        updateItems((prev) => [...prev, item]);
-        setItemError(item.id, "빼지 못했어요. 다시 눌러 주세요.");
-      }
+      if (needsRefresh(error) && (await refreshAfterConflict(item))) return;
+      // 순서는 담은 시각으로 정하므로 맨 뒤에 붙여도 원래 자리로 돌아간다. 새로 불러온 목록에 이미 있으면 그대로 둔다.
+      updateItems((prev) => (prev.some((prevItem) => prevItem.id === item.id) ? prev : [...prev, item]));
+      setItemError(item.id, "빼지 못했어요. 다시 눌러 주세요.");
     } finally {
       setPending(item.id, false);
     }
