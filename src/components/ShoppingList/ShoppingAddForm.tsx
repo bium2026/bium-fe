@@ -16,8 +16,10 @@ type ShoppingAddFormProps = {
 };
 
 // 입력 오류와 연결 오류는 서버 문구가 무엇을 고칠지 알려 주므로 그대로 보여 준다.
+// 줄바꿈·제어 문자처럼 입력칸에서 미리 막지 않는 규칙도 이 문구로 알린다.
+// 입력 오류는 INVALID_INPUT 말고 BAD_REQUEST로도 와서 코드 대신 400으로 판단한다.
 function getAddErrorMessage(error: unknown) {
-  if (error instanceof ApiError && (error.code === "INVALID_INPUT" || error.code === NETWORK_ERROR)) {
+  if (error instanceof ApiError && (error.status === 400 || error.code === NETWORK_ERROR)) {
     return error.message;
   }
   return "담지 못했어요. 잠시 후 다시 시도해 주세요.";
@@ -32,7 +34,7 @@ function ShoppingAddForm({ onAdd }: ShoppingAddFormProps) {
 
   const name = value.trim();
   const isTooLong = name.length > NAME_MAX_LENGTH;
-  const message = isTooLong ? `재료 이름은 ${NAME_MAX_LENGTH}자까지 넣을 수 있어요.` : errorMessage;
+  const message = isTooLong ? `재료 이름은 ${NAME_MAX_LENGTH}자까지 쓸 수 있어요.` : errorMessage;
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
