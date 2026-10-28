@@ -18,7 +18,8 @@ export type TargetState =
   | { status: "loading"; dishName: string }
   | { status: "error"; dishName: string; httpStatus: number; code: string; message: string }
   // 기다리는 사이 다른 화면으로 가서 상세 화면으로 바로 보내지 못한 결과다. 레시피 화면에 돌아오면 보여 준다.
-  | { status: "done"; recipeId: number; recipeName: string };
+  // 그사이 헤더에서 냉장고를 바꿨으면 다른 냉장고의 레시피라서, 요청한 냉장고를 함께 남겨 그 냉장고에서만 보여 준다.
+  | { status: "done"; fridgeId: number; recipeId: number; recipeName: string };
 
 type RecipeState = {
   fridgeId: number | null;

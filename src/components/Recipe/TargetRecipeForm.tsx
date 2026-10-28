@@ -84,7 +84,7 @@ function TargetRecipeForm({ fridgeId, onFridgeRetry }: TargetRecipeFormProps) {
       }
       // 기다리는 사이 다른 화면으로 갔으면 그 화면에서 끌고 오지 않고, 돌아왔을 때 결과를 알려 준다.
       if (!isMountedRef.current) {
-        setTarget({ status: "done", recipeId: recipe.id, recipeName: recipe.name });
+        setTarget({ status: "done", fridgeId, recipeId: recipe.id, recipeName: recipe.name });
         return;
       }
       setTarget({ status: "idle" });
@@ -185,7 +185,7 @@ function TargetRecipeForm({ fridgeId, onFridgeRetry }: TargetRecipeFormProps) {
         </ErrorBox>
       )}
 
-      {target.status === "done" && (
+      {target.status === "done" && target.fridgeId === fridgeId && (
         <Done role="status">
           <p>‘{target.recipeName}’ 레시피를 만들었어요.</p>
           <ActionLink to={`/recipes/${target.recipeId}`} onClick={() => handleOpenDone(target.recipeId)}>
