@@ -51,8 +51,11 @@ export function getFridgeItems(fridgeId: number) {
 }
 
 // 헤더에서 고른 냉장고를 돌려준다. 고른 적이 없거나 더 이상 속해 있지 않으면 내가 주인인 냉장고를 돌려준다.
+// 헤더가 받은 목록이 있으면 그 목록에서 고른다. 서버 목록을 따로 받으면 헤더와 다른 냉장고를 골라
+// 헤더에 없는 냉장고에 재료를 넣을 수 있다.
 export async function getMyFridge() {
-  const fridges = await getMyFridges();
+  const { list } = useFridgeStore.getState();
+  const fridges = list.status === "success" ? list.fridges : await getMyFridges();
   return pickFridge(fridges, useFridgeStore.getState().selectedFridgeId);
 }
 
