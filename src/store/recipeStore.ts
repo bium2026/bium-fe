@@ -1,5 +1,5 @@
 /*
- * 마지막으로 추천받은 레시피 목록과 추천 요청 상태를 보관하는 스토어다.
+ * 마지막으로 추천받은 레시피 목록과 추천·만들고 싶은 음식 요청 상태를 보관하는 스토어다.
  * 지난 추천 목록 API가 없어서, 상세 화면에 다녀오거나 새로고침해도 목록이 남도록 localStorage에 저장한다.
  * 다른 계정으로 로그인하면 냉장고가 달라지므로 fridgeId가 같을 때만 목록을 보여 준다.
  */
@@ -13,13 +13,23 @@ export type RecommendState =
   | { status: "loading" }
   | { status: "error"; code: string; message: string };
 
+export type TargetState =
+  | { status: "idle" }
+  | { status: "loading"; dishName: string }
+  | { status: "error"; dishName: string; code: string; message: string }
+  // 기다리는 사이 다른 화면으로 가서 상세 화면으로 바로 보내지 못한 결과다. 레시피 화면에 돌아오면 보여 준다.
+  | { status: "done"; recipeId: number; recipeName: string };
+
 type RecipeState = {
   fridgeId: number | null;
   recipes: Recipe[];
   // AI 추천은 몇 초 걸려서, 그사이 다른 화면에 다녀와도 같은 요청을 다시 보내지 않도록 화면 밖에 둔다.
   recommend: RecommendState;
+  // 만들고 싶은 음식 레시피도 AI를 불러 몇 초 걸려서 추천과 같은 이유로 화면 밖에 둔다.
+  target: TargetState;
   setRecipes: (fridgeId: number, recipes: Recipe[]) => void;
   setRecommend: (recommend: RecommendState) => void;
+  setTarget: (target: TargetState) => void;
   clearRecipes: () => void;
 };
 
@@ -29,9 +39,12 @@ export const useRecipeStore = create<RecipeState>()(
       fridgeId: null,
       recipes: [],
       recommend: { status: "idle" },
+      target: { status: "idle" },
       setRecipes: (fridgeId, recipes) => set({ fridgeId, recipes }),
       setRecommend: (recommend) => set({ recommend }),
-      clearRecipes: () => set({ fridgeId: null, recipes: [], recommend: { status: "idle" } }),
+      setTarget: (target) => set({ target }),
+      clearRecipes: () =>
+        set({ fridgeId: null, recipes: [], recommend: { status: "idle" }, target: { status: "idle" } }),
     }),
     {
       name: "bium-recipes",
