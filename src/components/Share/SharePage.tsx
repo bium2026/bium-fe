@@ -186,11 +186,13 @@ function ShareContent({ fridge }: ShareContentProps) {
       // 다른 기기에서 먼저 나갔거나 주인이 내보내 이미 멤버가 아니면, 나가려던 결과와 같으므로 그대로 넘어간다.
       if (!(error instanceof ApiError && error.code === "FRIDGE_NOT_FOUND")) throw error;
     }
+    // 화면을 먼저 옮긴다. 목록을 먼저 바꾸면 이 화면이 내 냉장고로 다시 그려져 공유 정보를 괜히 불러온다.
+    // 이동은 기본으로 startTransition에 담겨 목록 변경보다 늦게 그려지므로 바로 그리게 한다.
+    navigate("/fridge", { replace: true, flushSync: true });
     // 나간 냉장고를 헤더 목록에서 바로 빼고, 서버 기준 목록도 다시 불러온다.
     removeFridge(fridgeId);
     loadFridges();
     selectFridge(null);
-    navigate("/fridge", { replace: true });
   };
 
   if (share.status === "loading") return <ShareSkeleton />;
