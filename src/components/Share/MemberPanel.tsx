@@ -230,8 +230,9 @@ const MeTag = styled.em`
 
 const Meta = styled.span`
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: 4px 8px;
   font-size: 13px;
   font-weight: 330;
 `;
@@ -243,6 +244,7 @@ const RoleBadge = styled.span<{ $owner: boolean }>`
   padding: 2px 8px;
   font-size: 12px;
   font-weight: 540;
+  white-space: nowrap;
 `;
 
 const Confirm = styled.div`
