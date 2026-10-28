@@ -18,6 +18,7 @@ function FridgeSwitcher() {
   const selectedFridgeId = useFridgeStore((state) => state.selectedFridgeId);
   const selectFridge = useFridgeStore((state) => state.selectFridge);
   const loadFridges = useFridgeStore((state) => state.loadFridges);
+  const addFridge = useFridgeStore((state) => state.addFridge);
   const [isOpen, setIsOpen] = useState(false);
   const [isJoinOpen, setIsJoinOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -39,8 +40,8 @@ function FridgeSwitcher() {
 
   // 냉장고 목록을 불러오지 못하면 각 화면이 오류를 보여 주므로 헤더에서는 버튼을 숨긴다.
   if (list.status !== "success") return null;
+  // 속한 냉장고가 하나도 없어도 초대 코드로 참여할 수 있게 버튼은 그대로 보여 준다.
   const current = pickFridge(list.fridges, selectedFridgeId);
-  if (!current) return null;
 
   const close = () => {
     setIsOpen(false);
@@ -58,10 +59,10 @@ function FridgeSwitcher() {
   };
 
   // TODO: 공유 API 연동 때 POST /api/fridges/join으로 바꾼다. 지금은 퍼블리싱용 가짜 요청이다.
-  // 참여하면 목록에 새 냉장고가 생기도록 다시 불러온다. 실패하면 모달이 오류를 보여 주도록 그대로 던진다.
+  // 참여한 냉장고를 목록에 바로 넣어 '보러 가기'로 고를 수 있게 한다. 실패하면 모달이 오류를 보여 주도록 그대로 던진다.
   const handleJoin = async (code: string) => {
     const fridge = await mockRequest(() => joinFridgeMock(code), false);
-    loadFridges();
+    addFridge(fridge);
     return fridge;
   };
 
@@ -83,11 +84,11 @@ function FridgeSwitcher() {
         type="button"
         aria-expanded={isOpen}
         aria-controls={menuId}
-        aria-label={`지금 보는 냉장고 ${current.name}, 다른 냉장고로 바꾸기`}
+        aria-label={current ? `지금 보는 냉장고 ${current.name}, 다른 냉장고로 바꾸기` : "속한 냉장고 없음, 초대 코드로 참여하기"}
         onClick={() => setIsOpen((prev) => !prev)}
       >
         <Refrigerator size={16} aria-hidden="true" />
-        <TriggerName>{current.name}</TriggerName>
+        <TriggerName>{current?.name ?? "냉장고 없음"}</TriggerName>
         <ChevronDown size={16} aria-hidden="true" />
       </Trigger>
 
@@ -96,7 +97,7 @@ function FridgeSwitcher() {
           <PopoverTitle>내 냉장고</PopoverTitle>
           <Options>
             {list.fridges.map((fridge) => {
-              const isCurrent = fridge.id === current.id;
+              const isCurrent = fridge.id === current?.id;
               return (
                 <li key={fridge.id}>
                   <Option type="button" aria-current={isCurrent || undefined} onClick={() => handleSelect(fridge)}>
@@ -108,6 +109,7 @@ function FridgeSwitcher() {
               );
             })}
           </Options>
+          {list.fridges.length === 0 && <Hint>아직 속한 냉장고가 없어요. 받은 초대 코드로 참여해 보세요.</Hint>}
           {list.fridges.length === 1 && <Hint>초대 코드로 다른 냉장고에 참여하면 여기서 바꿔 볼 수 있어요.</Hint>}
           <JoinButton type="button" onClick={openJoin}>
             <UserPlus size={16} aria-hidden="true" />
