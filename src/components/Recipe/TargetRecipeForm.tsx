@@ -41,6 +41,8 @@ function TargetRecipeForm({ fridgeId, onFridgeRetry }: TargetRecipeFormProps) {
   const navigate = useNavigate();
   const target = useRecipeStore((state) => state.target);
   const setTarget = useRecipeStore((state) => state.setTarget);
+  const targetDone = useRecipeStore((state) => state.targetDone);
+  const setTargetDone = useRecipeStore((state) => state.setTargetDone);
   const setAskShoppingRecipeId = useRecipeStore((state) => state.setAskShoppingRecipeId);
   // 다른 화면에 다녀와도 입력칸이 비지 않게, 진행 중이거나 실패한 요청의 음식 이름으로 채운다.
   const [value, setValue] = useState(() =>
@@ -74,27 +76,23 @@ function TargetRecipeForm({ fridgeId, onFridgeRetry }: TargetRecipeFormProps) {
 
     setTarget({ status: "loading", dishName });
     const requestToken = useAuthStore.getState().accessToken;
-    // 응답을 기다리는 사이 로그아웃·토큰 만료가 있었다면 늦게 온 결과를 보여 주지 않는다.
+    // 응답을 기다리는 사이 로그아웃·토큰 만료가 있었다면 늦게 온 결과는 버린다.
+    // 로그아웃하면 스토어가 요청 상태를 비우므로, 그 뒤 새 계정이 보낸 요청의 상태를 지우지 않게 아무것도 바꾸지 않는다.
     const isStale = () => useAuthStore.getState().accessToken !== requestToken;
     try {
       const recipe = await recommendTargetRecipe(fridgeId, dishName);
-      if (isStale()) {
-        setTarget({ status: "idle" });
-        return;
-      }
+      if (isStale()) return;
       // 기다리는 사이 다른 화면으로 갔으면 그 화면에서 끌고 오지 않고, 돌아왔을 때 결과를 알려 준다.
       if (!isMountedRef.current) {
-        setTarget({ status: "done", fridgeId, recipeId: recipe.id, recipeName: recipe.name });
+        setTarget({ status: "idle" });
+        setTargetDone({ fridgeId, recipeId: recipe.id, recipeName: recipe.name });
         return;
       }
       setTarget({ status: "idle" });
       setAskShoppingRecipeId(recipe.id);
       navigate(`/recipes/${recipe.id}`);
     } catch (error) {
-      if (isStale()) {
-        setTarget({ status: "idle" });
-        return;
-      }
+      if (isStale()) return;
       const errorInfo = getErrorInfo(error);
       setTarget({ status: "error", dishName, ...errorInfo });
       if (isDishNameError(errorInfo) && isMountedRef.current) {
@@ -104,7 +102,7 @@ function TargetRecipeForm({ fridgeId, onFridgeRetry }: TargetRecipeFormProps) {
   };
 
   const handleOpenDone = (recipeId: number) => {
-    setTarget({ status: "idle" });
+    setTargetDone(null);
     setAskShoppingRecipeId(recipeId);
   };
 
@@ -185,10 +183,10 @@ function TargetRecipeForm({ fridgeId, onFridgeRetry }: TargetRecipeFormProps) {
         </ErrorBox>
       )}
 
-      {target.status === "done" && target.fridgeId === fridgeId && (
+      {targetDone && targetDone.fridgeId === fridgeId && (
         <Done role="status">
-          <p>‘{target.recipeName}’ 레시피를 만들었어요.</p>
-          <ActionLink to={`/recipes/${target.recipeId}`} onClick={() => handleOpenDone(target.recipeId)}>
+          <p>‘{targetDone.recipeName}’ 레시피를 만들었어요.</p>
+          <ActionLink to={`/recipes/${targetDone.recipeId}`} onClick={() => handleOpenDone(targetDone.recipeId)}>
             레시피 보기
           </ActionLink>
         </Done>

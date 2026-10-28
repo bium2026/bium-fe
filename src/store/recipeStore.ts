@@ -16,10 +16,12 @@ export type RecommendState =
 export type TargetState =
   | { status: "idle" }
   | { status: "loading"; dishName: string }
-  | { status: "error"; dishName: string; httpStatus: number; code: string; message: string }
-  // 기다리는 사이 다른 화면으로 가서 상세 화면으로 바로 보내지 못한 결과다. 레시피 화면에 돌아오면 보여 준다.
-  // 그사이 헤더에서 냉장고를 바꿨으면 다른 냉장고의 레시피라서, 요청한 냉장고를 함께 남겨 그 냉장고에서만 보여 준다.
-  | { status: "done"; fridgeId: number; recipeId: number; recipeName: string };
+  | { status: "error"; dishName: string; httpStatus: number; code: string; message: string };
+
+// 기다리는 사이 다른 화면으로 가서 상세 화면으로 바로 보내지 못한 결과다. 레시피 화면에 돌아오면 보여 준다.
+// 만든 레시피를 다시 찾을 목록이 없어서, 새 요청이 덮지 않게 요청 상태와 따로 둔다.
+// 그사이 헤더에서 냉장고를 바꿨으면 다른 냉장고의 레시피라서, 요청한 냉장고를 함께 남겨 그 냉장고에서만 보여 준다.
+export type TargetDone = { fridgeId: number; recipeId: number; recipeName: string };
 
 type RecipeState = {
   fridgeId: number | null;
@@ -28,12 +30,14 @@ type RecipeState = {
   recommend: RecommendState;
   // 만들고 싶은 음식 레시피도 AI를 불러 몇 초 걸려서 추천과 같은 이유로 화면 밖에 둔다.
   target: TargetState;
+  targetDone: TargetDone | null;
   // 방금 만든 레시피의 id. 상세 화면이 이 레시피를 열 때 한 번만 부족 재료를 담을지 묻고 지운다.
   // 저장하지 않아서 새로고침하거나 나중에 다시 들어오면 묻지 않는다.
   askShoppingRecipeId: number | null;
   setRecipes: (fridgeId: number, recipes: Recipe[]) => void;
   setRecommend: (recommend: RecommendState) => void;
   setTarget: (target: TargetState) => void;
+  setTargetDone: (targetDone: TargetDone | null) => void;
   setAskShoppingRecipeId: (recipeId: number | null) => void;
   clearRecipes: () => void;
 };
@@ -45,10 +49,12 @@ export const useRecipeStore = create<RecipeState>()(
       recipes: [],
       recommend: { status: "idle" },
       target: { status: "idle" },
+      targetDone: null,
       askShoppingRecipeId: null,
       setRecipes: (fridgeId, recipes) => set({ fridgeId, recipes }),
       setRecommend: (recommend) => set({ recommend }),
       setTarget: (target) => set({ target }),
+      setTargetDone: (targetDone) => set({ targetDone }),
       setAskShoppingRecipeId: (askShoppingRecipeId) => set({ askShoppingRecipeId }),
       clearRecipes: () =>
         set({
@@ -56,6 +62,7 @@ export const useRecipeStore = create<RecipeState>()(
           recipes: [],
           recommend: { status: "idle" },
           target: { status: "idle" },
+          targetDone: null,
           askShoppingRecipeId: null,
         }),
     }),
