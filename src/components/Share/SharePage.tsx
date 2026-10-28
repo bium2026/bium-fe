@@ -2,188 +2,240 @@
  * 냉장고 공유 화면이다.
  * 지금 보고 있는 냉장고에 초대 코드로 다른 사람을 부르고, 멤버와 활동 기록을 본다.
  * 받은 코드로 다른 냉장고에 참여하는 것은 헤더의 냉장고 목록에서 한다.
- * 냉장고 이름과 내 역할은 헤더에서 고른 냉장고를 따르고, 나머지는 퍼블리싱 단계라 목데이터와 가짜 요청을 쓴다.
- * 공유 API가 나오면 서버 요청으로 바꾼다.
+ * 냉장고 이름과 내 역할은 헤더에서 고른 냉장고를 따르고, 초대 코드·멤버·활동 기록은 그 냉장고 기준으로 서버에서 불러온다.
  */
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { keyframes } from "@emotion/react";
 import styled from "@emotion/styled";
-import { useNavigate, useSearchParams } from "react-router";
-import type { Fridge } from "../../api/fridge";
+import { useNavigate } from "react-router";
+import { ApiError } from "../../api/client";
+import type { Fridge, MemberRole } from "../../api/fridge";
+import {
+  createInvite,
+  getActiveInvite,
+  getActivities,
+  getFridgeMembers,
+  leaveFridge,
+  removeFridgeMember,
+} from "../../api/fridgeShare";
+import type { Activity, FridgeMember, InviteCode } from "../../api/fridgeShare";
 import { pickFridge, useFridgeStore } from "../../store/fridgeStore";
-import type { FridgeListState } from "../../store/fridgeStore";
 import ActivityPanel from "./ActivityPanel";
 import InvitePanel from "./InvitePanel";
 import MemberPanel from "./MemberPanel";
-import { createInviteMock, getShareMock, mockRequest } from "./shareMockData";
+import { getShareErrorMessage } from "./shareFormat";
 import { OutlineButton, ScreenReaderText } from "./shareStyles";
-import type { FridgeMember, ShareData } from "./shareTypes";
 
-type ShareStatus = "loading" | "success" | "error" | "empty";
+type ShareData = {
+  // 주인이 아니거나 지금 쓸 수 있는 코드가 없으면 null
+  invite: InviteCode | null;
+  members: FridgeMember[];
+  activities: Activity[];
+};
 
-const MOCK_LOADING_MS = 1200;
+type ShareState =
+  | { status: "loading" }
+  | { status: "error"; code: string; message: string }
+  | { status: "success"; data: ShareData };
 
-// 퍼블리싱 확인용: ?preview=loading|error|member|empty|fail 로 각 상태 화면을 볼 수 있다. API 연동 시 지운다.
-function getPreviewStatus(value: string | null): ShareStatus {
-  if (value === "loading" || value === "error") return value;
-  return "success";
-}
-
-// 미리보기 값이 없으면 헤더의 냉장고 목록 상태를 따른다. 목록을 못 받았는데 목데이터 화면을 보여 주면 안 된다.
-function getInitialStatus(preview: string | null, list: FridgeListState, currentFridge: Fridge | null): ShareStatus {
-  if (preview) return getPreviewStatus(preview);
-  if (list.status === "idle" || list.status === "loading") return "loading";
-  if (list.status === "error") return "error";
-  return currentFridge ? "success" : "empty";
-}
-
-// 미리보기 값이 있으면 그 목데이터를 그대로 보여 주고, 없으면 고른 냉장고의 이름·역할에 맞춘 목데이터를 쓴다.
-function getInitialData(preview: string | null, currentFridge: Fridge | null): ShareData {
-  if (preview || !currentFridge) return getShareMock(preview);
-  const mock = getShareMock(currentFridge.role === "MEMBER" ? "member" : null);
-  return { ...mock, fridge: { id: currentFridge.id, name: currentFridge.name, myRole: currentFridge.role } };
+// 초대 코드는 주인만 볼 수 있어서 멤버일 때는 부르지 않는다.
+async function getShareData(fridgeId: number, myRole: MemberRole): Promise<ShareData> {
+  const [invite, members, activities] = await Promise.all([
+    myRole === "OWNER" ? getActiveInvite(fridgeId) : null,
+    getFridgeMembers(fridgeId),
+    getActivities(fridgeId),
+  ]);
+  return { invite, members, activities };
 }
 
 function SharePage() {
-  const [searchParams] = useSearchParams();
-  const preview = searchParams.get("preview");
   const list = useFridgeStore((state) => state.list);
   const selectedFridgeId = useFridgeStore((state) => state.selectedFridgeId);
-  const currentFridge = list.status === "success" ? pickFridge(list.fridges, selectedFridgeId) : null;
-  const initialStatus = getInitialStatus(preview, list, currentFridge);
-
-  // 미리보기 값, 냉장고 목록 상태, 보고 있는 냉장고가 바뀌면 화면 상태를 처음부터 다시 만든다.
-  return (
-    <ShareContent
-      key={`${preview}-${initialStatus}-${currentFridge?.id}-${currentFridge?.role}`}
-      preview={preview}
-      initialStatus={initialStatus}
-      currentFridge={currentFridge}
-    />
-  );
-}
-
-export default SharePage;
-
-type ShareContentProps = {
-  preview: string | null;
-  initialStatus: ShareStatus;
-  currentFridge: Fridge | null;
-};
-
-function ShareContent({ preview, initialStatus, currentFridge }: ShareContentProps) {
-  const navigate = useNavigate();
-  const selectFridge = useFridgeStore((state) => state.selectFridge);
   const loadFridges = useFridgeStore((state) => state.loadFridges);
-  const removeFridge = useFridgeStore((state) => state.removeFridge);
-  const shouldFail = preview === "fail";
-  const [status, setStatus] = useState<ShareStatus>(initialStatus);
-  const [data, setData] = useState<ShareData>(() => getInitialData(preview, currentFridge));
-  // 멤버를 내보내면 서버가 지금 초대 코드도 함께 끈다. 코드가 사라진 이유를 초대 코드 칸에 알려 준다.
-  const [isInviteRevoked, setIsInviteRevoked] = useState(false);
-  const timerRef = useRef<number | undefined>(undefined);
-
-  useEffect(() => () => window.clearTimeout(timerRef.current), []);
-
-  const isOwner = data.fridge.myRole === "OWNER";
-
-  const handleRetry = () => {
-    // 냉장고 목록을 못 받은 경우면 목록부터 다시 불러온다. 목록 상태가 바뀌면 이 화면이 새로 그려진다.
-    if (!preview) {
-      loadFridges();
-      return;
-    }
-    setStatus("loading");
-    // TODO: 공유 API가 정해지면 서버 요청으로 바꾼다. 지금은 로딩 화면을 보여 주기 위한 지연이다.
-    timerRef.current = window.setTimeout(() => setStatus("success"), MOCK_LOADING_MS);
-  };
-
-  // 아래 요청들은 실패하면 각 영역이 오류를 보여 주도록 그대로 던진다.
-  const handleCreateInvite = async () => {
-    const invite = await mockRequest(createInviteMock, shouldFail);
-    setData((prev) => ({ ...prev, invite }));
-    setIsInviteRevoked(false);
-  };
-
-  const handleRemove = async (member: FridgeMember) => {
-    await mockRequest(() => undefined, shouldFail);
-    // 내보낸 사람이 같은 코드로 다시 들어오지 못하게 서버가 코드를 끄므로, API 연동 때는 지금 코드를 다시 불러온다.
-    setData((prev) => ({
-      ...prev,
-      invite: null,
-      members: prev.members.filter((item) => item.userId !== member.userId),
-    }));
-    setIsInviteRevoked(data.invite !== null);
-  };
-
-  // 나가면 이 냉장고를 더 볼 수 없으므로 내가 주인인 냉장고로 돌아가 냉장고 화면을 보여 준다.
-  const handleLeave = async () => {
-    await mockRequest(() => undefined, shouldFail);
-    // 나간 냉장고를 헤더 목록에서도 바로 뺀다. API 연동 때는 서버 목록을 다시 불러온다.
-    removeFridge(data.fridge.id);
-    selectFridge(null);
-    navigate("/fridge", { replace: true });
-  };
+  const currentFridge = list.status === "success" ? pickFridge(list.fridges, selectedFridgeId) : null;
+  const isOwner = currentFridge?.role === "OWNER";
 
   return (
     <Wrapper>
       <Hero>
         <h1>냉장고 공유</h1>
-        {status === "success" && (
+        {currentFridge && (
           <FridgeLine>
-            <strong>{data.fridge.name}</strong>
+            <strong>{currentFridge.name}</strong>
             <RoleBadge $owner={isOwner}>{isOwner ? "주인" : "멤버"}</RoleBadge>
           </FridgeLine>
         )}
         <p>가족이나 룸메이트와 냉장고를 함께 관리하고, 누가 무엇을 바꿨는지 확인해요.</p>
       </Hero>
 
-      {status === "error" && (
+      {list.status === "error" && (
         <StatusBox role="alert">
           <strong>공유 정보를 불러오지 못했어요.</strong>
           <p>잠시 후 다시 시도해 주세요. 문제가 계속되면 새로고침해 주세요.</p>
-          <OutlineButton type="button" onClick={handleRetry}>
+          {/* 냉장고 목록부터 다시 불러온다. 목록을 받으면 이 화면이 그 냉장고의 공유 정보를 불러온다. */}
+          <OutlineButton type="button" onClick={() => loadFridges()}>
             다시 시도
           </OutlineButton>
         </StatusBox>
       )}
 
-      {status === "empty" && (
+      {(list.status === "idle" || list.status === "loading") && <ShareSkeleton />}
+
+      {list.status === "success" && !currentFridge && (
         <StatusBox>
           <strong>아직 속한 냉장고가 없어요.</strong>
           <p>헤더 오른쪽 냉장고 버튼에서 받은 초대 코드로 참여할 수 있어요.</p>
         </StatusBox>
       )}
 
-      {status === "loading" && (
-        <Grid aria-busy="true">
-          <ScreenReaderText role="status">공유 정보를 불러오는 중이에요.</ScreenReaderText>
-          <Skeleton aria-hidden="true" />
-          <Skeleton aria-hidden="true" />
-          <Skeleton aria-hidden="true" $wide />
-        </Grid>
-      )}
-
-      {status === "success" && (
-        <>
-          <Grid>
-            <InvitePanel
-              invite={data.invite}
-              isRevoked={isInviteRevoked}
-              canInvite={isOwner}
-              onCreate={handleCreateInvite}
-            />
-            <MemberPanel
-              members={data.members}
-              myRole={data.fridge.myRole}
-              onRemove={handleRemove}
-              onLeave={handleLeave}
-            />
-          </Grid>
-          <ActivityPanel activities={data.activities} />
-        </>
-      )}
+      {/* 보고 있는 냉장고나 내 역할이 바뀌면 공유 정보를 처음부터 다시 불러온다. */}
+      {currentFridge && <ShareContent key={`${currentFridge.id}-${currentFridge.role}`} fridge={currentFridge} />}
     </Wrapper>
+  );
+}
+
+export default SharePage;
+
+function ShareSkeleton() {
+  return (
+    <Grid aria-busy="true">
+      <ScreenReaderText role="status">공유 정보를 불러오는 중이에요.</ScreenReaderText>
+      <Skeleton aria-hidden="true" />
+      <Skeleton aria-hidden="true" />
+      <Skeleton aria-hidden="true" $wide />
+    </Grid>
+  );
+}
+
+type ShareContentProps = {
+  fridge: Fridge;
+};
+
+function ShareContent({ fridge }: ShareContentProps) {
+  const { id: fridgeId, role: myRole } = fridge;
+  const navigate = useNavigate();
+  const selectFridge = useFridgeStore((state) => state.selectFridge);
+  const loadFridges = useFridgeStore((state) => state.loadFridges);
+  const removeFridge = useFridgeStore((state) => state.removeFridge);
+  const [share, setShare] = useState<ShareState>({ status: "loading" });
+  const [loadAttempt, setLoadAttempt] = useState(0);
+  // 멤버를 내보내면 서버가 지금 초대 코드도 함께 끈다. 코드가 사라진 이유를 초대 코드 칸에 알려 준다.
+  const [isInviteRevoked, setIsInviteRevoked] = useState(false);
+
+  useEffect(() => {
+    let ignore = false;
+    getShareData(fridgeId, myRole).then(
+      (data) => {
+        if (!ignore) setShare({ status: "success", data });
+      },
+      (error: unknown) => {
+        if (ignore) return;
+        setShare({
+          status: "error",
+          code: error instanceof ApiError ? error.code : "UNKNOWN_ERROR",
+          message: getShareErrorMessage(error, "잠시 후 다시 시도해 주세요. 문제가 계속되면 새로고침해 주세요."),
+        });
+      },
+    );
+    return () => {
+      ignore = true;
+    };
+  }, [fridgeId, myRole, loadAttempt]);
+
+  // 아래 요청들은 공유 정보를 받은 뒤에만 보내므로, 성공 상태일 때만 값을 바꾼다.
+  const updateData = (update: (prev: ShareData) => ShareData) => {
+    setShare((prev) => (prev.status === "success" ? { status: "success", data: update(prev.data) } : prev));
+  };
+
+  const handleRetry = () => {
+    setShare({ status: "loading" });
+    setLoadAttempt((prev) => prev + 1);
+  };
+
+  // 아래 요청들은 서버에 반영된 뒤에 화면을 바꾼다. 실패하면 화면은 그대로 두고, 각 영역이 오류를 보여 주도록 그대로 던진다.
+  const handleCreateInvite = async () => {
+    const invite = await createInvite(fridgeId);
+    updateData((prev) => ({ ...prev, invite }));
+    setIsInviteRevoked(false);
+  };
+
+  const handleRemove = async (member: FridgeMember) => {
+    try {
+      await removeFridgeMember(fridgeId, member.userId);
+      // 내보낸 사람이 같은 코드로 다시 들어오지 못하게 서버가 지금 초대 코드도 함께 껐다.
+      // 코드가 있었을 때만 안내를 켠다. 이어서 또 내보내면 코드가 이미 없어 안내가 꺼지면 안 된다.
+      if (share.status === "success" && share.data.invite !== null) setIsInviteRevoked(true);
+      updateData((prev) => ({ ...prev, invite: null }));
+    } catch (error) {
+      // 다른 기기에서 먼저 내보냈거나 스스로 나가 이미 멤버가 아니면, 내보내려던 결과와 같으므로 목록에서 빼고 넘어간다.
+      // 이때는 서버가 초대 코드를 껐는지 알 수 없어 코드는 그대로 둔다.
+      if (!(error instanceof ApiError && error.code === "FRIDGE_MEMBER_NOT_FOUND")) throw error;
+    }
+    updateData((prev) => ({ ...prev, members: prev.members.filter((item) => item.userId !== member.userId) }));
+    // 내보내면 서버가 그 사람의 나가기 기록을 남기므로 활동 기록을 다시 받는다. 못 받으면 지금 기록을 그대로 둔다.
+    getActivities(fridgeId).then(
+      (activities) => updateData((prev) => ({ ...prev, activities })),
+      () => undefined,
+    );
+  };
+
+  // 나가면 이 냉장고를 더 볼 수 없으므로 내가 주인인 냉장고로 돌아가 냉장고 화면을 보여 준다.
+  const handleLeave = async () => {
+    try {
+      await leaveFridge(fridgeId);
+    } catch (error) {
+      // 다른 기기에서 먼저 나갔거나 주인이 내보내 이미 멤버가 아니면, 나가려던 결과와 같으므로 그대로 넘어간다.
+      if (!(error instanceof ApiError && error.code === "FRIDGE_NOT_FOUND")) throw error;
+    }
+    // 화면을 먼저 옮긴다. 목록을 먼저 바꾸면 이 화면이 내 냉장고로 다시 그려져 공유 정보를 괜히 불러온다.
+    // 이동은 기본으로 startTransition에 담겨 목록 변경보다 늦게 그려지므로 바로 그리게 한다.
+    navigate("/fridge", { replace: true, flushSync: true });
+    // 나간 냉장고를 헤더 목록에서 바로 빼고, 서버 기준 목록도 다시 불러온다.
+    removeFridge(fridgeId);
+    loadFridges();
+    // 기다리는 사이 헤더에서 다른 냉장고를 골랐으면 그 선택은 그대로 둔다.
+    if (useFridgeStore.getState().selectedFridgeId === fridgeId) selectFridge(null);
+  };
+
+  if (share.status === "loading") return <ShareSkeleton />;
+
+  if (share.status === "error") {
+    return (
+      <StatusBox role="alert">
+        <strong>공유 정보를 불러오지 못했어요.</strong>
+        <p>{share.message}</p>
+        {share.code === "FRIDGE_NOT_FOUND" ? (
+          // 화면을 연 뒤 주인이 나를 내보냈으면 같은 냉장고로는 계속 실패해서, 냉장고 목록을 다시 받아 내가 속한 냉장고로 옮긴다.
+          <OutlineButton type="button" onClick={() => loadFridges()}>
+            냉장고 목록 다시 불러오기
+          </OutlineButton>
+        ) : (
+          <OutlineButton type="button" onClick={handleRetry}>
+            다시 시도
+          </OutlineButton>
+        )}
+      </StatusBox>
+    );
+  }
+
+  return (
+    <>
+      <Grid>
+        <InvitePanel
+          invite={share.data.invite}
+          isRevoked={isInviteRevoked}
+          canInvite={myRole === "OWNER"}
+          onCreate={handleCreateInvite}
+        />
+        <MemberPanel
+          members={share.data.members}
+          myRole={myRole}
+          onRemove={handleRemove}
+          onLeave={handleLeave}
+        />
+      </Grid>
+      <ActivityPanel activities={share.data.activities} />
+    </>
   );
 }
 

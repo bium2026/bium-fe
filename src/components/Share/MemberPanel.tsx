@@ -6,9 +6,9 @@ import { useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
 import styled from "@emotion/styled";
 import type { MemberRole } from "../../api/fridge";
-import { formatJoinedDate } from "./shareFormat";
+import type { FridgeMember } from "../../api/fridgeShare";
+import { formatJoinedDate, getShareErrorMessage } from "./shareFormat";
 import { Feedback, OutlineButton, Panel, PanelHeader, PrimaryButton } from "./shareStyles";
-import type { FridgeMember } from "./shareTypes";
 
 type MemberPanelProps = {
   members: FridgeMember[];
@@ -47,7 +47,14 @@ function MemberPanel({ members, myRole, onRemove, onLeave }: MemberPanelProps) {
       }
       setConfirmingId(null);
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "요청을 처리하지 못했어요.");
+      setErrorMessage(
+        getShareErrorMessage(
+          error,
+          member.isMe
+            ? "냉장고에서 나가지 못했어요. 잠시 후 다시 시도해 주세요."
+            : "멤버를 내보내지 못했어요. 잠시 후 다시 시도해 주세요.",
+        ),
+      );
     } finally {
       setIsBusy(false);
     }
@@ -223,8 +230,9 @@ const MeTag = styled.em`
 
 const Meta = styled.span`
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: 4px 8px;
   font-size: 13px;
   font-weight: 330;
 `;
@@ -236,6 +244,7 @@ const RoleBadge = styled.span<{ $owner: boolean }>`
   padding: 2px 8px;
   font-size: 12px;
   font-weight: 540;
+  white-space: nowrap;
 `;
 
 const Confirm = styled.div`

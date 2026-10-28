@@ -2,6 +2,7 @@
  * 냉장고·냉장고 재료 API다.
  * 요청·응답 형식은 백엔드 FridgeController, FridgeItemController의 DTO를 따른다.
  */
+import { useAuthStore } from "../store/authStore";
 import { pickFridge, useFridgeStore } from "../store/fridgeStore";
 import { request, requestNoContent } from "./client";
 
@@ -54,8 +55,11 @@ export function getFridgeItems(fridgeId: number) {
 // 헤더가 받은 목록이 있으면 그 목록에서 고른다. 서버 목록을 따로 받으면 헤더와 다른 냉장고를 골라
 // 헤더에 없는 냉장고에 재료를 넣을 수 있다.
 export async function getMyFridge() {
+  const requestToken = useAuthStore.getState().accessToken;
   const { list } = useFridgeStore.getState();
   const fridges = list.status === "success" ? list.fridges : await getMyFridges();
+  // 기다리는 사이 다른 계정으로 바뀌었으면 이전 계정의 냉장고를 지금 계정의 요청에 쓰지 않게 버린다.
+  if (useAuthStore.getState().accessToken !== requestToken) return null;
   return pickFridge(fridges, useFridgeStore.getState().selectedFridgeId);
 }
 

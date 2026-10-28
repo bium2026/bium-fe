@@ -1,6 +1,7 @@
 /*
- * 냉장고 공유 화면의 날짜·코드 표시 형식을 정한다.
+ * 냉장고 공유 화면의 날짜·코드 표시 형식과 오류 안내 문구를 정한다.
  */
+import { ApiError, NETWORK_ERROR } from "../../api/client";
 
 const CODE_LENGTH = 8;
 
@@ -42,4 +43,21 @@ export function formatActivityTime(value: string, now = Date.now()) {
   if (minutes < 60 * 24) return `${Math.floor(minutes / 60)}시간 전`;
   const date = new Date(value);
   return `${date.getMonth() + 1}월 ${date.getDate()}일`;
+}
+
+// 서버 문구 대신 화면 말투로, 무엇이 문제고 어떻게 하면 되는지 알려 준다.
+const shareErrorMessages: Partial<Record<string, string>> = {
+  FRIDGE_NOT_FOUND: "이 냉장고에 더 이상 속해 있지 않아요. 주인이 내보냈을 수 있어요.",
+  FRIDGE_OWNER_ONLY: "냉장고 주인만 할 수 있어요.",
+  OWNER_CANNOT_LEAVE: "주인은 냉장고에서 나가거나 내보내질 수 없어요.",
+  INVITE_NOT_FOUND: "초대 코드를 찾을 수 없어요. 받은 코드를 다시 확인해 주세요.",
+  INVITE_EXPIRED: "만료됐거나 새 코드로 바뀐 초대 코드예요. 주인에게 새 코드를 받아 주세요.",
+  ALREADY_FRIDGE_MEMBER: "이미 참여한 냉장고예요. 헤더의 냉장고 목록에서 바꿔 볼 수 있어요.",
+};
+
+// 모르는 오류는 화면마다 정한 문구로 다시 시도를 안내한다.
+export function getShareErrorMessage(error: unknown, fallback: string) {
+  if (!(error instanceof ApiError)) return fallback;
+  if (error.code === NETWORK_ERROR) return error.message;
+  return shareErrorMessages[error.code] ?? fallback;
 }

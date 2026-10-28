@@ -6,9 +6,11 @@ import { useEffect, useId, useRef, useState } from "react";
 import styled from "@emotion/styled";
 import { Check, ChevronDown, Refrigerator, UserPlus } from "lucide-react";
 import { useNavigate } from "react-router";
+import { ApiError } from "../../api/client";
 import type { Fridge } from "../../api/fridge";
+import { joinFridge } from "../../api/fridgeShare";
 import JoinFridgeModal from "../Share/JoinFridgeModal";
-import { joinFridgeMock, mockRequest } from "../Share/shareMockData";
+import { useAuthStore } from "../../store/authStore";
 import { pickFridge, useFridgeStore } from "../../store/fridgeStore";
 
 function FridgeSwitcher() {
@@ -58,12 +60,21 @@ function FridgeSwitcher() {
     setIsJoinOpen(true);
   };
 
-  // TODO: 공유 API 연동 때 POST /api/fridges/join으로 바꾼다. 지금은 퍼블리싱용 가짜 요청이다.
-  // 참여한 냉장고를 목록에 바로 넣어 '보러 가기'로 고를 수 있게 한다. 실패하면 모달이 오류를 보여 주도록 그대로 던진다.
+  // 응답으로 받은 냉장고를 목록에 바로 넣어, 목록을 다시 받지 않고도 '보러 가기'로 그 냉장고를 고를 수 있게 한다.
+  // 실패하면 모달이 오류를 보여 주도록 그대로 던진다.
   const handleJoin = async (code: string) => {
-    const fridge = await mockRequest(() => joinFridgeMock(code), false);
-    addFridge(fridge);
-    return fridge;
+    const requestToken = useAuthStore.getState().accessToken;
+    try {
+      const fridge = await joinFridge(code);
+      // 기다리는 사이 로그아웃했거나 다른 계정으로 바뀌었으면, 이전 계정이 참여한 냉장고를 지금 계정의 목록에 넣지 않는다.
+      if (useAuthStore.getState().accessToken !== requestToken) throw new Error("로그인한 계정이 바뀌었어요.");
+      addFridge(fridge);
+      return fridge;
+    } catch (error) {
+      // 다른 기기에서 이미 참여한 냉장고면 헤더 목록에 없을 수 있어 서버 목록을 다시 받는다.
+      if (error instanceof ApiError && error.code === "ALREADY_FRIDGE_MEMBER") loadFridges();
+      throw error;
+    }
   };
 
   const handleOpenFridge = (fridge: Fridge) => {

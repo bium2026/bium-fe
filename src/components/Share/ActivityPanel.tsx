@@ -4,9 +4,9 @@
 import styled from "@emotion/styled";
 import { ArrowRightLeft, LogIn, LogOut, CircleMinus, Pencil, Plus, RotateCcw, Trash2 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import type { Activity, ActivityAction } from "../../api/fridgeShare";
 import { formatActivityTime } from "./shareFormat";
 import { Panel, PanelHeader } from "./shareStyles";
-import type { Activity, ActivityAction } from "./shareTypes";
 
 type ActivityPanelProps = {
   activities: Activity[];
@@ -17,8 +17,9 @@ const actionMeta: Record<ActivityAction, { icon: LucideIcon; verb: string; tone:
   UPDATE: { icon: Pencil, verb: "수정했어요", tone: "var(--block-cream)" },
   MOVE: { icon: ArrowRightLeft, verb: "옮겼어요", tone: "var(--block-lilac)" },
   DELETE: { icon: Trash2, verb: "삭제했어요", tone: "var(--block-pink)" },
+  // 요리 완료로 줄인 재료와 그 요리를 되돌려 다시 채운 재료가 재료마다 한 줄씩 온다.
   DEDUCT: { icon: CircleMinus, verb: "요리에 써서 줄였어요", tone: "var(--block-coral)" },
-  RESTORE: { icon: RotateCcw, verb: "되돌렸어요", tone: "var(--block-cream)" },
+  RESTORE: { icon: RotateCcw, verb: "요리 전으로 되돌렸어요", tone: "var(--block-cream)" },
   JOIN: { icon: LogIn, verb: "냉장고에 참여했어요", tone: "var(--block-lime)" },
   LEAVE: { icon: LogOut, verb: "냉장고에서 나갔어요", tone: "var(--surface-soft)" },
 };
