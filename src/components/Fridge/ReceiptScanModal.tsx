@@ -9,7 +9,7 @@ import { keyframes } from "@emotion/react";
 import styled from "@emotion/styled";
 import { CircleAlert, LoaderCircle, Trash2 } from "lucide-react";
 import { ApiError, NETWORK_ERROR } from "../../api/client";
-import type { StorageType } from "../../api/fridge";
+import type { FridgeItemBulkCreateItem, StorageType } from "../../api/fridge";
 import type { ScannedReceiptItem } from "../../api/receipt";
 import LibraryModal, { ModalError } from "../Library/LibraryModal";
 import { ModalActions, ModalButton, ModalSelect } from "../Library/libraryModalStyles";
@@ -17,7 +17,8 @@ import { storageLabel, storageOrder } from "../Library/libraryStorage";
 import { getEmojiError } from "../Library/libraryValidation";
 import { RECEIPT_IMAGE_ACCEPT, type ReceiptScan } from "./receiptScan";
 
-export type ReceiptItemValues = {
+// 입력칸에 보여 주는 값이라 비어 있는 유통기한도 빈 문자열로 둔다.
+type ReceiptItemValues = {
   name: string;
   emoji: string;
   storage: StorageType;
@@ -28,7 +29,7 @@ type ReceiptScanModalProps = {
   scan: ReceiptScan | null;
   onPickFile: (file: File) => void;
   onClose: () => void;
-  onAdd: (fridgeId: number, items: ReceiptItemValues[]) => Promise<void>;
+  onAdd: (fridgeId: number, items: FridgeItemBulkCreateItem[]) => Promise<void>;
 };
 
 type ReceiptRow = ReceiptItemValues & { key: number };
@@ -53,7 +54,7 @@ function isValidDate(value: string) {
   return !Number.isNaN(date.getTime()) && date.toISOString().startsWith(value);
 }
 
-// AI가 정하지 못한 아이콘·유통기한은 빈칸으로 두고 사용자가 채운다.
+// AI가 정하지 못한 아이콘·유통기한은 빈칸으로 둔다. 사용자가 채우지 않으면 아이콘·유통기한 없이 넣는다.
 function toRow(item: ScannedReceiptItem): ReceiptRow {
   return {
     key: nextRowKey++,
@@ -64,14 +65,14 @@ function toRow(item: ScannedReceiptItem): ReceiptRow {
   };
 }
 
-// 냉장고 재료 수정 모달과 같은 규칙이다.
+// 값이 있으면 냉장고 재료 수정 모달과 같은 규칙으로 검사한다. 아이콘·유통기한은 비워 둘 수 있다.
 function getRowErrors(row: ReceiptRow) {
   const name = row.name.trim();
   const emoji = row.emoji.trim();
   return {
     name: name ? "" : "이름을 입력해 주세요.",
-    emoji: emoji ? getEmojiError(emoji) : "아이콘을 입력해 주세요.",
-    expiresAt: isValidDate(row.expiresAt) ? "" : "유통기한을 선택해 주세요.",
+    emoji: emoji ? getEmojiError(emoji) : "",
+    expiresAt: !row.expiresAt || isValidDate(row.expiresAt) ? "" : "올바른 날짜를 선택해 주세요.",
   };
 }
 
@@ -137,7 +138,7 @@ type ReceiptScanContentProps = {
   onBusyChange: (isBusy: boolean) => void;
   onPickFile: (file: File) => void;
   onClose: () => void;
-  onAdd: (fridgeId: number, items: ReceiptItemValues[]) => Promise<void>;
+  onAdd: (fridgeId: number, items: FridgeItemBulkCreateItem[]) => Promise<void>;
 };
 
 function ReceiptScanContent({ scan, isBusy, onBusyChange, onPickFile, onClose, onAdd }: ReceiptScanContentProps) {
@@ -233,7 +234,8 @@ function ReceiptScanContent({ scan, isBusy, onBusyChange, onPickFile, onClose, o
           name: name.trim(),
           emoji: emoji.trim(),
           storage,
-          expiresAt,
+          // 서버는 유통기한 없음을 null로 받는다.
+          expiresAt: expiresAt || null,
         })),
       );
       onBusyChange(false);

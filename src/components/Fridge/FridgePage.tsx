@@ -15,12 +15,13 @@ import {
   addFridgeItems,
   deleteFridgeItem,
   updateFridgeItem,
+  type FridgeItemBulkCreateItem,
   type FridgeItemResponse,
   type StorageType,
 } from "../../api/fridge";
 import FridgeBoard from "./FridgeBoard";
 import IngredientEditModal, { type IngredientEditValues } from "./IngredientEditModal";
-import ReceiptScanModal, { ReceiptFileInput, type ReceiptItemValues } from "./ReceiptScanModal";
+import ReceiptScanModal, { ReceiptFileInput } from "./ReceiptScanModal";
 import { emptyFridgeMock, fridgeMock } from "./fridgeMockData";
 import type { FridgeContents, FridgeIngredient, ZoneId, ZoneIngredients } from "./fridgeTypes";
 import { isZoneId, zoneMeta, zoneOrder } from "./fridgeZones";
@@ -173,7 +174,7 @@ function FridgePage() {
   };
 
   // 냉장고 화면은 아직 목데이터라 다시 불러오지 않고, 넣은 재료를 응답으로 바로 붙인다.
-  const handleReceiptAdd = async (fridgeId: number, items: ReceiptItemValues[]) => {
+  const handleReceiptAdd = async (fridgeId: number, items: FridgeItemBulkCreateItem[]) => {
     const added = await addFridgeItems(fridgeId, items);
     // 응답은 보낸 순서대로 오므로 같은 자리의 보관 위치로 구역을 정한다.
     setFridgeContents((prev) =>
