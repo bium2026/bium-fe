@@ -163,7 +163,8 @@ function ShareContent({ fridge }: ShareContentProps) {
     try {
       await removeFridgeMember(fridgeId, member.userId);
       // 내보낸 사람이 같은 코드로 다시 들어오지 못하게 서버가 지금 초대 코드도 함께 껐다.
-      setIsInviteRevoked(share.status === "success" && share.data.invite !== null);
+      // 코드가 있었을 때만 안내를 켠다. 이어서 또 내보내면 코드가 이미 없어 안내가 꺼지면 안 된다.
+      if (share.status === "success" && share.data.invite !== null) setIsInviteRevoked(true);
       updateData((prev) => ({ ...prev, invite: null }));
     } catch (error) {
       // 다른 기기에서 먼저 내보냈거나 스스로 나가 이미 멤버가 아니면, 내보내려던 결과와 같으므로 목록에서 빼고 넘어간다.
