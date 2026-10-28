@@ -8,9 +8,11 @@ import { scanReceipt, type ScannedReceiptItem } from "../../api/receipt";
 
 // 서버가 받는 사진 형식·크기와 같다.
 const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"];
+const HEIC_EXTENSIONS = ["heic", "heif"];
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 
-export const RECEIPT_IMAGE_ACCEPT = IMAGE_TYPES.join(",");
+// HEIC 형식을 모르는 브라우저에서도 사진 고르기 창에 HEIC 파일이 보이도록 확장자를 함께 적는다.
+export const RECEIPT_IMAGE_ACCEPT = [...IMAGE_TYPES, ...HEIC_EXTENSIONS.map((extension) => `.${extension}`)].join(",");
 
 export type ReceiptScanResult =
   | { status: "error"; message: string }
@@ -46,7 +48,17 @@ function getImageError(file: File) {
   return "";
 }
 
-async function readReceipt(file: File): Promise<ReceiptScanResult> {
+// 일부 브라우저는 HEIC·HEIF 사진의 형식(type)을 비워 두므로 확장자로 채운다.
+// 서버도 형식으로 사진을 거르기 때문에 채운 파일을 그대로 보낸다.
+function withImageType(file: File) {
+  if (file.type) return file;
+  const extension = file.name.split(".").pop()?.toLowerCase() ?? "";
+  if (!HEIC_EXTENSIONS.includes(extension)) return file;
+  return new File([file], file.name, { type: `image/${extension}`, lastModified: file.lastModified });
+}
+
+async function readReceipt(original: File): Promise<ReceiptScanResult> {
+  const file = withImageType(original);
   const imageError = getImageError(file);
   if (imageError) return { status: "error", message: imageError };
 
