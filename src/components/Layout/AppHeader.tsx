@@ -1,10 +1,12 @@
 /*
  * 로그인 뒤 화면들이 함께 쓰는 상단 헤더다.
  * 브랜드와 냉장고·식재료 도감·AI 레시피·냉장고 공유 메뉴를 보여 주고, 지금 보고 있는 화면의 메뉴에 밑줄을 긋는다.
+ * 오른쪽에서는 지금 보고 있는 냉장고를 다른 냉장고로 바꿀 수 있다.
  */
 import styled from "@emotion/styled";
 import { BookOpen, Bot, Refrigerator, Users } from "lucide-react";
 import { Link, NavLink } from "react-router";
+import FridgeSwitcher from "./FridgeSwitcher";
 
 const menus = [
   { to: "/fridge", label: "내 냉장고", icon: Refrigerator },
@@ -33,7 +35,7 @@ function AppHeader() {
         })}
       </Menu>
 
-      <HeaderSpacer aria-hidden="true" />
+      <FridgeSwitcher />
     </Header>
   );
 }
@@ -58,11 +60,12 @@ const Header = styled.header`
     grid-template-columns: 120px minmax(0, 1fr) 120px;
   }
 
+  /* 모바일에서는 첫 줄에 브랜드와 냉장고 바꾸기, 둘째 줄에 메뉴를 둔다. */
   @media (max-width: 760px) {
     height: auto;
     padding: 8px 14px 0;
-    grid-template-columns: 1fr;
-    gap: 4px;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 4px 12px;
   }
 `;
 
@@ -112,6 +115,8 @@ const Menu = styled.nav`
   }
 
   @media (max-width: 760px) {
+    grid-column: 1 / -1;
+    grid-row: 2;
     justify-content: flex-start;
     overflow-x: auto;
     gap: 16px;
@@ -145,11 +150,5 @@ const MenuLink = styled(NavLink)`
 
   @media (max-width: 760px) {
     height: 42px;
-  }
-`;
-
-const HeaderSpacer = styled.div`
-  @media (max-width: 760px) {
-    display: none;
   }
 `;
