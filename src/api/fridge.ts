@@ -2,6 +2,7 @@
  * 냉장고·냉장고 재료 API다.
  * 요청·응답 형식은 백엔드 FridgeController, FridgeItemController의 DTO를 따른다.
  */
+import { pickFridge, useFridgeStore } from "../store/fridgeStore";
 import { request, requestNoContent } from "./client";
 
 export type MemberRole = "OWNER" | "MEMBER";
@@ -49,10 +50,13 @@ export function getFridgeItems(fridgeId: number) {
   return request<FridgeContentsResponse>(`/api/fridges/${fridgeId}/items`);
 }
 
-// 공유 냉장고에 함께 속해 있어도 화면은 내가 만든 냉장고를 먼저 보여 준다.
+// 헤더에서 고른 냉장고를 돌려준다. 고른 적이 없거나 더 이상 속해 있지 않으면 내가 주인인 냉장고를 돌려준다.
+// 헤더가 받은 목록이 있으면 그 목록에서 고른다. 서버 목록을 따로 받으면 헤더와 다른 냉장고를 골라
+// 헤더에 없는 냉장고에 재료를 넣을 수 있다.
 export async function getMyFridge() {
-  const fridges = await getMyFridges();
-  return fridges.find((fridge) => fridge.role === "OWNER") ?? fridges[0] ?? null;
+  const { list } = useFridgeStore.getState();
+  const fridges = list.status === "success" ? list.fridges : await getMyFridges();
+  return pickFridge(fridges, useFridgeStore.getState().selectedFridgeId);
 }
 
 // 도감 재료를 냉장고에 넣을 때 보낸다. 이름(50자까지)·아이콘은 도감 값을 채워 보내고 사용자가 고칠 수 있다.

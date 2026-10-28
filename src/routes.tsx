@@ -6,6 +6,7 @@ import AppLayout from './components/Layout/AppLayout.tsx'
 import LibraryPage from './components/Library/LibraryPage.tsx'
 import RecipeDetailPage from './components/Recipe/RecipeDetailPage.tsx'
 import RecipePage from './components/Recipe/RecipePage.tsx'
+import SharePage from './components/Share/SharePage.tsx'
 
 export const router = createBrowserRouter([
   { path: '/', element: <Navigate to="/login" replace /> },
@@ -21,6 +22,7 @@ export const router = createBrowserRouter([
       { path: '/fridge', element: <FridgePage /> },
       { path: '/recipes', element: <RecipePage /> },
       { path: '/recipes/:recipeId', element: <RecipeDetailPage /> },
+      { path: '/share', element: <SharePage /> },
     ],
   },
 ])
