@@ -1,21 +1,37 @@
 /*
  * 로그인 뒤 화면들이 함께 쓰는 상단 헤더다.
- * 브랜드와 냉장고·식재료 도감·AI 레시피·냉장고 공유 메뉴를 보여 주고, 지금 보고 있는 화면의 메뉴에 밑줄을 긋는다.
+ * 브랜드와 냉장고·식재료 도감·AI 레시피·장보기 목록·냉장고 공유 메뉴를 보여 주고, 지금 보고 있는 화면의 메뉴에 밑줄을 긋는다.
  * 오른쪽에서는 지금 보고 있는 냉장고를 다른 냉장고로 바꿀 수 있다.
  */
+import { useEffect, useRef } from "react";
 import styled from "@emotion/styled";
-import { BookOpen, Bot, Refrigerator, Users } from "lucide-react";
-import { Link, NavLink } from "react-router";
+import { BookOpen, Bot, Refrigerator, ShoppingCart, Users } from "lucide-react";
+import { Link, NavLink, useLocation } from "react-router";
 import FridgeSwitcher from "./FridgeSwitcher";
 
 const menus = [
   { to: "/fridge", label: "내 냉장고", icon: Refrigerator },
   { to: "/library", label: "식재료 도감", icon: BookOpen },
   { to: "/recipes", label: "AI 레시피", icon: Bot },
+  { to: "/shopping", label: "장보기 목록", icon: ShoppingCart },
   { to: "/share", label: "냉장고 공유", icon: Users },
 ];
 
 function AppHeader() {
+  const { pathname } = useLocation();
+  const menuRef = useRef<HTMLElement>(null);
+
+  // 좁은 화면에서는 메뉴가 한 줄을 넘쳐 가로로 밀리므로, 지금 화면의 메뉴가 가운데 보이도록 메뉴 줄을 옮긴다.
+  // 메뉴가 다 들어가는 넓은 화면에서는 옮길 곳이 없어 그대로다.
+  useEffect(() => {
+    const menu = menuRef.current;
+    const active = menu?.querySelector<HTMLElement>('[aria-current="page"]');
+    if (!menu || !active) return;
+    const menuRect = menu.getBoundingClientRect();
+    const activeRect = active.getBoundingClientRect();
+    menu.scrollLeft += activeRect.left - menuRect.left - (menuRect.width - activeRect.width) / 2;
+  }, [pathname]);
+
   return (
     <Header>
       <Brand to="/fridge" aria-label="Bium 홈, 내 냉장고로 이동">
@@ -23,7 +39,7 @@ function AppHeader() {
         <BrandName>Bium</BrandName>
       </Brand>
 
-      <Menu aria-label="주요 메뉴">
+      <Menu ref={menuRef} aria-label="주요 메뉴">
         {menus.map((menu) => {
           const Icon = menu.icon;
           return (
@@ -55,13 +71,13 @@ const Header = styled.header`
   align-items: center;
   gap: 16px;
 
-  /* 메뉴가 네 개라 좁은 화면에서는 양옆 칸을 줄여 가운데 메뉴 자리를 넓힌다. */
-  @media (max-width: 1000px) {
+  /* 메뉴가 다섯 개라 좁은 화면에서는 양옆 칸을 줄여 가운데 메뉴 자리를 넓힌다. */
+  @media (max-width: 1100px) {
     grid-template-columns: 120px minmax(0, 1fr) 120px;
   }
 
-  /* 모바일에서는 첫 줄에 브랜드와 냉장고 바꾸기, 둘째 줄에 메뉴를 둔다. */
-  @media (max-width: 760px) {
+  /* 메뉴 다섯 개가 한 줄에 들어가지 않는 폭부터는 첫 줄에 브랜드와 냉장고 바꾸기, 둘째 줄에 메뉴를 둔다. */
+  @media (max-width: 900px) {
     height: auto;
     padding: 8px 14px 0;
     grid-template-columns: minmax(0, 1fr) auto;
@@ -110,11 +126,11 @@ const Menu = styled.nav`
   gap: 24px;
   min-width: 0;
 
-  @media (max-width: 1000px) {
+  @media (max-width: 1100px) {
     gap: 16px;
   }
 
-  @media (max-width: 760px) {
+  @media (max-width: 900px) {
     grid-column: 1 / -1;
     grid-row: 2;
     justify-content: flex-start;
@@ -148,7 +164,7 @@ const MenuLink = styled(NavLink)`
     outline-offset: -2px;
   }
 
-  @media (max-width: 760px) {
+  @media (max-width: 900px) {
     height: 42px;
   }
 `;
