@@ -9,7 +9,7 @@ import { keyframes } from "@emotion/react";
 import styled from "@emotion/styled";
 import { X } from "lucide-react";
 import type { Fridge } from "../../api/fridge";
-import { getInviteCodeError, normalizeInviteCode } from "./shareFormat";
+import { getInviteCodeError, getShareErrorMessage, normalizeInviteCode } from "./shareFormat";
 import { Feedback, OutlineButton, PrimaryButton } from "./shareStyles";
 
 type JoinFridgeModalProps = {
@@ -107,7 +107,7 @@ function JoinForm({ titleId, isJoining, onJoiningChange, onClose, onJoin, onOpen
     try {
       setJoinedFridge(await onJoin(code));
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "냉장고에 참여하지 못했어요.");
+      setErrorMessage(getShareErrorMessage(error, "냉장고에 참여하지 못했어요. 잠시 후 다시 시도해 주세요."));
       // 코드를 고쳐 다시 넣을 수 있게 입력칸으로 돌아간다.
       requestAnimationFrame(() => inputRef.current?.focus());
     } finally {

@@ -4,9 +4,9 @@
 import styled from "@emotion/styled";
 import { ArrowRightLeft, LogIn, LogOut, CircleMinus, Pencil, Plus, RotateCcw, Trash2 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import type { Activity, ActivityAction } from "../../api/fridgeShare";
 import { formatActivityTime } from "./shareFormat";
 import { Panel, PanelHeader } from "./shareStyles";
-import type { Activity, ActivityAction } from "./shareTypes";
 
 type ActivityPanelProps = {
   activities: Activity[];

@@ -5,9 +5,9 @@
 import { useEffect, useRef, useState } from "react";
 import styled from "@emotion/styled";
 import { Copy, RefreshCw } from "lucide-react";
-import { formatExpiresAt, formatInviteCode } from "./shareFormat";
+import type { InviteCode } from "../../api/fridgeShare";
+import { formatExpiresAt, formatInviteCode, getShareErrorMessage } from "./shareFormat";
 import { Feedback, OutlineButton, Panel, PanelHeader, PrimaryButton, ScreenReaderText } from "./shareStyles";
-import type { InviteCode } from "./shareTypes";
 
 const COPIED_FEEDBACK_MS = 2000;
 
@@ -47,7 +47,7 @@ function InvitePanel({ invite, isRevoked, canInvite, onCreate }: InvitePanelProp
       // 첫 코드를 만들면 만들기 버튼이 사라지므로, 바로 쓸 복사 버튼으로 포커스를 옮긴다.
       if (isFirstCode) requestAnimationFrame(() => copyButtonRef.current?.focus());
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "초대 코드를 만들지 못했어요.");
+      setErrorMessage(getShareErrorMessage(error, "초대 코드를 만들지 못했어요. 잠시 후 다시 시도해 주세요."));
     } finally {
       setIsCreating(false);
     }
