@@ -197,7 +197,7 @@ function MissingIngredientForm({
             </ChoiceList>
           </Fieldset>
 
-          {selectedNames.size === 0 && <Hint>담을 재료를 하나 이상 골라 주세요.</Hint>}
+          {selectedNames.size === 0 && <Hint>장보기 목록에 담을 재료를 골라 주세요.</Hint>}
 
           {errorMessage && (
             <ErrorBox role="alert">

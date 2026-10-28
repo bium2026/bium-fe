@@ -52,6 +52,13 @@ function TargetRecipeForm({ fridgeId, onFridgeRetry }: TargetRecipeFormProps) {
 
   const dishName = value.trim();
   const isLoading = target.status === "loading";
+  // 버튼을 막는 까닭을 서버의 입력 오류 문구와 같은 뜻으로 알려 준다.
+  const inputMessage =
+    value && !dishName
+      ? "만들고 싶은 음식을 입력해 주세요."
+      : value.length >= DISH_NAME_MAX_LENGTH
+        ? `음식 이름은 ${DISH_NAME_MAX_LENGTH}자까지 입력할 수 있어요.`
+        : "";
 
   const handleSubmit = async (event?: FormEvent<HTMLFormElement>) => {
     event?.preventDefault();
@@ -136,7 +143,10 @@ function TargetRecipeForm({ fridgeId, onFridgeRetry }: TargetRecipeFormProps) {
           </SubmitButton>
         </InputRow>
         <Hint id={hintId}>
-          {value.length}/{DISH_NAME_MAX_LENGTH}자
+          {inputMessage && <strong role="status">{inputMessage}</strong>}
+          <span>
+            {value.length}/{DISH_NAME_MAX_LENGTH}자
+          </span>
         </Hint>
       </Form>
 
@@ -277,9 +287,20 @@ const SubmitButton = styled.button`
 `;
 
 const Hint = styled.p`
-  justify-self: end;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
   font-size: 12px;
   font-weight: 330;
+
+  strong {
+    margin-right: auto;
+    font-weight: 540;
+  }
+
+  span {
+    flex-shrink: 0;
+  }
 `;
 
 const shimmer = keyframes`
