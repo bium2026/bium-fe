@@ -578,8 +578,9 @@ const Wrapper = styled.section`
   }
 `;
 
+// 냉장고 보드(FridgeBoard)와 같은 최대 폭으로 맞춘다.
 const Pager = styled.div`
-  width: min(940px, 100%);
+  width: min(1240px, 100%);
   display: grid;
   grid-template-columns: 48px minmax(0, 1fr) 48px;
   align-items: center;
@@ -598,7 +599,7 @@ const ArrowButton = styled.button`
 `;
 
 const Toolbar = styled.div`
-  width: min(940px, 100%);
+  width: min(1240px, 100%);
   display: flex;
   align-items: center;
   justify-content: flex-end;
@@ -665,7 +666,7 @@ const SlidingStage = styled.div<{ $direction: SlideDirection }>`
 `;
 
 const StatusBox = styled.div`
-  width: min(940px, 100%);
+  width: min(1240px, 100%);
   min-height: 220px;
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -717,7 +718,7 @@ const BoardLayout = styled.div<{ $panelOpen: boolean }>`
   width: 100%;
   display: grid;
   grid-template-columns: ${(props) =>
-    props.$panelOpen ? "minmax(0, 940px) minmax(260px, 300px)" : "minmax(0, 940px)"};
+    props.$panelOpen ? "minmax(0, 1fr) minmax(260px, 300px)" : "minmax(0, 1240px)"};
   justify-content: center;
   align-items: start;
   gap: 24px;
@@ -729,9 +730,10 @@ const BoardLayout = styled.div<{ $panelOpen: boolean }>`
   }
 `;
 
+// 끌고 있는 카드가 선반 카드와 같은 크기로 보이게 선반 한 줄 높이(FridgeBoard의 ShelfList --row)와 맞춘다.
 const OverlayCard = styled.div`
-  width: 92px;
-  height: 92px;
+  width: 112px;
+  height: 112px;
   cursor: grabbing;
 
   @media (max-width: 760px) {

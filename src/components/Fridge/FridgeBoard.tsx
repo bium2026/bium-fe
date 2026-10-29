@@ -187,16 +187,21 @@ const shimmer = keyframes`
 `;
 
 // 하위 요소는 --zone-tone(구역 색에 흰색을 섞은 밝은 배경색)과 --zone-frame(구역 색을 조금 어둡게 한 테두리 색)만 보고 칠한다.
+// --shelf-height는 선반 높이다. 화면 높이에서 헤더·구역 제목·도구 막대·냉장고 테두리만큼 뺀 만큼 키워 냉장고가 화면을 채우고,
+// 낮은 화면(1366×768)에서도 서랍이 있는 냉동실까지 화면 안에 들어오도록 최소 높이를 둔다. 문칸 한 칸의 높이도 이 값에 맞춰 늘어난다.
 const Shell = styled.section<{ $tone: string }>`
   --zone-tone: color-mix(in srgb, ${(props) => props.$tone} 65%, var(--surface));
   --zone-frame: color-mix(in srgb, ${(props) => props.$tone} 82%, var(--text));
+  --shelf-height: clamp(342px, calc(100dvh - 460px), 760px);
 
-  width: min(940px, 100%);
+  width: min(1240px, 100%);
   display: grid;
   grid-template-columns: minmax(120px, 0.26fr) minmax(0, 1fr) minmax(120px, 0.26fr);
   align-items: start;
 
   @media (max-width: 760px) {
+    --shelf-height: calc((80px + 18px) * 3);
+
     grid-template-columns: 60px minmax(0, 1fr) 60px;
   }
 `;
@@ -235,10 +240,11 @@ const DoorPanel = styled.div<{ $side: DoorSide }>`
   }
 `;
 
+// 문칸 5칸이 선반 높이와 비슷하게 차도록 한 칸 높이를 선반 높이에서 나눈다. 칸 사이 간격과 문 손잡이 자리만큼 뺀다.
 const DoorSlots = styled.ul`
   list-style: none;
   display: grid;
-  grid-auto-rows: 52px;
+  grid-auto-rows: max(52px, calc((var(--shelf-height) - 96px) / 5));
   gap: 8px;
 
   @media (max-width: 760px) {
@@ -299,16 +305,16 @@ const ShelfArea = styled.div<{ $highlighted: boolean }>`
 // 선반 한 줄 높이(--row)와 줄 간격(--gap)을 배경 무늬 주기와 맞춰서, 재료 줄마다 아래에 선반 판이 그려진다.
 // background-attachment: local로 두어 재료가 많아 스크롤해도 선반 판이 재료와 같이 움직인다.
 const ShelfList = styled.ul`
-  --row: 92px;
-  --gap: 22px;
+  --row: 112px;
+  --gap: 24px;
 
   list-style: none;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
   grid-auto-rows: var(--row);
   row-gap: var(--gap);
-  column-gap: 10px;
-  height: calc((var(--row) + var(--gap)) * 3);
+  column-gap: 12px;
+  height: var(--shelf-height);
   overflow-y: auto;
   scrollbar-width: thin;
   background-image: linear-gradient(

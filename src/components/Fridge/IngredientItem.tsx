@@ -128,7 +128,11 @@ const Card = styled.button<StyleProps & { $dragging: boolean }>`
         grid-template-rows: 1fr auto;
         justify-items: center;
         align-items: center;
-        padding: 22px 6px 8px;
+        padding: 24px 8px 10px;
+
+        @media (max-width: 760px) {
+          padding: 22px 6px 8px;
+        }
       `
       : `
         grid-template-columns: 24px minmax(0, 1fr) auto;
@@ -147,7 +151,7 @@ const Card = styled.button<StyleProps & { $dragging: boolean }>`
 `;
 
 const Icon = styled.span<StyleProps>`
-  font-size: ${(props) => (props.$variant === "shelf" ? "28px" : "20px")};
+  font-size: ${(props) => (props.$variant === "shelf" ? "34px" : "24px")};
   line-height: 1;
   filter: ${(props) => (props.$freshness === "expired" ? "grayscale(1)" : "none")};
 
@@ -159,7 +163,7 @@ const Icon = styled.span<StyleProps>`
 // 모바일 문칸은 폭이 좁아 이름 대신 아이콘과 배지만 보여 주고, 이름은 화면 읽기 프로그램용으로 남긴다.
 const Name = styled.strong<{ $variant: IngredientItemProps["variant"] }>`
   width: 100%;
-  font-size: ${(props) => (props.$variant === "shelf" ? "13px" : "12px")};
+  font-size: ${(props) => (props.$variant === "shelf" ? "14px" : "13px")};
   font-weight: 540;
   line-height: 1.2;
   text-align: ${(props) => (props.$variant === "shelf" ? "center" : "left")};
@@ -168,6 +172,7 @@ const Name = styled.strong<{ $variant: IngredientItemProps["variant"] }>`
   text-overflow: ellipsis;
 
   @media (max-width: 760px) {
+    font-size: 13px;
     ${(props) => (props.$variant === "door" ? screenReaderOnly : "")}
   }
 `;
