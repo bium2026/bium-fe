@@ -17,6 +17,9 @@ export type Fridge = {
 // FRIDGE: 냉장실, FREEZER: 냉동실, ROOM: 실온
 export type StorageType = "FRIDGE" | "FREEZER" | "ROOM";
 
+// CENTER: 선반, LEFT_DOOR: 왼쪽 문칸, RIGHT_DOOR: 오른쪽 문칸
+export type SectionType = "CENTER" | "LEFT_DOOR" | "RIGHT_DOOR";
+
 export type FridgeItemResponse = {
   id: number;
   name: string;
@@ -117,6 +120,20 @@ export type FridgeItemUpdateRequest = {
 // 실패: INVALID_INPUT(400), FRIDGE_ITEM_NOT_FOUND(404), CONCURRENT_MODIFICATION(409)
 export function updateFridgeItem(itemId: number, body: FridgeItemUpdateRequest) {
   return request<FridgeItemResponse>(`/api/fridge-items/${itemId}`, { method: "PUT", body });
+}
+
+// 재료를 끌어다 놓은 위치. index는 놓을 칸 안에서 0부터 센 위치이고, 칸의 재료 수보다 크면 맨 뒤에 놓는다.
+export type FridgeItemPositionRequest = {
+  storage: StorageType;
+  section: SectionType;
+  index: number;
+  version: number;
+};
+
+// 놓은 칸의 순번을 서버가 다시 매긴다. 칸 안에서 순서만 바꾸면 버전이 그대로이고, 칸이 바뀌면 버전이 오른다.
+// 실패: INVALID_INPUT(400), FRIDGE_ITEM_NOT_FOUND(404), CONCURRENT_MODIFICATION(409)
+export function changeFridgeItemPosition(itemId: number, body: FridgeItemPositionRequest) {
+  return request<FridgeItemResponse>(`/api/fridge-items/${itemId}/position`, { method: "PATCH", body });
 }
 
 // 실패: FRIDGE_ITEM_NOT_FOUND(404), CONCURRENT_MODIFICATION(409)
