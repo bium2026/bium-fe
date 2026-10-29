@@ -1,8 +1,9 @@
 /*
  * 냉장고 선반과 문칸에 놓이는 재료 카드다.
- * 남은 유통기한에 따라 배지 문구와 색을 바꾸고, 지난 재료는 흐리게 보여 준다.
- * 누르면 재료 수정 모달을 연다.
+ * 남은 유통기한에 따라 배지 문구와 색을 바꾸고, 지난 재료는 흐리게 보여 준다. 유통기한이 없으면 배지를 보여 주지 않는다.
+ * 누르면 재료 수정 모달을 연다. 드래그 앤 드롭으로 옮길 수 있게 끌기 이벤트를 카드에 붙인다.
  */
+import type { DraggableSyntheticListeners } from "@dnd-kit/core";
 import styled from "@emotion/styled";
 import type { FridgeIngredient } from "./fridgeTypes";
 
@@ -12,6 +13,9 @@ type IngredientItemProps = {
   ingredient: FridgeIngredient;
   variant: "shelf" | "door";
   onSelect: (ingredient: FridgeIngredient) => void;
+  dragListeners?: DraggableSyntheticListeners;
+  // 끌고 있는 동안 원래 자리는 흐리게 남기고, 손가락·마우스를 따라다니는 카드는 DragOverlay가 그린다.
+  isDragging?: boolean;
 };
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -45,26 +49,30 @@ function getBadgeDescription(daysLeft: number) {
   return `유통기한 ${daysLeft}일 남음`;
 }
 
-function IngredientItem({ ingredient, variant, onSelect }: IngredientItemProps) {
-  const daysLeft = getDaysLeft(ingredient.expiresAt);
-  const freshness = getFreshness(daysLeft);
+function IngredientItem({ ingredient, variant, onSelect, dragListeners, isDragging = false }: IngredientItemProps) {
+  const daysLeft = ingredient.expiresAt ? getDaysLeft(ingredient.expiresAt) : null;
+  const freshness = daysLeft === null ? "safe" : getFreshness(daysLeft);
 
   return (
     <Card
       type="button"
       aria-haspopup="dialog"
       onClick={() => onSelect(ingredient)}
+      {...dragListeners}
       $variant={variant}
       $freshness={freshness}
+      $dragging={isDragging}
     >
       <Icon aria-hidden="true" $variant={variant} $freshness={freshness}>
         {ingredient.emoji}
       </Icon>
       <Name $variant={variant}>{ingredient.name}</Name>
-      <Badge $variant={variant} $freshness={freshness}>
-        <span aria-hidden="true">{getBadgeText(daysLeft)}</span>
-        <ScreenReaderText>{getBadgeDescription(daysLeft)}</ScreenReaderText>
-      </Badge>
+      {daysLeft !== null && (
+        <Badge $variant={variant} $freshness={freshness}>
+          <span aria-hidden="true">{getBadgeText(daysLeft)}</span>
+          <ScreenReaderText>{getBadgeDescription(daysLeft)}</ScreenReaderText>
+        </Badge>
+      )}
     </Card>
   );
 }
@@ -92,7 +100,7 @@ const screenReaderOnly = `
   white-space: nowrap;
 `;
 
-const Card = styled.button<StyleProps>`
+const Card = styled.button<StyleProps & { $dragging: boolean }>`
   position: relative;
   width: 100%;
   height: 100%;
@@ -105,6 +113,9 @@ const Card = styled.button<StyleProps>`
   color: var(--text);
   font: inherit;
   cursor: pointer;
+  opacity: ${(props) => (props.$dragging ? 0.35 : 1)};
+  /* 터치는 길게 눌러야 끌기가 시작되므로 그 전에는 화면을 스크롤할 수 있게 둔다. */
+  touch-action: manipulation;
 
   &:focus-visible {
     outline: 2px solid var(--text);

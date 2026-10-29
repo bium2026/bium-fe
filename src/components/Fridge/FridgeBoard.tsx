@@ -1,51 +1,86 @@
 /*
  * 냉장고 본체와 양쪽 문칸을 그리는 보드다.
  * 지금 보고 있는 구역의 색으로 칠하고, 선반에는 재료 카드를, 문칸에는 정해진 칸 수만큼 재료와 빈 칸을 놓는다.
+ * 선반과 문칸은 각각 재료를 끌어다 놓을 수 있는 칸이고, 칸 안에서는 끌어서 순서를 바꾼다.
+ * 끌기는 화면(FridgePage)의 DndContext 안에서만 동작하고, 놓은 결과도 화면이 서버에 저장한다.
  */
+import { useDroppable } from "@dnd-kit/core";
+import { SortableContext, rectSortingStrategy, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { keyframes } from "@emotion/react";
 import styled from "@emotion/styled";
 import IngredientItem from "./IngredientItem";
-import type { FridgeIngredient, ZoneIngredients } from "./fridgeTypes";
+import { fridgeItemDragId, sectionDropId } from "./fridgeLayout";
+import type { FridgeIngredient, SectionId, ZoneIngredients } from "./fridgeTypes";
 import type { ZoneMeta } from "./fridgeZones";
 
 type FridgeBoardProps = {
   zone: ZoneMeta;
   contents: ZoneIngredients;
   loading: boolean;
+  // 옮기기 요청을 기다리는 동안에는 다시 끌지 못하게 막는다.
+  dragDisabled: boolean;
+  // 끌고 있는 재료가 놓일 칸. 그 칸을 강조해서 어디에 놓일지 보여 준다.
+  highlightedSection: SectionId | null;
   onSelectIngredient: (ingredient: FridgeIngredient) => void;
 };
 
 type DoorSide = "left" | "right";
 
-const DOOR_SLOT_COUNT = 5;
+// 문칸은 이 칸 수만큼만 그리고, 가득 차면 다른 칸에서 옮겨 넣지 못하게 한다.
+export const DOOR_SLOT_COUNT = 5;
 const SHELF_SKELETON_COUNT = 6;
 
-function FridgeBoard({ zone, contents, loading, onSelectIngredient }: FridgeBoardProps) {
+function FridgeBoard({
+  zone,
+  contents,
+  loading,
+  dragDisabled,
+  highlightedSection,
+  onSelectIngredient,
+}: FridgeBoardProps) {
   const isEmpty =
     !loading &&
     contents.shelf.length === 0 &&
     contents.leftDoor.length === 0 &&
     contents.rightDoor.length === 0;
+  const { setNodeRef: setShelfRef } = useDroppable({ id: sectionDropId("shelf"), disabled: loading });
 
   return (
     <Shell $tone={zone.tone} aria-busy={loading}>
-      <Door side="left" items={contents.leftDoor} loading={loading} onSelectIngredient={onSelectIngredient} />
+      <Door
+        side="left"
+        items={contents.leftDoor}
+        loading={loading}
+        dragDisabled={dragDisabled}
+        highlighted={highlightedSection === "leftDoor"}
+        onSelectIngredient={onSelectIngredient}
+      />
 
       <Cabinet>
-        <ShelfArea>
-          <ShelfList aria-label={`${zone.title} 선반`}>
-            {loading
-              ? Array.from({ length: SHELF_SKELETON_COUNT }, (_, index) => (
-                  <li key={index} aria-hidden="true">
-                    <Skeleton />
-                  </li>
-                ))
-              : contents.shelf.map((ingredient) => (
-                  <li key={ingredient.id}>
-                    <IngredientItem ingredient={ingredient} variant="shelf" onSelect={onSelectIngredient} />
-                  </li>
-                ))}
-          </ShelfList>
+        <ShelfArea $highlighted={highlightedSection === "shelf"}>
+          <SortableContext
+            items={contents.shelf.map((ingredient) => fridgeItemDragId(ingredient.id))}
+            strategy={rectSortingStrategy}
+          >
+            <ShelfList ref={setShelfRef} aria-label={`${zone.title} 선반`}>
+              {loading
+                ? Array.from({ length: SHELF_SKELETON_COUNT }, (_, index) => (
+                    <li key={index} aria-hidden="true">
+                      <Skeleton />
+                    </li>
+                  ))
+                : contents.shelf.map((ingredient) => (
+                    <SortableIngredient
+                      key={ingredient.id}
+                      ingredient={ingredient}
+                      variant="shelf"
+                      disabled={dragDisabled}
+                      onSelect={onSelectIngredient}
+                    />
+                  ))}
+            </ShelfList>
+          </SortableContext>
           {isEmpty && <EmptyMessage>{zone.title}에 보관 중인 재료가 없어요.</EmptyMessage>}
         </ShelfArea>
 
@@ -57,44 +92,91 @@ function FridgeBoard({ zone, contents, loading, onSelectIngredient }: FridgeBoar
         )}
       </Cabinet>
 
-      <Door side="right" items={contents.rightDoor} loading={loading} onSelectIngredient={onSelectIngredient} />
+      <Door
+        side="right"
+        items={contents.rightDoor}
+        loading={loading}
+        dragDisabled={dragDisabled}
+        highlighted={highlightedSection === "rightDoor"}
+        onSelectIngredient={onSelectIngredient}
+      />
     </Shell>
   );
 }
 
 export default FridgeBoard;
 
+type SortableIngredientProps = {
+  ingredient: FridgeIngredient;
+  variant: "shelf" | "door";
+  disabled: boolean;
+  onSelect: (ingredient: FridgeIngredient) => void;
+};
+
+function SortableIngredient({ ingredient, variant, disabled, onSelect }: SortableIngredientProps) {
+  const { setNodeRef, listeners, transform, transition, isDragging } = useSortable({
+    id: fridgeItemDragId(ingredient.id),
+    disabled,
+  });
+
+  return (
+    // 칸 크기가 다른 재료 사이를 지나도 카드 크기가 바뀌지 않게 이동만 적용한다.
+    <li ref={setNodeRef} style={{ transform: CSS.Translate.toString(transform), transition }}>
+      <IngredientItem
+        ingredient={ingredient}
+        variant={variant}
+        onSelect={onSelect}
+        dragListeners={listeners}
+        isDragging={isDragging}
+      />
+    </li>
+  );
+}
+
 type DoorProps = {
   side: DoorSide;
   items: FridgeIngredient[];
   loading: boolean;
+  dragDisabled: boolean;
+  highlighted: boolean;
   onSelectIngredient: (ingredient: FridgeIngredient) => void;
 };
 
-function Door({ side, items, loading, onSelectIngredient }: DoorProps) {
+function Door({ side, items, loading, dragDisabled, highlighted, onSelectIngredient }: DoorProps) {
+  const sectionId: SectionId = side === "left" ? "leftDoor" : "rightDoor";
+  const { setNodeRef } = useDroppable({ id: sectionDropId(sectionId), disabled: loading });
   const emptySlotCount = Math.max(DOOR_SLOT_COUNT - items.length, 0);
 
   return (
     <DoorPanel $side={side}>
-      <DoorSlots aria-label={side === "left" ? "왼쪽 문칸" : "오른쪽 문칸"}>
-        {loading
-          ? Array.from({ length: DOOR_SLOT_COUNT }, (_, index) => (
-              <li key={index} aria-hidden="true">
-                <Skeleton />
-              </li>
-            ))
-          : items.map((ingredient) => (
-              <li key={ingredient.id}>
-                <IngredientItem ingredient={ingredient} variant="door" onSelect={onSelectIngredient} />
+      <SortableContext
+        items={items.map((ingredient) => fridgeItemDragId(ingredient.id))}
+        strategy={verticalListSortingStrategy}
+      >
+        <DoorSlots ref={setNodeRef} aria-label={side === "left" ? "왼쪽 문칸" : "오른쪽 문칸"}>
+          {loading
+            ? Array.from({ length: DOOR_SLOT_COUNT }, (_, index) => (
+                <li key={index} aria-hidden="true">
+                  <Skeleton />
+                </li>
+              ))
+            : items.map((ingredient) => (
+                <SortableIngredient
+                  key={ingredient.id}
+                  ingredient={ingredient}
+                  variant="door"
+                  disabled={dragDisabled}
+                  onSelect={onSelectIngredient}
+                />
+              ))}
+          {!loading &&
+            Array.from({ length: emptySlotCount }, (_, index) => (
+              <li key={`empty-${index}`} aria-hidden="true">
+                <EmptySlot $highlighted={highlighted}>빈 칸</EmptySlot>
               </li>
             ))}
-        {!loading &&
-          Array.from({ length: emptySlotCount }, (_, index) => (
-            <li key={`empty-${index}`} aria-hidden="true">
-              <EmptySlot>빈 칸</EmptySlot>
-            </li>
-          ))}
-      </DoorSlots>
+        </DoorSlots>
+      </SortableContext>
     </DoorPanel>
   );
 }
@@ -165,11 +247,13 @@ const DoorSlots = styled.ul`
   }
 `;
 
-const EmptySlot = styled.div`
+// 끌고 있는 재료가 이 문칸에 놓일 때 빈 칸을 라임색으로 칠해 놓일 자리를 보여 준다.
+const EmptySlot = styled.div<{ $highlighted: boolean }>`
   height: 100%;
-  border: 1px dashed var(--zone-frame);
+  border: 1px dashed ${(props) => (props.$highlighted ? "var(--text)" : "var(--zone-frame)")};
   border-radius: 8px;
-  background: color-mix(in srgb, var(--surface) 50%, transparent);
+  background: ${(props) =>
+    props.$highlighted ? "var(--block-lime)" : "color-mix(in srgb, var(--surface) 50%, transparent)"};
   display: grid;
   place-items: center;
   font-size: 11px;
@@ -197,10 +281,14 @@ const Cabinet = styled.div`
   }
 `;
 
-const ShelfArea = styled.div`
+const ShelfArea = styled.div<{ $highlighted: boolean }>`
   position: relative;
   border-radius: 10px;
-  background: color-mix(in srgb, var(--surface) 35%, transparent);
+  outline: ${(props) => (props.$highlighted ? "2px dashed var(--text)" : "none")};
+  background: ${(props) =>
+    props.$highlighted
+      ? "color-mix(in srgb, var(--block-lime) 70%, transparent)"
+      : "color-mix(in srgb, var(--surface) 35%, transparent)"};
   padding: 14px 14px 0;
 
   @media (max-width: 760px) {

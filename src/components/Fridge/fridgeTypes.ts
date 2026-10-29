@@ -1,6 +1,6 @@
 /*
  * 냉장고 화면에서 쓰는 데이터 타입이다.
- * API 명세가 나오기 전까지 퍼블리싱용으로 쓰고, 연동할 때 src/api의 응답 타입으로 옮긴다.
+ * 서버 응답(src/api/fridge.ts)은 fridgeLayout.ts에서 이 타입으로 바꿔 쓴다.
  */
 import type { EditableIngredient } from "./IngredientEditModal";
 
@@ -14,5 +14,8 @@ export type ZoneIngredients = {
   leftDoor: FridgeIngredient[];
   rightDoor: FridgeIngredient[];
 };
+
+// 선반, 왼쪽 문칸, 오른쪽 문칸
+export type SectionId = keyof ZoneIngredients;
 
 export type FridgeContents = Record<ZoneId, ZoneIngredients>;

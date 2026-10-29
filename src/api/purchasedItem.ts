@@ -4,6 +4,7 @@
  * 장본 음식은 냉장고에 묶여 있어, 냉장고 멤버가 담은 재료를 함께 보고 뺄 수 있다.
  */
 import { request } from "./client";
+import type { FridgeItemResponse, SectionType, StorageType } from "./fridge";
 
 // 도감 재료에서만 담을 수 있고 도감 재료는 이모지·기본 유통기한이 필수라서 null이 오지 않는다.
 export type PurchasedItem = {
@@ -37,4 +38,17 @@ export function addPurchasedItem(fridgeId: number, catalogId: number) {
 // 이미 빠졌거나 냉장고로 옮긴 장본 음식이면 PURCHASED_ITEM_NOT_FOUND(404)로 실패한다.
 export function removePurchasedItem(purchasedItemId: number) {
   return request<null>(`/api/purchased-items/${purchasedItemId}`, { method: "DELETE" });
+}
+
+// 장본 음식을 끌어다 놓은 냉장고 위치. index는 놓을 칸 안에서 0부터 센 위치다.
+export type PurchasedItemMoveRequest = {
+  storage: StorageType;
+  section: SectionType;
+  index: number;
+};
+
+// 같은 이름·아이콘·유통기한으로 냉장고 재료를 만들어 돌려주고, 장본 음식 목록에서는 빠진다.
+// 실패: INVALID_INPUT(400), PURCHASED_ITEM_NOT_FOUND(404, 이미 옮겼거나 뺀 장본 음식 포함)
+export function movePurchasedItem(purchasedItemId: number, body: PurchasedItemMoveRequest) {
+  return request<FridgeItemResponse>(`/api/purchased-items/${purchasedItemId}/move`, { method: "POST", body });
 }
