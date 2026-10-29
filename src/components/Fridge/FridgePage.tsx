@@ -730,9 +730,10 @@ const BoardLayout = styled.div<{ $panelOpen: boolean }>`
   }
 `;
 
+// 끌고 있는 카드가 선반 카드와 같은 크기로 보이게 선반 한 줄 높이(FridgeBoard의 ShelfList --row)와 맞춘다.
 const OverlayCard = styled.div`
-  width: 92px;
-  height: 92px;
+  width: 112px;
+  height: 112px;
   cursor: grabbing;
 
   @media (max-width: 760px) {
