@@ -1,13 +1,14 @@
 /*
- * 영수증 사진에서 AI가 읽은 재료를 보여 주고, 고치거나 뺀 뒤 냉장고에 한꺼번에 넣는 모달이다.
+ * 영수증 사진에서 AI가 읽은 재료를 보여 주고, 고르고 고친 뒤 냉장고에 한꺼번에 넣는 모달이다.
  * 여는 쪽에서 사진 읽기 요청(scan)을 넘기고, scan이 null이면 닫힌다.
  * 읽는 중에 닫으면 결과를 버리고, 냉장고에 넣는 중에는 닫히지 않는다.
+ * 영수증에는 재료가 수십 개 있을 수 있어 목록만 스크롤하고, 전체 선택 줄과 넣기 버튼은 늘 보이게 둔다.
  */
 import { useEffect, useId, useRef, useState } from "react";
 import type { FormEvent, Ref } from "react";
 import { keyframes } from "@emotion/react";
 import styled from "@emotion/styled";
-import { CircleAlert, LoaderCircle, Trash2 } from "lucide-react";
+import { CircleAlert, LoaderCircle } from "lucide-react";
 import { ApiError, NETWORK_ERROR } from "../../api/client";
 import type { FridgeItemBulkCreateItem, StorageType } from "../../api/fridge";
 import type { ScannedReceiptItem } from "../../api/receipt";
@@ -15,7 +16,7 @@ import LibraryModal, { ModalError } from "../Library/LibraryModal";
 import { ModalActions, ModalButton, ModalSelect } from "../Library/libraryModalStyles";
 import { storageLabel, storageOrder } from "../Library/libraryStorage";
 import { getEmojiError } from "../Library/libraryValidation";
-import { RECEIPT_IMAGE_ACCEPT, type ReceiptScan } from "./receiptScan";
+import { RECEIPT_IMAGE_ACCEPT, type ReceiptScan, type ReceiptScanResult } from "./receiptScan";
 
 // 입력칸에 보여 주는 값이라 비어 있는 유통기한도 빈 문자열로 둔다.
 type ReceiptItemValues = {
@@ -32,16 +33,16 @@ type ReceiptScanModalProps = {
   onAdd: (fridgeId: number, items: FridgeItemBulkCreateItem[]) => Promise<void>;
 };
 
-type ReceiptRow = ReceiptItemValues & { key: number };
+// selected가 false인 재료는 넣지 않는다. 지우지 않고 체크만 풀어서 다시 고를 수 있다.
+type ReceiptRow = ReceiptItemValues & { key: number; selected: boolean };
 
-// scannedCount는 처음 읽은 재료 수다. 0이면 못 찾은 것이고, 0이 아닌데 줄이 없으면 사용자가 모두 뺀 것이다.
-type ScanState =
-  | { status: "scanning" }
-  | { status: "error"; message: string }
-  | { status: "done"; fridgeId: number; scannedCount: number };
+type ScanState = { status: "scanning" } | ReceiptScanResult;
 
 // 냉장고 재료 이름은 50자까지 쓸 수 있다.
 const NAME_MAX_LENGTH = 50;
+
+// 넓은 화면에서 재료 한 줄의 칸 너비다. 체크, 아이콘, 이름, 보관 위치, 유통기한 순서이고 목록 머리글과 맞춘다.
+const ROW_COLUMNS = "20px 56px minmax(0, 1fr) 108px 156px";
 
 const addErrorCodes = ["INVALID_INPUT", "FRIDGE_NOT_FOUND", NETWORK_ERROR];
 
@@ -58,6 +59,7 @@ function isValidDate(value: string) {
 function toRow(item: ScannedReceiptItem): ReceiptRow {
   return {
     key: nextRowKey++,
+    selected: true,
     name: item.name,
     emoji: item.emoji ?? "",
     storage: item.storage,
@@ -76,8 +78,9 @@ function getRowErrors(row: ReceiptRow) {
   };
 }
 
+// 넣지 않을 재료는 고칠 필요가 없으므로 검사하지 않는다.
 function hasRowError(row: ReceiptRow) {
-  return Object.values(getRowErrors(row)).some(Boolean);
+  return row.selected && Object.values(getRowErrors(row)).some(Boolean);
 }
 
 function getAddErrorMessage(error: unknown) {
@@ -90,7 +93,7 @@ function ReceiptScanModal({ scan, onPickFile, onClose, onAdd }: ReceiptScanModal
   const [isBusy, setIsBusy] = useState(false);
 
   return (
-    <LibraryModal open={scan !== null} title="영수증으로 추가" busy={isBusy} onClose={onClose}>
+    <LibraryModal open={scan !== null} title="영수증으로 추가" busy={isBusy} wide onClose={onClose}>
       {scan && (
         <ReceiptScanContent
           // 다른 사진을 고르면 읽는 중 상태부터 다시 시작한다.
@@ -142,38 +145,19 @@ type ReceiptScanContentProps = {
 };
 
 function ReceiptScanContent({ scan, isBusy, onBusyChange, onPickFile, onClose, onAdd }: ReceiptScanContentProps) {
-  const id = useId();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [state, setState] = useState<ScanState>({ status: "scanning" });
-  const [rows, setRows] = useState<ReceiptRow[]>([]);
-  const [errorMessage, setErrorMessage] = useState("");
 
   // 요청은 사진을 고를 때 이미 보냈고, 여기서는 결과만 기다린다. 그사이 모달을 닫으면 결과를 버린다.
   useEffect(() => {
     let ignore = false;
     scan.result.then((result) => {
-      if (ignore) return;
-      if (result.status === "error") {
-        setState(result);
-        return;
-      }
-      setRows(result.items.map(toRow));
-      setState({ status: "done", fridgeId: result.fridgeId, scannedCount: result.items.length });
+      if (!ignore) setState(result);
     });
     return () => {
       ignore = true;
     };
   }, [scan]);
-
-  const pickAgain = () => fileInputRef.current?.click();
-
-  const updateRow = (key: number, values: Partial<ReceiptItemValues>) => {
-    setRows((prev) => prev.map((row) => (row.key === key ? { ...row, ...values } : row)));
-  };
-
-  const removeRow = (key: number) => {
-    setRows((prev) => prev.filter((row) => row.key !== key));
-  };
 
   if (state.status === "scanning") {
     return (
@@ -194,23 +178,19 @@ function ReceiptScanContent({ scan, isBusy, onBusyChange, onPickFile, onClose, o
     );
   }
 
-  if (state.status === "error" || rows.length === 0) {
+  if (state.status === "error" || state.items.length === 0) {
     return (
       <Body>
         {state.status === "error" ? (
           <ModalError message={state.message} />
         ) : (
-          <Notice role="status">
-            {state.scannedCount === 0
-              ? "영수증에서 식재료를 찾지 못했어요. 글자가 잘 보이게 다시 찍어 주세요."
-              : "넣을 재료를 모두 뺐어요."}
-          </Notice>
+          <Notice role="status">영수증에서 식재료를 찾지 못했어요. 글자가 잘 보이게 다시 찍어 주세요.</Notice>
         )}
         <ModalActions>
           <ModalButton type="button" onClick={onClose}>
             닫기
           </ModalButton>
-          <ModalButton type="button" $primary onClick={pickAgain}>
+          <ModalButton type="button" $primary onClick={() => fileInputRef.current?.click()}>
             다른 사진 고르기
           </ModalButton>
         </ModalActions>
@@ -219,24 +199,78 @@ function ReceiptScanContent({ scan, isBusy, onBusyChange, onPickFile, onClose, o
     );
   }
 
-  const canSubmit = !isBusy && !rows.some(hasRowError);
+  return (
+    <ReceiptItemsForm
+      fridgeId={state.fridgeId}
+      items={state.items}
+      isBusy={isBusy}
+      onBusyChange={onBusyChange}
+      onClose={onClose}
+      onAdd={onAdd}
+    />
+  );
+}
+
+type ReceiptItemsFormProps = {
+  fridgeId: number;
+  items: ScannedReceiptItem[];
+  isBusy: boolean;
+  onBusyChange: (isBusy: boolean) => void;
+  onClose: () => void;
+  onAdd: (fridgeId: number, items: FridgeItemBulkCreateItem[]) => Promise<void>;
+};
+
+function ReceiptItemsForm({ fridgeId, items, isBusy, onBusyChange, onClose, onAdd }: ReceiptItemsFormProps) {
+  const id = useId();
+  const listRef = useRef<HTMLUListElement>(null);
+  const selectAllRef = useRef<HTMLInputElement>(null);
+  const [rows, setRows] = useState(() => items.map(toRow));
+  const [submitted, setSubmitted] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+
+  const selectedCount = rows.filter((row) => row.selected).length;
+  const allSelected = selectedCount === rows.length;
+  const invalidCount = rows.filter(hasRowError).length;
+  const canSubmit = selectedCount > 0 && !isBusy;
+
+  // 일부만 골랐을 때 전체 선택 칸을 가운데 줄 상태로 보여 준다. 이 상태는 속성이 없어 DOM에서 직접 바꾼다.
+  useEffect(() => {
+    if (selectAllRef.current) selectAllRef.current.indeterminate = selectedCount > 0 && !allSelected;
+  }, [selectedCount, allSelected]);
+
+  const updateRow = (key: number, values: Partial<Omit<ReceiptRow, "key">>) => {
+    setRows((prev) => prev.map((row) => (row.key === key ? { ...row, ...values } : row)));
+  };
+
+  const selectAll = (selected: boolean) => {
+    setRows((prev) => prev.map((row) => ({ ...row, selected })));
+  };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!canSubmit) return;
 
+    // 고칠 칸이 목록 아래쪽에 있으면 보이지 않으므로, 첫 번째 칸으로 옮겨서 보여 준다.
+    if (invalidCount > 0) {
+      setSubmitted(true);
+      listRef.current?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus();
+      return;
+    }
+
     onBusyChange(true);
     setErrorMessage("");
     try {
       await onAdd(
-        state.fridgeId,
-        rows.map(({ name, emoji, storage, expiresAt }) => ({
-          name: name.trim(),
-          emoji: emoji.trim(),
-          storage,
-          // 서버는 유통기한 없음을 null로 받는다.
-          expiresAt: expiresAt || null,
-        })),
+        fridgeId,
+        rows
+          .filter((row) => row.selected)
+          .map(({ name, emoji, storage, expiresAt }) => ({
+            name: name.trim(),
+            emoji: emoji.trim(),
+            storage,
+            // 서버는 유통기한 없음을 null로 받는다.
+            expiresAt: expiresAt || null,
+          })),
       );
       onBusyChange(false);
       onClose();
@@ -249,11 +283,31 @@ function ReceiptScanContent({ scan, isBusy, onBusyChange, onPickFile, onClose, o
   return (
     <Form onSubmit={handleSubmit} noValidate>
       <Guide>
-        읽은 재료 <strong>{rows.length}개</strong>의 아이콘·이름·보관 위치·유통기한을 확인하고, 잘못 읽은 재료는
-        고치거나 빼 주세요.
+        읽은 재료 <strong>{rows.length}개</strong>를 확인해 주세요. 넣지 않을 재료는 체크를 풀고, 잘못 읽은 칸은 고쳐
+        주세요. 아이콘·유통기한은 비워 둬도 돼요.
       </Guide>
 
-      <RowList>
+      <ListHead>
+        <SelectAll>
+          <input
+            ref={selectAllRef}
+            type="checkbox"
+            checked={allSelected}
+            onChange={(event) => selectAll(event.target.checked)}
+            disabled={isBusy}
+          />
+          <SelectAllText>전체 선택</SelectAllText>
+        </SelectAll>
+        <ColumnLabel aria-hidden="true">아이콘</ColumnLabel>
+        <ColumnLabel aria-hidden="true">이름</ColumnLabel>
+        <ColumnLabel aria-hidden="true">보관 위치</ColumnLabel>
+        <ColumnLabel aria-hidden="true">유통기한</ColumnLabel>
+        <SelectedCount aria-live="polite">
+          {selectedCount}/{rows.length}개 선택
+        </SelectedCount>
+      </ListHead>
+
+      <RowList ref={listRef}>
         {rows.map((row, index) => (
           <ReceiptItemRow
             key={row.key}
@@ -262,11 +316,13 @@ function ReceiptScanContent({ scan, isBusy, onBusyChange, onPickFile, onClose, o
             number={index + 1}
             disabled={isBusy}
             onChange={(values) => updateRow(row.key, values)}
-            onRemove={() => removeRow(row.key)}
           />
         ))}
       </RowList>
 
+      {submitted && invalidCount > 0 && (
+        <ModalError message={`고칠 칸이 있는 재료가 ${invalidCount}개 있어요. 빨갛게 표시된 칸을 확인해 주세요.`} />
+      )}
       {errorMessage && <ModalError message={errorMessage} />}
 
       <ModalActions>
@@ -274,7 +330,7 @@ function ReceiptScanContent({ scan, isBusy, onBusyChange, onPickFile, onClose, o
           닫기
         </ModalButton>
         <ModalButton type="submit" $primary disabled={!canSubmit}>
-          {isBusy ? "넣는 중..." : `냉장고에 ${rows.length}개 넣기`}
+          {isBusy ? "넣는 중..." : selectedCount > 0 ? `냉장고에 ${selectedCount}개 넣기` : "넣을 재료를 골라 주세요"}
         </ModalButton>
       </ModalActions>
     </Form>
@@ -286,78 +342,76 @@ type ReceiptItemRowProps = {
   row: ReceiptRow;
   number: number;
   disabled: boolean;
-  onChange: (values: Partial<ReceiptItemValues>) => void;
-  onRemove: () => void;
+  onChange: (values: Partial<Omit<ReceiptRow, "key">>) => void;
 };
 
 // 재료가 여러 개라 칸마다 이름표를 달지 않고, 스크린 리더에는 몇 번째 재료의 어느 칸인지 읽어 준다.
-function ReceiptItemRow({ id, row, number, disabled, onChange, onRemove }: ReceiptItemRowProps) {
-  const errors = getRowErrors(row);
+// 체크를 푼 재료는 넣지 않으니 칸을 막아 둔다.
+function ReceiptItemRow({ id, row, number, disabled, onChange }: ReceiptItemRowProps) {
+  const errors = row.selected ? getRowErrors(row) : { name: "", emoji: "", expiresAt: "" };
   const errorId = (field: keyof typeof errors) => (errors[field] ? `${id}-${field}-error` : undefined);
   const label = `${number}번째 재료`;
+  const fieldDisabled = disabled || !row.selected;
 
   return (
-    <RowCard>
-      <RowLine>
-        <RowInput
-          aria-label={`${label} 아이콘`}
-          value={row.emoji}
-          onChange={(event) => onChange({ emoji: event.target.value })}
-          placeholder="🥕"
-          disabled={disabled}
-          autoComplete="off"
-          aria-invalid={errors.emoji ? true : undefined}
-          aria-describedby={errorId("emoji")}
-          $invalid={Boolean(errors.emoji)}
-          $center
-        />
-        <RowInput
-          aria-label={`${label} 이름`}
-          value={row.name}
-          onChange={(event) => onChange({ name: event.target.value })}
-          placeholder="재료 이름"
-          maxLength={NAME_MAX_LENGTH}
-          disabled={disabled}
-          autoComplete="off"
-          aria-invalid={errors.name ? true : undefined}
-          aria-describedby={errorId("name")}
-          $invalid={Boolean(errors.name)}
-        />
-        <RemoveButton
-          type="button"
-          onClick={onRemove}
-          disabled={disabled}
-          aria-label={`${row.name.trim() || label} 빼기`}
-        >
-          <Trash2 size={18} aria-hidden="true" />
-        </RemoveButton>
-      </RowLine>
-
+    <RowCard $selected={row.selected}>
+      <RowCheck
+        type="checkbox"
+        checked={row.selected}
+        onChange={(event) => onChange({ selected: event.target.checked })}
+        disabled={disabled}
+        aria-label={`${row.name.trim() || label} 넣기`}
+      />
+      <RowInput
+        aria-label={`${label} 아이콘`}
+        value={row.emoji}
+        onChange={(event) => onChange({ emoji: event.target.value })}
+        placeholder="🥕"
+        disabled={fieldDisabled}
+        autoComplete="off"
+        aria-invalid={errors.emoji ? true : undefined}
+        aria-describedby={errorId("emoji")}
+        $invalid={Boolean(errors.emoji)}
+        $center
+      />
+      <RowInput
+        aria-label={`${label} 이름`}
+        value={row.name}
+        onChange={(event) => onChange({ name: event.target.value })}
+        placeholder="재료 이름"
+        maxLength={NAME_MAX_LENGTH}
+        disabled={fieldDisabled}
+        autoComplete="off"
+        aria-invalid={errors.name ? true : undefined}
+        aria-describedby={errorId("name")}
+        $invalid={Boolean(errors.name)}
+      />
       <RowFields>
-        <ModalSelect
+        <RowSelect
           aria-label={`${label} 보관 위치`}
           value={row.storage}
           onChange={(event) => {
             const next = storageOrder.find((item) => item === event.target.value);
             if (next) onChange({ storage: next });
           }}
-          disabled={disabled}
+          disabled={fieldDisabled}
         >
           {storageOrder.map((item) => (
             <option key={item} value={item}>
               {storageLabel[item]}
             </option>
           ))}
-        </ModalSelect>
+        </RowSelect>
         <RowInput
           type="date"
           aria-label={`${label} 유통기한`}
           value={row.expiresAt}
           onChange={(event) => onChange({ expiresAt: event.target.value })}
-          disabled={disabled}
+          disabled={fieldDisabled}
           aria-invalid={errors.expiresAt ? true : undefined}
           aria-describedby={errorId("expiresAt")}
           $invalid={Boolean(errors.expiresAt)}
+          $date
         />
       </RowFields>
 
@@ -386,10 +440,13 @@ const Body = styled.div`
   gap: 14px;
 `;
 
+// 모달 높이에 맞춰 줄어들어 목록만 스크롤되도록 min-height를 0으로 둔다.
 const Form = styled.form`
   margin-top: 16px;
-  display: grid;
-  gap: 14px;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 `;
 
 const Notice = styled.p`
@@ -437,40 +494,136 @@ const Guide = styled.p`
   }
 `;
 
-const RowList = styled.ul`
-  list-style: none;
+// 넓은 화면에서는 재료 줄과 같은 칸으로 나눠 칸 이름을 보여 주고, 좁은 화면에서는 전체 선택과 고른 수만 둔다.
+// 재료 줄의 테두리(1px)와 안쪽 여백(12px)만큼 띄워 칸을 맞춘다.
+const ListHead = styled.div`
+  padding: 0 13px;
   display: grid;
-  gap: 10px;
-`;
-
-const RowCard = styled.li`
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 12px;
-  display: grid;
-  gap: 8px;
-`;
-
-const RowLine = styled.div`
-  display: grid;
-  grid-template-columns: 60px minmax(0, 1fr) 44px;
+  grid-template-columns: ${ROW_COLUMNS};
   align-items: center;
   gap: 8px;
+  font-size: 13px;
+  font-weight: 540;
+
+  @media (max-width: 760px) {
+    display: flex;
+    justify-content: space-between;
+  }
 `;
 
-const RowFields = styled.div`
+const SelectAll = styled.label`
+  position: relative;
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+
+  input {
+    width: 20px;
+    height: 20px;
+    margin: 0;
+    accent-color: var(--text);
+    cursor: inherit;
+  }
+
+  &:has(input:disabled) {
+    cursor: not-allowed;
+  }
+`;
+
+// 넓은 화면에서는 체크 칸이 좁아 글자를 숨기고 스크린 리더에만 읽힌다.
+const SelectAllText = styled.span`
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+
+  @media (max-width: 760px) {
+    position: static;
+    width: auto;
+    height: auto;
+    overflow: visible;
+    clip-path: none;
+  }
+`;
+
+const ColumnLabel = styled.span`
+  @media (max-width: 760px) {
+    display: none;
+  }
+`;
+
+// 넓은 화면에서는 고른 수를 넣기 버튼에서 보여 주므로 좁은 화면에서만 보인다.
+const SelectedCount = styled.span`
+  display: none;
+
+  @media (max-width: 760px) {
+    display: inline;
+    font-weight: 330;
+  }
+`;
+
+const RowList = styled.ul`
+  min-height: 140px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  list-style: none;
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-content: start;
   gap: 8px;
 `;
 
-const RowInput = styled.input<{ $invalid?: boolean; $center?: boolean }>`
+// 넓은 화면에서는 한 줄에 모든 칸을 놓고, 좁은 화면에서는 보관 위치·유통기한을 아랫줄로 내린다.
+const RowCard = styled.li<{ $selected: boolean }>`
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: ${(props) => (props.$selected ? "var(--surface)" : "var(--surface-soft)")};
+  padding: 8px 12px;
+  display: grid;
+  grid-template-columns: ${ROW_COLUMNS};
+  align-items: center;
+  gap: 8px;
+
+  @media (max-width: 760px) {
+    grid-template-columns: 20px 56px minmax(0, 1fr);
+  }
+`;
+
+const RowCheck = styled.input`
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  accent-color: var(--text);
+  cursor: pointer;
+
+  &:disabled {
+    cursor: not-allowed;
+  }
+`;
+
+// 넓은 화면에서는 감싸는 상자 없이 줄의 칸에 바로 놓인다.
+// 좁은 화면에서는 줄 전체 폭을 쓰고, 날짜가 달력 아이콘에 가려지지 않게 유통기한 칸을 더 넓게 준다.
+const RowFields = styled.div`
+  display: contents;
+
+  @media (max-width: 760px) {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+    gap: 8px;
+  }
+`;
+
+const RowInput = styled.input<{ $invalid?: boolean; $center?: boolean; $date?: boolean }>`
   width: 100%;
   min-width: 0;
-  min-height: 48px;
+  min-height: 44px;
   border: 1px solid ${(props) => (props.$invalid ? "var(--block-pink)" : "var(--border)")};
   border-radius: 8px;
-  padding: 12px ${(props) => (props.$center ? "8px" : "14px")};
+  padding: 10px ${(props) => (props.$center || props.$date ? "8px" : "12px")};
   font-size: 16px;
   text-align: ${(props) => (props.$center ? "center" : "left")};
   color: var(--text);
@@ -479,31 +632,22 @@ const RowInput = styled.input<{ $invalid?: boolean; $center?: boolean }>`
 
   &:disabled {
     background: var(--surface-soft);
+    color: color-mix(in srgb, var(--text) 45%, transparent);
     cursor: not-allowed;
   }
 `;
 
-const RemoveButton = styled.button`
-  width: 44px;
-  height: 44px;
-  border: 0;
-  border-radius: 999px;
-  background: transparent;
-  display: grid;
-  place-items: center;
-  cursor: pointer;
-
-  &:hover:not(:disabled) {
-    background: var(--block-pink);
-  }
+const RowSelect = styled(ModalSelect)`
+  min-height: 44px;
+  padding: 10px;
 
   &:disabled {
-    cursor: not-allowed;
-    opacity: 0.4;
+    color: color-mix(in srgb, var(--text) 45%, transparent);
   }
 `;
 
 const RowMessage = styled.p`
+  grid-column: 2 / -1;
   display: flex;
   align-items: flex-start;
   gap: 4px;
