@@ -14,11 +14,13 @@ type LibraryModalProps = {
   open: boolean;
   title: string;
   busy: boolean;
+  // 영수증 재료 목록처럼 한 줄에 칸이 많은 모달은 넓게 연다.
+  wide?: boolean;
   onClose: () => void;
   children: ReactNode;
 };
 
-function LibraryModal({ open, title, busy, onClose, children }: LibraryModalProps) {
+function LibraryModal({ open, title, busy, wide = false, onClose, children }: LibraryModalProps) {
   const titleId = useId();
   const dialogRef = useRef<HTMLDialogElement>(null);
 
@@ -49,7 +51,13 @@ function LibraryModal({ open, title, busy, onClose, children }: LibraryModalProp
   };
 
   return (
-    <Dialog ref={dialogRef} aria-labelledby={titleId} onCancel={handleCancel} onClick={handleBackdropClick}>
+    <Dialog
+      ref={dialogRef}
+      aria-labelledby={titleId}
+      onCancel={handleCancel}
+      onClick={handleBackdropClick}
+      $wide={wide}
+    >
       {open && (
         <Card>
           <Header>
@@ -151,8 +159,8 @@ const popIn = keyframes`
   }
 `;
 
-const Dialog = styled.dialog`
-  width: min(460px, calc(100% - 32px));
+const Dialog = styled.dialog<{ $wide: boolean }>`
+  width: min(${(props) => (props.$wide ? "720px" : "460px")}, calc(100% - 32px));
   max-width: none;
   max-height: calc(100% - 32px);
   margin: auto;
@@ -177,9 +185,14 @@ const Dialog = styled.dialog`
   }
 `;
 
+// 세로 flex라서 내용이 min-height: 0을 주면 모달 높이에 맞춰 줄고, 그 안의 목록만 스크롤할 수 있다.
+// 그렇지 않은 내용은 줄지 않고 카드 전체가 스크롤된다.
 const Card = styled.div`
   max-height: calc(100vh - 32px);
+  max-height: calc(100dvh - 32px);
   overflow-y: auto;
+  display: flex;
+  flex-direction: column;
   border: 1px solid var(--border);
   border-radius: 24px;
   background: var(--surface);
