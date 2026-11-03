@@ -3,6 +3,7 @@
  * 좌우 화살표로 냉장실·냉동실·실온을 넘겨 보며, 지금 보는 구역은 주소(?zone=)에 남겨 새로고침해도 유지한다.
  * 헤더에서 고른 냉장고의 재료를 불러오고, 재료를 누르면 수정 모달을 연다. 저장·삭제는 서버에 반영된 뒤에 화면에 반영한다.
  * 재료를 끌어서 다른 칸이나 같은 칸의 다른 자리로 옮기고, 장본 음식 패널의 음식을 끌어다 냉장고에 넣는다.
+ * 끄는 동안 좌우 화살표 위에 잠시 머무르면 옆 구역으로 넘어가서, 냉장실·냉동실·실온 어디로든 옮길 수 있다.
  * 옮긴 재료는 화면에 먼저 보여 주고 저장에 실패하면 원래 자리로 되돌린다. 저장을 기다리는 동안에는 다시 끌지 못하게 막는다.
  * 영수증 사진을 고르면 AI가 읽은 재료를 모달로 보여 주고, 확인한 재료를 냉장고에 한꺼번에 넣는다.
  */
@@ -13,6 +14,7 @@ import {
   MouseSensor,
   TouchSensor,
   pointerWithin,
+  useDroppable,
   useSensor,
   useSensors,
   type Announcements,
@@ -44,27 +46,33 @@ import PurchasedItemPanel, { type PurchasedListState } from "./PurchasedItemPane
 import ReceiptScanModal, { ReceiptFileInput } from "./ReceiptScanModal";
 import {
   emptyFridgeContents,
+  findInContents,
   findIngredient,
   insertIntoZone,
-  moveWithinZone,
+  moveIngredientTo,
   parseDragId,
   sectionType,
   storageZone,
   toFridgeContents,
   toIngredient,
+  zoneNavDropId,
   zoneStorage,
   type ItemLocation,
+  type ZoneLocation,
 } from "./fridgeLayout";
 import type { FridgeContents, FridgeIngredient, SectionId, ZoneId, ZoneIngredients } from "./fridgeTypes";
-import { isZoneId, zoneMeta, zoneOrder } from "./fridgeZones";
+import { adjacentZone, isZoneId, zoneMeta, zoneOrder, type ZoneDirection } from "./fridgeZones";
 import { startReceiptScan, type ReceiptScan } from "./receiptScan";
 
 type LoadState = { status: "loading" } | { status: "error"; message: string } | { status: "success"; fridgeId: number };
-type SlideDirection = "prev" | "next";
+type SlideDirection = ZoneDirection;
 // 끌고 있는 것. DragOverlay가 손가락·마우스를 따라다니는 카드로 그린다.
 type ActiveDrag = { kind: "fridge-item"; ingredient: FridgeIngredient } | { kind: "purchased"; item: PurchasedItem };
 
 const DOOR_FULL_MESSAGE = `문칸에는 ${DOOR_SLOT_COUNT}개까지 넣을 수 있어요. 다른 재료를 먼저 옮겨 주세요.`;
+// 재료를 끈 채로 화살표 위에 이만큼 머무르면 옆 구역으로 넘어간다.
+const ZONE_SWITCH_DELAY_MS = 700;
+const zoneWithParticle: Record<ZoneId, string> = { fridge: "냉장실로", freezer: "냉동실로", pantry: "실온으로" };
 
 // 카드는 칸 안에 들어 있어 포인터 아래에 칸과 재료가 함께 잡힌다.
 // 재료가 잡히면 그 재료 자리에 놓고, 빈 곳이면 그 칸 맨 뒤에 놓는다. 냉장고 밖에서 놓으면 아무것도 하지 않는다.
@@ -148,6 +156,10 @@ function FridgePage() {
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [activeDrag, setActiveDrag] = useState<ActiveDrag | null>(null);
   const [highlightedSection, setHighlightedSection] = useState<SectionId | null>(null);
+  // 끌고 있는 재료가 올라가 있는 화살표. 머무르는 동안 옆 구역으로 넘기는 타이머를 함께 둔다.
+  const [highlightedNav, setHighlightedNav] = useState<ZoneDirection | null>(null);
+  const hoveredNavRef = useRef<ZoneDirection | null>(null);
+  const zoneSwitchTimerRef = useRef<number | undefined>(undefined);
   // 옮기기·넣기 요청을 기다리는 중이면 true다. 끝날 때까지 다른 재료를 끌지 못하게 막아 요청이 겹치지 않게 한다.
   const [isMoving, setIsMoving] = useState(false);
   const [movingPurchasedId, setMovingPurchasedId] = useState<number | null>(null);
@@ -208,6 +220,8 @@ function FridgePage() {
     };
   }, [fridgeId, purchasedAttempt]);
 
+  useEffect(() => () => window.clearInterval(zoneSwitchTimerRef.current), []);
+
   // 모달을 연 재료 카드가 지워졌으면 모달이 닫힐 때 포커스를 돌려줄 곳이 없어 구역 제목으로 옮긴다.
   useEffect(() => {
     if (selectedIngredient !== null || !removedWhileOpenRef.current) return;
@@ -218,23 +232,24 @@ function FridgePage() {
   const zoneParam = searchParams.get("zone");
   const zoneId = isZoneId(zoneParam) ? zoneParam : zoneOrder[0];
   const zone = zoneMeta[zoneId];
-  const zoneIndex = zoneOrder.indexOf(zoneId);
-  const prevZone = zoneMeta[zoneOrder[(zoneIndex + zoneOrder.length - 1) % zoneOrder.length]];
-  const nextZone = zoneMeta[zoneOrder[(zoneIndex + 1) % zoneOrder.length]];
+  const prevZone = zoneMeta[adjacentZone(zoneId, "prev")];
+  const nextZone = zoneMeta[adjacentZone(zoneId, "next")];
 
   const contents = fridgeContents[zoneId];
   const itemCount = contents.shelf.length + contents.leftDoor.length + contents.rightDoor.length;
   const isLoading = load.status === "loading";
   const purchasedItems = purchased.status === "success" ? purchased.items : [];
 
+  // 끄는 동안 타이머로도 불러서, 그때 화면에 그려진 구역이 아니라 주소에 있는 지금 구역을 기준으로 넘긴다.
   const moveZone = (nextDirection: SlideDirection) => {
-    const target = nextDirection === "prev" ? prevZone : nextZone;
     setDirection(nextDirection);
     // 구역을 넘길 때마다 방문 기록이 쌓이면 뒤로 가기로 냉장고 화면을 벗어나기 어려워서 주소를 바꿔치기한다.
     setSearchParams(
       (prev) => {
         const params = new URLSearchParams(prev);
-        params.set("zone", target.id);
+        const currentZoneId = params.get("zone");
+        const current = isZoneId(currentZoneId) ? currentZoneId : zoneOrder[0];
+        params.set("zone", adjacentZone(current, nextDirection));
         return params;
       },
       { replace: true },
@@ -307,39 +322,44 @@ function FridgePage() {
     );
   };
 
-  const moveIngredient = async (targetFridgeId: number, from: ItemLocation, to: ItemLocation) => {
-    const zoneItems = fridgeContents[zoneId];
+  const moveIngredient = async (targetFridgeId: number, from: ZoneLocation, to: ZoneLocation) => {
+    const sameSection = from.zoneId === to.zoneId && from.location.sectionId === to.location.sectionId;
+    const targetSection = fridgeContents[to.zoneId][to.location.sectionId];
     // 같은 칸의 빈 곳에 놓으면 맨 뒤로 옮기는 것이라 마지막 자리로 맞춘다.
-    const target =
-      from.sectionId === to.sectionId ? { ...to, index: Math.min(to.index, zoneItems[to.sectionId].length - 1) } : to;
-    if (from.sectionId === target.sectionId && from.index === target.index) return;
-    if (isDoorFull(zoneItems, target, from.sectionId)) {
+    const target: ZoneLocation = sameSection
+      ? { ...to, location: { ...to.location, index: Math.min(to.location.index, targetSection.length - 1) } }
+      : to;
+    if (sameSection && from.location.index === target.location.index) return;
+    const fromSectionInTargetZone = from.zoneId === target.zoneId ? from.location.sectionId : null;
+    if (isDoorFull(fridgeContents[target.zoneId], target.location, fromSectionInTargetZone)) {
       setNotice(DOOR_FULL_MESSAGE);
       return;
     }
 
-    const ingredient = zoneItems[from.sectionId][from.index];
-    // 요청을 기다리는 사이 다른 구역으로 넘겨도 옮긴 구역에 결과를 반영한다.
-    const movedZoneId = zoneId;
-    setFridgeContents((prev) => ({ ...prev, [movedZoneId]: moveWithinZone(prev[movedZoneId], from, target) }));
+    const ingredient = fridgeContents[from.zoneId][from.location.sectionId][from.location.index];
+    setFridgeContents((prev) => moveIngredientTo(prev, from, target));
     setIsMoving(true);
     setNotice("");
     try {
       const updated = await changeFridgeItemPosition(ingredient.id, {
-        storage: zoneStorage[movedZoneId],
-        section: sectionType[target.sectionId],
-        index: target.index,
+        storage: zoneStorage[target.zoneId],
+        section: sectionType[target.location.sectionId],
+        index: target.location.index,
         version: ingredient.version,
       });
       setFridgeContents((prev) => replaceIngredient(prev, ingredient.id, toIngredient(updated)));
+      // 다른 구역으로 옮기면 지금 화면에서 사라지므로 어디로 갔는지 알려 준다.
+      if (from.zoneId !== target.zoneId) {
+        setNotice(`${ingredient.name}을(를) ${zoneWithParticle[target.zoneId]} 옮겼어요.`);
+      }
     } catch (error) {
       if (isStaleItemError(error)) {
         setNotice("다른 멤버가 먼저 바꾼 재료라 냉장고를 다시 불러왔어요.");
         await refreshContents(targetFridgeId);
       } else {
         setFridgeContents((prev) => {
-          const current = findIngredient(prev[movedZoneId], ingredient.id);
-          return current ? { ...prev, [movedZoneId]: moveWithinZone(prev[movedZoneId], current, from) } : prev;
+          const current = findInContents(prev, ingredient.id);
+          return current ? moveIngredientTo(prev, current, from) : prev;
         });
         setNotice(getSaveErrorMessage(error, "재료를 옮기지 못했어요. 다시 시도해 주세요."));
       }
@@ -349,27 +369,26 @@ function FridgePage() {
   };
 
   // 장본 음식은 서버가 냉장고 재료를 만든 뒤에야 id와 버전을 알 수 있어, 응답을 받은 뒤에 화면에 넣는다.
-  const putPurchasedItem = async (targetFridgeId: number, item: PurchasedItem, to: ItemLocation) => {
-    if (isDoorFull(fridgeContents[zoneId], to, null)) {
+  const putPurchasedItem = async (targetFridgeId: number, item: PurchasedItem, to: ZoneLocation) => {
+    if (isDoorFull(fridgeContents[to.zoneId], to.location, null)) {
       setNotice(DOOR_FULL_MESSAGE);
       return;
     }
-    const movedZoneId = zoneId;
     setIsMoving(true);
     setMovingPurchasedId(item.id);
     setNotice("");
     try {
       const created = await movePurchasedItem(item.id, {
-        storage: zoneStorage[movedZoneId],
-        section: sectionType[to.sectionId],
-        index: to.index,
+        storage: zoneStorage[to.zoneId],
+        section: sectionType[to.location.sectionId],
+        index: to.location.index,
       });
       setFridgeContents((prev) => ({
         ...prev,
-        [movedZoneId]: insertIntoZone(prev[movedZoneId], to, toIngredient(created)),
+        [to.zoneId]: insertIntoZone(prev[to.zoneId], to.location, toIngredient(created)),
       }));
       removePurchasedItem(item.id);
-      setNotice(`${item.name}을(를) ${zoneMeta[movedZoneId].title}에 넣었어요.`);
+      setNotice(`${item.name}을(를) ${zoneMeta[to.zoneId].title}에 넣었어요.`);
     } catch (error) {
       if (error instanceof ApiError && error.code === "PURCHASED_ITEM_NOT_FOUND") {
         removePurchasedItem(item.id);
@@ -386,7 +405,7 @@ function FridgePage() {
 
   const handlePutToShelf = (item: PurchasedItem) => {
     if (fridgeId === null || isMoving) return;
-    putPurchasedItem(fridgeId, item, { sectionId: "shelf", index: contents.shelf.length });
+    putPurchasedItem(fridgeId, item, { zoneId, location: { sectionId: "shelf", index: contents.shelf.length } });
   };
 
   const handleDragStart = ({ active }: DragStartEvent) => {
@@ -400,20 +419,55 @@ function FridgePage() {
     }
   };
 
+  const stopZoneSwitch = () => {
+    window.clearInterval(zoneSwitchTimerRef.current);
+    zoneSwitchTimerRef.current = undefined;
+    hoveredNavRef.current = null;
+    setHighlightedNav(null);
+  };
+
   const handleDragOver = ({ over }: DragOverEvent) => {
+    const target = over ? parseDragId(over.id) : null;
+    if (target?.kind === "zone-nav") {
+      setHighlightedSection(null);
+      if (hoveredNavRef.current === target.direction) return;
+      stopZoneSwitch();
+      hoveredNavRef.current = target.direction;
+      setHighlightedNav(target.direction);
+      // 화살표 위에 머무르는 동안 옆 구역으로 넘기고, 계속 머무르면 그다음 구역으로 넘긴다.
+      zoneSwitchTimerRef.current = window.setInterval(() => moveZone(target.direction), ZONE_SWITCH_DELAY_MS);
+      return;
+    }
+    stopZoneSwitch();
     setHighlightedSection(over ? (resolveDropLocation(contents, over.id)?.sectionId ?? null) : null);
   };
 
+  // 화살표에 놓으면 화살표가 가리키는 구역의 선반 맨 뒤, 그 밖에는 지금 보는 구역에서 놓은 자리다.
+  const resolveDropTarget = (overId: UniqueIdentifier): ZoneLocation | null => {
+    const target = parseDragId(overId);
+    if (target?.kind === "zone-nav") {
+      const targetZoneId = adjacentZone(zoneId, target.direction);
+      return {
+        zoneId: targetZoneId,
+        location: { sectionId: "shelf", index: fridgeContents[targetZoneId].shelf.length },
+      };
+    }
+    const location = resolveDropLocation(contents, overId);
+    return location ? { zoneId, location } : null;
+  };
+
   const handleDragEnd = ({ active, over }: DragEndEvent) => {
+    stopZoneSwitch();
     setActiveDrag(null);
     setHighlightedSection(null);
     if (!over || fridgeId === null || isMoving) return;
-    const to = resolveDropLocation(contents, over.id);
+    const to = resolveDropTarget(over.id);
     const dragged = parseDragId(active.id);
     if (!to || !dragged) return;
 
     if (dragged.kind === "fridge-item") {
-      const from = findIngredient(contents, dragged.id);
+      // 끄는 동안 다른 구역으로 넘어왔을 수 있어 모든 구역에서 찾는다.
+      const from = findInContents(fridgeContents, dragged.id);
       if (from) moveIngredient(fridgeId, from, to);
     } else if (dragged.kind === "purchased") {
       const item = purchasedItems.find((purchasedItem) => purchasedItem.id === dragged.id);
@@ -422,6 +476,7 @@ function FridgePage() {
   };
 
   const handleDragCancel = () => {
+    stopZoneSwitch();
     setActiveDrag(null);
     setHighlightedSection(null);
   };
@@ -453,58 +508,71 @@ function FridgePage() {
 
   return (
     <Wrapper>
-      <Pager>
-        <ArrowButton type="button" aria-label={`이전 구역, ${prevZone.title} 보기`} onClick={() => moveZone("prev")}>
-          <ChevronLeft size={28} aria-hidden="true" />
-        </ArrowButton>
-        <ZoneHeading aria-live="polite">
-          <ZoneTitle ref={zoneTitleRef} tabIndex={-1} $tone={zone.tone}>
-            {zone.title}
-          </ZoneTitle>
-          <ZoneSubtitle>
-            {zone.subtitle}
-            {load.status === "success" && ` · 재료 ${itemCount}개`}
-          </ZoneSubtitle>
-        </ZoneHeading>
-        <ArrowButton type="button" aria-label={`다음 구역, ${nextZone.title} 보기`} onClick={() => moveZone("next")}>
-          <ChevronRight size={28} aria-hidden="true" />
-        </ArrowButton>
-      </Pager>
+      {/* 구역을 넘기는 화살표도 재료를 놓을 수 있는 곳이라 페이저까지 끌기 영역에 넣는다. */}
+      <DndContext
+        sensors={sensors}
+        collisionDetection={detectCollision}
+        accessibility={{ announcements }}
+        onDragStart={handleDragStart}
+        onDragOver={handleDragOver}
+        onDragEnd={handleDragEnd}
+        onDragCancel={handleDragCancel}
+      >
+        <Pager>
+          <ZoneNavButton
+            direction="prev"
+            targetTitle={prevZone.title}
+            highlighted={highlightedNav === "prev"}
+            onClick={() => moveZone("prev")}
+          />
+          <ZoneHeading aria-live="polite">
+            <ZoneTitle ref={zoneTitleRef} tabIndex={-1} $tone={zone.tone}>
+              {zone.title}
+            </ZoneTitle>
+            <ZoneSubtitle>
+              {activeDrag ? (
+                "화살표 위에 잠시 머무르면 옆 구역으로 넘어가요"
+              ) : (
+                <>
+                  {zone.subtitle}
+                  {load.status === "success" && ` · 재료 ${itemCount}개`}
+                </>
+              )}
+            </ZoneSubtitle>
+          </ZoneHeading>
+          <ZoneNavButton
+            direction="next"
+            targetTitle={nextZone.title}
+            highlighted={highlightedNav === "next"}
+            onClick={() => moveZone("next")}
+          />
+        </Pager>
 
-      <Toolbar>
-        <Notice role="status">{notice}</Notice>
-        {load.status === "success" && (
-          <ToolbarButton type="button" aria-expanded={isPanelOpen} onClick={() => setIsPanelOpen((prev) => !prev)}>
-            <ShoppingBag size={18} aria-hidden="true" />
-            방금 장본 음식 넣기
-            {purchasedItems.length > 0 && <Count aria-label={`${purchasedItems.length}개`}>{purchasedItems.length}</Count>}
+        <Toolbar>
+          <Notice role="status">{notice}</Notice>
+          {load.status === "success" && (
+            <ToolbarButton type="button" aria-expanded={isPanelOpen} onClick={() => setIsPanelOpen((prev) => !prev)}>
+              <ShoppingBag size={18} aria-hidden="true" />
+              방금 장본 음식 넣기
+              {purchasedItems.length > 0 && <Count aria-label={`${purchasedItems.length}개`}>{purchasedItems.length}</Count>}
+            </ToolbarButton>
+          )}
+          <ToolbarButton type="button" onClick={() => receiptInputRef.current?.click()}>
+            <ReceiptText size={18} aria-hidden="true" />
+            영수증으로 추가
           </ToolbarButton>
-        )}
-        <ToolbarButton type="button" onClick={() => receiptInputRef.current?.click()}>
-          <ReceiptText size={18} aria-hidden="true" />
-          영수증으로 추가
-        </ToolbarButton>
-        <ReceiptFileInput ref={receiptInputRef} onSelect={handleReceiptSelect} />
-      </Toolbar>
+          <ReceiptFileInput ref={receiptInputRef} onSelect={handleReceiptSelect} />
+        </Toolbar>
 
-      {load.status === "error" ? (
-        <StatusBox role="alert">
-          <strong>냉장고 재료를 불러오지 못했어요.</strong>
-          <p>{load.message}</p>
-          <RetryButton type="button" onClick={handleRetry}>
-            다시 시도
-          </RetryButton>
-        </StatusBox>
-      ) : (
-        <DndContext
-          sensors={sensors}
-          collisionDetection={detectCollision}
-          accessibility={{ announcements }}
-          onDragStart={handleDragStart}
-          onDragOver={handleDragOver}
-          onDragEnd={handleDragEnd}
-          onDragCancel={handleDragCancel}
-        >
+        {load.status === "error" ? (
+          <StatusBox role="alert">
+            <strong>냉장고 재료를 불러오지 못했어요.</strong>
+            <p>{load.message}</p>
+            <RetryButton type="button" onClick={handleRetry}>
+              다시 시도
+            </RetryButton>
+          </StatusBox>
+        ) : (
           <BoardLayout $panelOpen={isPanelOpen}>
             {/* 구역이 바뀔 때마다 key가 바뀌어 슬라이드 애니메이션이 다시 재생된다. */}
             <SlidingStage key={zoneId} $direction={direction}>
@@ -529,15 +597,16 @@ function FridgePage() {
               />
             )}
           </BoardLayout>
-          <DragOverlay>
-            {dragPreview && (
-              <OverlayCard aria-hidden="true">
-                <IngredientItem ingredient={dragPreview} variant="shelf" onSelect={() => undefined} />
-              </OverlayCard>
-            )}
-          </DragOverlay>
-        </DndContext>
-      )}
+        )}
+
+        <DragOverlay>
+          {dragPreview && (
+            <OverlayCard aria-hidden="true">
+              <IngredientItem ingredient={dragPreview} variant="shelf" onSelect={() => undefined} />
+            </OverlayCard>
+          )}
+        </DragOverlay>
+      </DndContext>
 
       <IngredientEditModal
         ingredient={selectedIngredient}
@@ -557,6 +626,32 @@ function FridgePage() {
 }
 
 export default FridgePage;
+
+type ZoneNavButtonProps = {
+  direction: ZoneDirection;
+  targetTitle: string;
+  // 끌고 있는 재료가 이 화살표 위에 있으면 강조한다.
+  highlighted: boolean;
+  onClick: () => void;
+};
+
+// 구역을 넘기는 화살표다. 재료를 끈 채로 위에 머무르면 옆 구역으로 넘어가고, 위에 놓으면 그 구역 선반 맨 뒤로 옮긴다.
+function ZoneNavButton({ direction, targetTitle, highlighted, onClick }: ZoneNavButtonProps) {
+  const { setNodeRef } = useDroppable({ id: zoneNavDropId(direction) });
+  const Icon = direction === "prev" ? ChevronLeft : ChevronRight;
+
+  return (
+    <ArrowButton
+      ref={setNodeRef}
+      type="button"
+      aria-label={`${direction === "prev" ? "이전" : "다음"} 구역, ${targetTitle} 보기`}
+      onClick={onClick}
+      $highlighted={highlighted}
+    >
+      <Icon size={28} aria-hidden="true" />
+    </ArrowButton>
+  );
+}
 
 const slideFromPrev = keyframes`
   from { opacity: 0; transform: translateX(-16px); }
@@ -587,12 +682,12 @@ const Pager = styled.div`
   gap: 8px;
 `;
 
-const ArrowButton = styled.button`
+const ArrowButton = styled.button<{ $highlighted: boolean }>`
   width: 48px;
   height: 48px;
-  border: 0;
+  border: ${(props) => (props.$highlighted ? "2px dashed var(--text)" : "0")};
   border-radius: 999px;
-  background: var(--surface-soft);
+  background: ${(props) => (props.$highlighted ? "var(--block-lime)" : "var(--surface-soft)")};
   display: grid;
   place-items: center;
   cursor: pointer;
