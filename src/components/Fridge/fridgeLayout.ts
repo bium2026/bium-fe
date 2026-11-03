@@ -11,6 +11,7 @@ import type {
   StorageType,
 } from "../../api/fridge";
 import type { FridgeContents, FridgeIngredient, SectionId, ZoneId, ZoneIngredients } from "./fridgeTypes";
+import { zoneOrder, type ZoneDirection } from "./fridgeZones";
 
 export const zoneStorage: Record<ZoneId, StorageType> = { fridge: "FRIDGE", freezer: "FREEZER", pantry: "ROOM" };
 export const storageZone: Record<StorageType, ZoneId> = { FRIDGE: "fridge", FREEZER: "freezer", ROOM: "pantry" };
@@ -61,20 +62,41 @@ export function insertIntoZone(zone: ZoneIngredients, to: ItemLocation, ingredie
   return { ...zone, [to.sectionId]: target };
 }
 
-export function moveWithinZone(zone: ZoneIngredients, from: ItemLocation, to: ItemLocation): ZoneIngredients {
-  const ingredient = zone[from.sectionId][from.index];
-  const withoutItem = { ...zone, [from.sectionId]: zone[from.sectionId].filter((_, index) => index !== from.index) };
-  return insertIntoZone(withoutItem, to, ingredient);
+// 재료가 들어 있는 구역과 칸 안의 자리
+export type ZoneLocation = { zoneId: ZoneId; location: ItemLocation };
+
+export function findInContents(contents: FridgeContents, id: number): ZoneLocation | null {
+  for (const zoneId of zoneOrder) {
+    const location = findIngredient(contents[zoneId], id);
+    if (location) return { zoneId, location };
+  }
+  return null;
+}
+
+// 같은 구역 안이든 다른 구역이든 재료를 from에서 빼 to에 넣는다.
+export function moveIngredientTo(contents: FridgeContents, from: ZoneLocation, to: ZoneLocation): FridgeContents {
+  const fromZone = contents[from.zoneId];
+  const ingredient = fromZone[from.location.sectionId][from.location.index];
+  const withoutItem: FridgeContents = {
+    ...contents,
+    [from.zoneId]: {
+      ...fromZone,
+      [from.location.sectionId]: fromZone[from.location.sectionId].filter((_, index) => index !== from.location.index),
+    },
+  };
+  return { ...withoutItem, [to.zoneId]: insertIntoZone(withoutItem[to.zoneId], to.location, ingredient) };
 }
 
 export type DragTarget =
   | { kind: "fridge-item"; id: number }
   | { kind: "purchased"; id: number }
-  | { kind: "section"; sectionId: SectionId };
+  | { kind: "section"; sectionId: SectionId }
+  | { kind: "zone-nav"; direction: ZoneDirection };
 
 export const fridgeItemDragId = (id: number) => `fridge-item:${id}`;
 export const purchasedDragId = (id: number) => `purchased:${id}`;
 export const sectionDropId = (sectionId: SectionId) => `section:${sectionId}`;
+export const zoneNavDropId = (direction: ZoneDirection) => `zone-nav:${direction}`;
 
 function isSectionId(value: string): value is SectionId {
   return value === "shelf" || value === "leftDoor" || value === "rightDoor";
@@ -84,5 +106,6 @@ export function parseDragId(id: UniqueIdentifier): DragTarget | null {
   const [kind, value = ""] = String(id).split(":");
   if (kind === "fridge-item" || kind === "purchased") return { kind, id: Number(value) };
   if (kind === "section" && isSectionId(value)) return { kind: "section", sectionId: value };
+  if (kind === "zone-nav" && (value === "prev" || value === "next")) return { kind: "zone-nav", direction: value };
   return null;
 }
