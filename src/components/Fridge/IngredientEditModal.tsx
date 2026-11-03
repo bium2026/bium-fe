@@ -134,6 +134,8 @@ function IngredientEditForm({
   const [name, setName] = useState(ingredient.name);
   const [emoji, setEmoji] = useState(ingredient.emoji);
   const [expiresAt, setExpiresAt] = useState(isValidDate(ingredient.expiresAt) ? ingredient.expiresAt : "");
+  // 날짜를 덜 입력해도 입력칸 값은 빈 문자열이라, 일부러 비운 것과 구분하려고 따로 둔다.
+  const [isExpiresAtIncomplete, setIsExpiresAtIncomplete] = useState(false);
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -143,12 +145,13 @@ function IngredientEditForm({
 
   const nameError = trimmedName ? "" : "이름을 입력해 주세요.";
   const emojiError = (() => {
-    if (!trimmedEmoji) return "아이콘을 입력해 주세요.";
+    if (!trimmedEmoji) return "";
     if (countGraphemes(trimmedEmoji) > 1) return "아이콘은 이모지 한 개만 넣어 주세요.";
     if (!emojiPattern.test(trimmedEmoji)) return "아이콘은 이모지로 넣어 주세요.";
     return "";
   })();
-  const expiresAtError = isValidDate(expiresAt) ? "" : "유통기한을 선택해 주세요.";
+  const expiresAtError =
+    isExpiresAtIncomplete || (expiresAt && !isValidDate(expiresAt)) ? "날짜를 끝까지 입력하거나 비워 주세요." : "";
 
   const isChanged =
     trimmedName !== ingredient.name || trimmedEmoji !== ingredient.emoji || expiresAt !== ingredient.expiresAt;
@@ -224,6 +227,7 @@ function IngredientEditForm({
           type="date"
           value={expiresAt}
           onChange={setExpiresAt}
+          onBadInputChange={setIsExpiresAtIncomplete}
           disabled={isBusy}
           error={expiresAtError}
         />
@@ -273,6 +277,7 @@ type FieldProps = {
   type?: "text" | "date";
   value: string;
   onChange: (value: string) => void;
+  onBadInputChange?: (badInput: boolean) => void;
   placeholder?: string;
   maxLength?: number;
   disabled: boolean;
@@ -286,6 +291,7 @@ function Field({
   type = "text",
   value,
   onChange,
+  onBadInputChange,
   placeholder,
   maxLength,
   disabled,
@@ -294,6 +300,9 @@ function Field({
 }: FieldProps) {
   const messageId = `${id}-message`;
   const message = error || hint;
+  const reportBadInput = (event: SyntheticEvent<HTMLInputElement>) => {
+    onBadInputChange?.(event.currentTarget.validity.badInput);
+  };
 
   return (
     <FieldWrapper>
@@ -302,7 +311,13 @@ function Field({
         id={id}
         type={type}
         value={value}
-        onChange={(event) => onChange(event.target.value)}
+        onChange={(event) => {
+          onChange(event.target.value);
+          reportBadInput(event);
+        }}
+        // 값이 빈 문자열 그대로면 onChange가 오지 않아서 키 입력과 포커스 이동 때도 확인한다.
+        onKeyUp={reportBadInput}
+        onBlur={reportBadInput}
         placeholder={placeholder}
         maxLength={maxLength}
         disabled={disabled}

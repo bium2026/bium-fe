@@ -254,17 +254,14 @@ function FridgePage() {
   // 실패하면 모달이 오류를 보여 주고, 화면은 서버에 반영된 뒤에만 바꾸므로 되돌릴 것이 없다.
   const handleSave = async (ingredient: FridgeIngredient, values: IngredientEditValues) => {
     try {
-      const updated = await updateFridgeItem(ingredient.id, { ...values, version: ingredient.version });
-      // 모달이 아이콘·유통기한을 꼭 받아서 보내므로 서버도 비워서 돌려주지 않지만, 응답 타입은 null을 허용해 보낸 값으로 채운다.
-      setFridgeContents((prev) =>
-        replaceIngredient(prev, ingredient.id, {
-          ...ingredient,
-          name: updated.name,
-          emoji: updated.emoji ?? values.emoji,
-          expiresAt: updated.expiresAt ?? values.expiresAt,
-          version: updated.version,
-        }),
-      );
+      // 모달의 빈 값은 서버에 null로 보내 아이콘·유통기한을 지운다.
+      const updated = await updateFridgeItem(ingredient.id, {
+        name: values.name,
+        emoji: values.emoji || null,
+        expiresAt: values.expiresAt || null,
+        version: ingredient.version,
+      });
+      setFridgeContents((prev) => replaceIngredient(prev, ingredient.id, toIngredient(updated)));
     } catch (error) {
       removeIfGone(ingredient.id, error);
       throw error;
