@@ -143,12 +143,12 @@ function IngredientEditForm({
 
   const nameError = trimmedName ? "" : "이름을 입력해 주세요.";
   const emojiError = (() => {
-    if (!trimmedEmoji) return "아이콘을 입력해 주세요.";
+    if (!trimmedEmoji) return "";
     if (countGraphemes(trimmedEmoji) > 1) return "아이콘은 이모지 한 개만 넣어 주세요.";
     if (!emojiPattern.test(trimmedEmoji)) return "아이콘은 이모지로 넣어 주세요.";
     return "";
   })();
-  const expiresAtError = isValidDate(expiresAt) ? "" : "유통기한을 선택해 주세요.";
+  const expiresAtError = !expiresAt || isValidDate(expiresAt) ? "" : "올바른 날짜를 선택해 주세요.";
 
   const isChanged =
     trimmedName !== ingredient.name || trimmedEmoji !== ingredient.emoji || expiresAt !== ingredient.expiresAt;
