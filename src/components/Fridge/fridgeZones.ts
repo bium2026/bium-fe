@@ -22,3 +22,12 @@ export const zoneMeta: Record<ZoneId, ZoneMeta> = {
 export function isZoneId(value: string | null): value is ZoneId {
   return value === "fridge" || value === "freezer" || value === "pantry";
 }
+
+export type ZoneDirection = "prev" | "next";
+
+// 페이저처럼 양 끝에서 반대쪽 끝으로 이어진다.
+export function adjacentZone(zoneId: ZoneId, direction: ZoneDirection): ZoneId {
+  const index = zoneOrder.indexOf(zoneId);
+  const step = direction === "prev" ? zoneOrder.length - 1 : 1;
+  return zoneOrder[(index + step) % zoneOrder.length];
+}
