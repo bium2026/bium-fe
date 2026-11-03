@@ -162,6 +162,8 @@ function FridgePage() {
   const zoneSwitchTimerRef = useRef<number | undefined>(undefined);
   // 옮기기·넣기 요청을 기다리는 중이면 true다. 끝날 때까지 다른 재료를 끌지 못하게 막아 요청이 겹치지 않게 한다.
   const [isMoving, setIsMoving] = useState(false);
+  // 상태(isMoving)는 다음 렌더에서야 바뀌어서, 그 사이 들어온 두 번째 놓기도 막으려고 바로 바뀌는 값을 함께 둔다.
+  const movingRef = useRef(false);
   const [movingPurchasedId, setMovingPurchasedId] = useState<number | null>(null);
   // 고른 영수증 사진을 읽는 요청. null이면 영수증 모달이 닫힌다.
   const [receiptScan, setReceiptScan] = useState<ReceiptScan | null>(null);
@@ -338,6 +340,7 @@ function FridgePage() {
 
     const ingredient = fridgeContents[from.zoneId][from.location.sectionId][from.location.index];
     setFridgeContents((prev) => moveIngredientTo(prev, from, target));
+    movingRef.current = true;
     setIsMoving(true);
     setNotice("");
     try {
@@ -364,6 +367,7 @@ function FridgePage() {
         setNotice(getSaveErrorMessage(error, "재료를 옮기지 못했어요. 다시 시도해 주세요."));
       }
     } finally {
+      movingRef.current = false;
       setIsMoving(false);
     }
   };
@@ -374,6 +378,7 @@ function FridgePage() {
       setNotice(DOOR_FULL_MESSAGE);
       return;
     }
+    movingRef.current = true;
     setIsMoving(true);
     setMovingPurchasedId(item.id);
     setNotice("");
@@ -398,13 +403,14 @@ function FridgePage() {
         setNotice(getSaveErrorMessage(error, `${item.name}을(를) 넣지 못했어요. 다시 시도해 주세요.`));
       }
     } finally {
+      movingRef.current = false;
       setIsMoving(false);
       setMovingPurchasedId(null);
     }
   };
 
   const handlePutToShelf = (item: PurchasedItem) => {
-    if (fridgeId === null || isMoving) return;
+    if (fridgeId === null || movingRef.current) return;
     putPurchasedItem(fridgeId, item, { zoneId, location: { sectionId: "shelf", index: contents.shelf.length } });
   };
 
@@ -460,7 +466,7 @@ function FridgePage() {
     stopZoneSwitch();
     setActiveDrag(null);
     setHighlightedSection(null);
-    if (!over || fridgeId === null || isMoving) return;
+    if (!over || fridgeId === null || movingRef.current) return;
     const to = resolveDropTarget(over.id);
     const dragged = parseDragId(active.id);
     if (!to || !dragged) return;
