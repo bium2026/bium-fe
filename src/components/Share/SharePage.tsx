@@ -9,6 +9,7 @@ import { keyframes } from "@emotion/react";
 import styled from "@emotion/styled";
 import { useNavigate } from "react-router";
 import { ApiError } from "../../api/client";
+import { undoCooking } from "../../api/cooking";
 import type { Fridge, MemberRole } from "../../api/fridge";
 import {
   createInvite,
@@ -179,6 +180,27 @@ function ShareContent({ fridge }: ShareContentProps) {
     );
   };
 
+  // 실패하면 활동 기록이 오류를 보여 주도록 그대로 던진다.
+  const handleUndoCooking = async (cookingLogId: number) => {
+    try {
+      await undoCooking(cookingLogId);
+    } catch (error) {
+      // 다른 멤버가 먼저 되돌렸으면 되돌리려던 결과와 같으므로 그대로 넘어간다.
+      if (!(error instanceof ApiError && error.code === "ALREADY_UNDONE")) throw error;
+    }
+    updateData((prev) => ({
+      ...prev,
+      activities: prev.activities.map((activity) =>
+        activity.cookingLogId === cookingLogId ? { ...activity, undone: true } : activity,
+      ),
+    }));
+    // 되돌리면 서버가 재료마다 되돌림 기록을 남기므로 다시 받는다. 못 받으면 지금 기록을 그대로 둔다.
+    getActivities(fridgeId).then(
+      (activities) => updateData((prev) => ({ ...prev, activities })),
+      () => undefined,
+    );
+  };
+
   // 나가면 이 냉장고를 더 볼 수 없으므로 내가 주인인 냉장고로 돌아가 냉장고 화면을 보여 준다.
   const handleLeave = async () => {
     try {
@@ -234,7 +256,7 @@ function ShareContent({ fridge }: ShareContentProps) {
           onLeave={handleLeave}
         />
       </Grid>
-      <ActivityPanel activities={share.data.activities} />
+      <ActivityPanel activities={share.data.activities} onUndoCooking={handleUndoCooking} />
     </>
   );
 }
