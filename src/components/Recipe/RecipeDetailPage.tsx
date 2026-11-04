@@ -3,10 +3,11 @@
  * 주소의 id로 레시피를 불러와 조리 순서, 활용 팁, 재료, 냉장고 매칭, 영양 정보를 보여 준다.
  * 재료는 냉장고 보유·기본 양념·부족으로 나눠 표시하고, 부족 재료가 있으면 위쪽에 모아 보여 준다.
  * 부족 재료는 확인 모달에서 골라 장보기 목록에 담는다. 방금 만든 레시피면 모달을 한 번 먼저 띄운다.
+ * 요리를 마치면 쓴 재료를 확인 모달에서 골라 냉장고에서 뺀다. 잘못 뺀 재료는 활동 기록에서 되돌린다.
  */
 import { useEffect, useId, useRef, useState } from "react";
 import styled from "@emotion/styled";
-import { ArrowLeft, ChefHat, Clock3, Flame, ShoppingCart, Sparkles, Users } from "lucide-react";
+import { ArrowLeft, CheckCircle2, ChefHat, Clock3, Flame, ShoppingCart, Sparkles, Users } from "lucide-react";
 import { Link, useParams } from "react-router";
 import { ApiError } from "../../api/client";
 import { getRecipe, type IngredientSource, type Recipe, type RecipeIngredient } from "../../api/recipe";
@@ -20,6 +21,7 @@ import {
   formatServings,
   getNutritionItems,
 } from "./recipeFormat";
+import CookingModal from "./CookingModal";
 import MissingIngredientModal from "./MissingIngredientModal";
 import { getRecipeTone } from "./recipeTone";
 
@@ -56,6 +58,9 @@ function RecipeDetailPage() {
   const [attempt, setAttempt] = useState(0);
   const [result, setResult] = useState<DetailResult | null>(null);
   const [isShoppingOpen, setIsShoppingOpen] = useState(false);
+  const [isCookingOpen, setIsCookingOpen] = useState(false);
+  // 방금 냉장고에서 뺀 재료 수. 안내 문구에 쓴다.
+  const [cookedCount, setCookedCount] = useState<number | null>(null);
   const shoppingButtonRef = useRef<HTMLButtonElement>(null);
   const requestKey = `${recipeId}-${attempt}`;
 
@@ -175,6 +180,24 @@ function RecipeDetailPage() {
               {formatCalories(recipe.caloriesKcal)}
             </MetaItem>
           </MetaGrid>
+          <CookButton type="button" onClick={() => setIsCookingOpen(true)}>
+            <CheckCircle2 size={18} aria-hidden="true" />
+            요리 완료
+          </CookButton>
+          <CookedNotice role="status">
+            {cookedCount !== null && (
+              <>
+                재료 {cookedCount}개를 냉장고에서 뺐어요. 잘못 뺐다면 <Link to="/share">활동 기록</Link>에서 되돌릴 수
+                있어요.
+              </>
+            )}
+          </CookedNotice>
+          <CookingModal
+            recipeId={recipe.id}
+            open={isCookingOpen}
+            onClose={() => setIsCookingOpen(false)}
+            onCooked={setCookedCount}
+          />
         </HeroCopy>
         <HeroVisual $tone={getRecipeTone(recipe.id)}>
           <FoodEmoji aria-hidden="true">{recipe.emoji ?? DEFAULT_RECIPE_EMOJI}</FoodEmoji>
@@ -531,6 +554,26 @@ const ShoppingButton = styled.button`
   @media (max-width: 760px) {
     width: 100%;
     justify-content: center;
+  }
+`;
+
+const CookButton = styled(ShoppingButton)`
+  justify-self: start;
+`;
+
+const CookedNotice = styled.p`
+  font-size: 15px;
+  font-weight: 480;
+  line-height: 1.5;
+  word-break: keep-all;
+
+  &:empty {
+    display: none;
+  }
+
+  a {
+    color: inherit;
+    text-decoration: underline;
   }
 `;
 
