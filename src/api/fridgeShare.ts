@@ -31,6 +31,10 @@ export type Activity = {
   action: ActivityAction;
   // 참여·나가기처럼 재료가 없는 기록은 null
   itemName: string | null;
+  // 요리로 줄이거나 되돌린 기록이면 어느 요리인지 알려 준다. 요리와 상관없는 기록은 null
+  cookingLogId: number | null;
+  // 이미 되돌린 요리면 true
+  undone: boolean;
   createdAt: string;
 };
 
