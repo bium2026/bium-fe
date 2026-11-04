@@ -62,6 +62,31 @@ export function insertIntoZone(zone: ZoneIngredients, to: ItemLocation, ingredie
   return { ...zone, [to.sectionId]: target };
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+// "YYYY-MM-DD"를 new Date()에 그대로 넣으면 UTC 자정으로 읽혀서, 지역 날짜로 바꿔 오늘과 비교한다.
+export function getDaysLeft(expiresAt: string) {
+  const [year, month, day] = expiresAt.split("-").map(Number);
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const target = new Date(year, month - 1, day);
+  // 서머타임이 있는 지역에서는 하루가 23·25시간일 수 있어 반올림한다.
+  return Math.round((target.getTime() - today.getTime()) / DAY_MS);
+}
+
+export type ExpiredIngredient = { ingredient: FridgeIngredient; zoneId: ZoneId };
+
+// 모든 구역에서 유통기한 지난 재료를 모은다. 유통기한이 없는 재료는 지나지 않은 것으로 본다.
+export function findExpiredIngredients(contents: FridgeContents): ExpiredIngredient[] {
+  return zoneOrder.flatMap((zoneId) =>
+    sectionIds.flatMap((sectionId) =>
+      contents[zoneId][sectionId]
+        .filter((ingredient) => ingredient.expiresAt !== "" && getDaysLeft(ingredient.expiresAt) < 0)
+        .map((ingredient) => ({ ingredient, zoneId })),
+    ),
+  );
+}
+
 // 재료가 들어 있는 구역과 칸 안의 자리
 export type ZoneLocation = { zoneId: ZoneId; location: ItemLocation };
 
