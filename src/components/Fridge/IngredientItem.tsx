@@ -5,6 +5,7 @@
  */
 import type { DraggableSyntheticListeners } from "@dnd-kit/core";
 import styled from "@emotion/styled";
+import { getDaysLeft } from "./fridgeLayout";
 import type { FridgeIngredient } from "./fridgeTypes";
 
 type Freshness = "expired" | "urgent" | "soon" | "safe";
@@ -17,18 +18,6 @@ type IngredientItemProps = {
   // 끌고 있는 동안 원래 자리는 흐리게 남기고, 손가락·마우스를 따라다니는 카드는 DragOverlay가 그린다.
   isDragging?: boolean;
 };
-
-const DAY_MS = 24 * 60 * 60 * 1000;
-
-// "YYYY-MM-DD"를 new Date()에 그대로 넣으면 UTC 자정으로 읽혀서, 지역 날짜로 바꿔 오늘과 비교한다.
-function getDaysLeft(expiresAt: string) {
-  const [year, month, day] = expiresAt.split("-").map(Number);
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const target = new Date(year, month - 1, day);
-  // 서머타임이 있는 지역에서는 하루가 23·25시간일 수 있어 반올림한다.
-  return Math.round((target.getTime() - today.getTime()) / DAY_MS);
-}
 
 function getFreshness(daysLeft: number): Freshness {
   if (daysLeft < 0) return "expired";
