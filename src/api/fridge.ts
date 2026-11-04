@@ -140,3 +140,26 @@ export function changeFridgeItemPosition(itemId: number, body: FridgeItemPositio
 export function deleteFridgeItem(itemId: number, version: number) {
   return requestNoContent(`/api/fridge-items/${itemId}?version=${version}`, { method: "DELETE" });
 }
+
+// 일괄 삭제 API가 한 번에 받는 재료 수
+export const MAX_BULK_DELETE_ITEMS = 100;
+
+export type FridgeItemBulkDeleteItem = {
+  fridgeItemId: number;
+  // 화면이 재료를 불러올 때 받은 값
+  version: number;
+};
+
+type FridgeItemBulkDeleteResponse = {
+  deletedItemIds: number[];
+};
+
+// 1~100개를 한꺼번에 지우고, 하나라도 지울 수 없으면 아무것도 지우지 않는다.
+// 실패: INVALID_INPUT(400), FRIDGE_NOT_FOUND·FRIDGE_ITEM_NOT_FOUND(404), CONCURRENT_MODIFICATION(409)
+export async function deleteFridgeItems(fridgeId: number, items: FridgeItemBulkDeleteItem[]) {
+  const { deletedItemIds } = await request<FridgeItemBulkDeleteResponse>(`/api/fridges/${fridgeId}/items/bulk-delete`, {
+    method: "POST",
+    body: { items },
+  });
+  return deletedItemIds;
+}
