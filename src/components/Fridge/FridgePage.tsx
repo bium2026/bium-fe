@@ -6,6 +6,7 @@
  * 끄는 동안 좌우 화살표 위에 잠시 머무르면 옆 구역으로 넘어가서, 냉장실·냉동실·실온 어디로든 옮길 수 있다.
  * 옮긴 재료는 화면에 먼저 보여 주고 저장에 실패하면 원래 자리로 되돌린다. 저장을 기다리는 동안에는 다시 끌지 못하게 막는다.
  * 영수증 사진을 고르면 AI가 읽은 재료를 모달로 보여 주고, 확인한 재료를 냉장고에 한꺼번에 넣는다.
+ * 유통기한 지난 재료는 모든 구역에서 모아 확인 모달을 거쳐 한 번에 지운다.
  */
 import { useEffect, useRef, useState } from "react";
 import {
@@ -26,19 +27,22 @@ import {
 } from "@dnd-kit/core";
 import { keyframes } from "@emotion/react";
 import styled from "@emotion/styled";
-import { ChevronLeft, ChevronRight, ReceiptText, ShoppingBag } from "lucide-react";
+import { ChevronLeft, ChevronRight, ReceiptText, ShoppingBag, Trash2 } from "lucide-react";
 import { useSearchParams } from "react-router";
 import { ApiError, NETWORK_ERROR } from "../../api/client";
 import {
   addFridgeItems,
   changeFridgeItemPosition,
   deleteFridgeItem,
+  deleteFridgeItems,
   getFridgeItems,
   getMyFridge,
+  MAX_BULK_DELETE_ITEMS,
   updateFridgeItem,
   type FridgeItemBulkCreateItem,
 } from "../../api/fridge";
 import { getPurchasedItems, movePurchasedItem, type PurchasedItem } from "../../api/purchasedItem";
+import ExpiredDeleteModal from "./ExpiredDeleteModal";
 import FridgeBoard, { DOOR_SLOT_COUNT } from "./FridgeBoard";
 import IngredientEditModal, { type IngredientEditValues } from "./IngredientEditModal";
 import IngredientItem from "./IngredientItem";
@@ -46,6 +50,7 @@ import PurchasedItemPanel, { type PurchasedListState } from "./PurchasedItemPane
 import ReceiptScanModal, { ReceiptFileInput } from "./ReceiptScanModal";
 import {
   emptyFridgeContents,
+  findExpiredIngredients,
   findInContents,
   findIngredient,
   insertIntoZone,
@@ -154,6 +159,7 @@ function FridgePage() {
   const [purchased, setPurchased] = useState<PurchasedListState>({ status: "loading" });
   const [purchasedAttempt, setPurchasedAttempt] = useState(0);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
+  const [isExpiredModalOpen, setIsExpiredModalOpen] = useState(false);
   const [activeDrag, setActiveDrag] = useState<ActiveDrag | null>(null);
   const [highlightedSection, setHighlightedSection] = useState<SectionId | null>(null);
   // 끌고 있는 재료가 올라가 있는 화살표. 머무르는 동안 옆 구역으로 넘기는 타이머를 함께 둔다.
@@ -226,10 +232,10 @@ function FridgePage() {
 
   // 모달을 연 재료 카드가 지워졌으면 모달이 닫힐 때 포커스를 돌려줄 곳이 없어 구역 제목으로 옮긴다.
   useEffect(() => {
-    if (selectedIngredient !== null || !removedWhileOpenRef.current) return;
+    if (selectedIngredient !== null || isExpiredModalOpen || !removedWhileOpenRef.current) return;
     removedWhileOpenRef.current = false;
     zoneTitleRef.current?.focus();
-  }, [selectedIngredient]);
+  }, [selectedIngredient, isExpiredModalOpen]);
 
   const zoneParam = searchParams.get("zone");
   const zoneId = isZoneId(zoneParam) ? zoneParam : zoneOrder[0];
@@ -241,6 +247,9 @@ function FridgePage() {
   const itemCount = contents.shelf.length + contents.leftDoor.length + contents.rightDoor.length;
   const isLoading = load.status === "loading";
   const purchasedItems = purchased.status === "success" ? purchased.items : [];
+  const expiredItems = findExpiredIngredients(fridgeContents);
+  // API가 한 번에 받는 수까지만 지운다. 더 많으면 남은 재료는 버튼에 그대로 남아 한 번 더 지울 수 있다.
+  const expiredTargets = expiredItems.slice(0, MAX_BULK_DELETE_ITEMS);
 
   // 끄는 동안 타이머로도 불러서, 그때 화면에 그려진 구역이 아니라 주소에 있는 지금 구역을 기준으로 넘긴다.
   const moveZone = (nextDirection: SlideDirection) => {
@@ -299,6 +308,29 @@ function FridgePage() {
     if (isLoading) return;
     setLoad({ status: "loading" });
     setLoadAttempt((prev) => prev + 1);
+  };
+
+  // 실패하면 모달이 오류를 보여 주도록 다시 던진다. 서버는 하나라도 못 지우면 아무것도 지우지 않아 되돌릴 것이 없다.
+  const handleExpiredDelete = async () => {
+    if (fridgeId === null) return;
+    movingRef.current = true;
+    setIsMoving(true);
+    try {
+      const deletedItemIds = await deleteFridgeItems(
+        fridgeId,
+        expiredTargets.map(({ ingredient }) => ({ fridgeItemId: ingredient.id, version: ingredient.version })),
+      );
+      // 재료가 모두 지워지면 버튼이 비활성화되어 포커스를 돌려줄 곳이 없다.
+      removedWhileOpenRef.current = true;
+      setFridgeContents((prev) => deletedItemIds.reduce((next, id) => replaceIngredient(next, id, null), prev));
+      setNotice(`유통기한 지난 재료 ${deletedItemIds.length}개를 지웠어요.`);
+    } catch (error) {
+      if (isStaleItemError(error)) await refreshContents(fridgeId);
+      throw error;
+    } finally {
+      movingRef.current = false;
+      setIsMoving(false);
+    }
   };
 
   const handlePurchasedRetry = () => {
@@ -560,6 +592,18 @@ function FridgePage() {
               {purchasedItems.length > 0 && <Count aria-label={`${purchasedItems.length}개`}>{purchasedItems.length}</Count>}
             </ToolbarButton>
           )}
+          {load.status === "success" && (
+            <ToolbarButton
+              type="button"
+              aria-label={`유통기한 지난 재료 ${expiredItems.length}개 삭제`}
+              disabled={expiredItems.length === 0 || isMoving}
+              onClick={() => setIsExpiredModalOpen(true)}
+            >
+              <Trash2 size={18} aria-hidden="true" />
+              유통기한 지난 재료 삭제
+              {expiredItems.length > 0 && <Count aria-hidden="true">{expiredItems.length}</Count>}
+            </ToolbarButton>
+          )}
           <ToolbarButton type="button" onClick={() => receiptInputRef.current?.click()}>
             <ReceiptText size={18} aria-hidden="true" />
             영수증으로 추가
@@ -610,6 +654,13 @@ function FridgePage() {
           )}
         </DragOverlay>
       </DndContext>
+
+      <ExpiredDeleteModal
+        open={isExpiredModalOpen}
+        items={expiredTargets}
+        onClose={() => setIsExpiredModalOpen(false)}
+        onDelete={handleExpiredDelete}
+      />
 
       <IngredientEditModal
         ingredient={selectedIngredient}
@@ -724,8 +775,13 @@ const ToolbarButton = styled.button`
   font-weight: 480;
   cursor: pointer;
 
-  &:hover {
+  &:hover:not(:disabled) {
     background: var(--surface-soft);
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.4;
   }
 `;
 
