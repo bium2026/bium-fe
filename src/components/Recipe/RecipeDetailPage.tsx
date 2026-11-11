@@ -19,8 +19,8 @@ import {
   formatDifficulty,
   formatIngredientSource,
   formatServings,
-  getNutritionItems,
 } from "./recipeFormat";
+import NutritionChart from "./NutritionChart";
 import CookingModal from "./CookingModal";
 import MissingIngredientModal from "./MissingIngredientModal";
 import { getRecipeTone } from "./recipeTone";
@@ -278,14 +278,13 @@ function RecipeDetailPage() {
 
           <Panel>
             <SectionTitle>영양 정보</SectionTitle>
-            <NutritionGrid>
-              {getNutritionItems(recipe.nutrition).map((item) => (
-                <NutritionItem key={item.label}>
-                  <span>{item.label}</span>
-                  <strong>{item.value}</strong>
-                </NutritionItem>
-              ))}
-            </NutritionGrid>
+            <NutritionChart
+              carbohydrateG={recipe.nutrition.carbohydrateG}
+              proteinG={recipe.nutrition.proteinG}
+              fatG={recipe.nutrition.fatG}
+              caloriesKcal={recipe.caloriesKcal}
+              basis="1인분"
+            />
           </Panel>
         </SideColumn>
       </DetailGrid>
@@ -719,30 +718,5 @@ const MatchList = styled.ul`
     padding: 8px 12px;
     font-size: 14px;
     font-weight: 700;
-  }
-`;
-
-const NutritionGrid = styled.div`
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
-`;
-
-const NutritionItem = styled.div`
-  min-height: 72px;
-  border-radius: 8px;
-  background: var(--surface-soft);
-  padding: 10px;
-  display: grid;
-  place-items: center;
-  gap: 3px;
-  text-align: center;
-
-  span {
-    font-size: 12px;
-  }
-
-  strong {
-    font-size: 16px;
   }
 `;

@@ -2,7 +2,7 @@
  * 레시피 API 응답 값을 화면에 보여 줄 문구로 바꾼다.
  * AI가 주지 않은 값은 null로 오므로 "-"로 표시한다.
  */
-import type { IngredientSource, RecipeDifficulty, RecipeNutrition } from "../../api/recipe";
+import type { IngredientSource, RecipeDifficulty } from "../../api/recipe";
 
 const EMPTY = "-";
 
@@ -39,16 +39,4 @@ export function formatCalories(kcal: number | null) {
 
 export function formatIngredientSource(source: IngredientSource | null) {
   return source ? sourceLabels[source] : null;
-}
-
-function formatGram(value: number | null) {
-  return value === null ? EMPTY : `${value}g`;
-}
-
-export function getNutritionItems(nutrition: RecipeNutrition) {
-  return [
-    { label: "단백질", value: formatGram(nutrition.proteinG) },
-    { label: "탄수화물", value: formatGram(nutrition.carbohydrateG) },
-    { label: "지방", value: formatGram(nutrition.fatG) },
-  ];
 }
