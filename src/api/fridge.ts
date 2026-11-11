@@ -183,3 +183,28 @@ export function getFridgeItemNutrition(itemId: number) {
   return request<FridgeItemNutrition | null>(`/api/fridge-items/${itemId}/nutrition`);
 }
 
+// 냉장고 전체 영양 균형. 영양 정보를 찾은 재료마다 기준량(보통 100g)씩 있다고 보고 더한 값이다 (bium-be #44).
+export type FridgeNutritionSummary = {
+  // 냉장고 재료 수
+  itemCount: number;
+  // 네 영양 값이 모두 있어 합계에 들어간 재료 수 (items 길이와 같다). 0이면 아래 합계는 모두 null이다.
+  matchedCount: number;
+  // 식약처에서 아직 찾아보지 않은 재료 수. 이 요청이 오면 서버가 뒤에서 찾기 시작해서, 다시 부르면 줄어 있다.
+  // itemCount - matchedCount - pendingCount는 맞는 식품이 없거나 값이 일부 비어 합계에서 뺀 재료 수다.
+  pendingCount: number;
+  // 재료마다 100g으로 환산해 더한 값이다.
+  caloriesKcal: number | null;
+  carbohydrateG: number | null;
+  proteinG: number | null;
+  fatG: number | null;
+  // 합계에 들어간 재료 (itemId 오름차순). 값은 그 재료의 baseAmountG 기준이다.
+  items: (FridgeItemNutrition & { itemId: number; name: string; emoji: string | null })[];
+};
+
+// 저장된 영양 정보만 더해서 바로 응답한다. 식약처를 부르지 않으므로 502는 오지 않는다.
+// storage를 주면 그 보관 구역 재료만, 빼면 냉장고 전체를 더한다.
+// 실패: INVALID_INPUT(400), FRIDGE_NOT_FOUND(404)
+export function getFridgeNutritionSummary(fridgeId: number, storage?: StorageType) {
+  const query = storage ? `?storage=${storage}` : "";
+  return request<FridgeNutritionSummary>(`/api/fridges/${fridgeId}/nutrition-summary${query}`);
+}

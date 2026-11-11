@@ -27,7 +27,7 @@ import {
 } from "@dnd-kit/core";
 import { keyframes } from "@emotion/react";
 import styled from "@emotion/styled";
-import { ChevronLeft, ChevronRight, ReceiptText, ShoppingBag, Trash2 } from "lucide-react";
+import { ChartPie, ChevronLeft, ChevronRight, ReceiptText, ShoppingBag, Trash2 } from "lucide-react";
 import { useSearchParams } from "react-router";
 import { ApiError, NETWORK_ERROR } from "../../api/client";
 import {
@@ -44,6 +44,7 @@ import {
 import { getPurchasedItems, movePurchasedItem, type PurchasedItem } from "../../api/purchasedItem";
 import ExpiredDeleteModal from "./ExpiredDeleteModal";
 import FridgeBoard, { DOOR_SLOT_COUNT } from "./FridgeBoard";
+import FridgeNutritionModal from "./FridgeNutritionModal";
 import IngredientEditModal, { type IngredientEditValues } from "./IngredientEditModal";
 import IngredientItem from "./IngredientItem";
 import PurchasedItemPanel, { type PurchasedListState } from "./PurchasedItemPanel";
@@ -160,6 +161,7 @@ function FridgePage() {
   const [purchasedAttempt, setPurchasedAttempt] = useState(0);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [isExpiredModalOpen, setIsExpiredModalOpen] = useState(false);
+  const [isNutritionOpen, setIsNutritionOpen] = useState(false);
   const [activeDrag, setActiveDrag] = useState<ActiveDrag | null>(null);
   const [highlightedSection, setHighlightedSection] = useState<SectionId | null>(null);
   // 끌고 있는 재료가 올라가 있는 화살표. 머무르는 동안 옆 구역으로 넘기는 타이머를 함께 둔다.
@@ -608,6 +610,12 @@ function FridgePage() {
             <ReceiptText size={18} aria-hidden="true" />
             영수증으로 추가
           </ToolbarButton>
+          {load.status === "success" && (
+            <ToolbarButton type="button" onClick={() => setIsNutritionOpen(true)}>
+              <ChartPie size={18} aria-hidden="true" />
+              영양 균형
+            </ToolbarButton>
+          )}
           <ReceiptFileInput ref={receiptInputRef} onSelect={handleReceiptSelect} />
         </Toolbar>
 
@@ -660,6 +668,13 @@ function FridgePage() {
         items={expiredTargets}
         onClose={() => setIsExpiredModalOpen(false)}
         onDelete={handleExpiredDelete}
+      />
+
+      <FridgeNutritionModal
+        open={isNutritionOpen}
+        fridgeId={fridgeId}
+        initialZone={zoneId}
+        onClose={() => setIsNutritionOpen(false)}
       />
 
       <IngredientEditModal

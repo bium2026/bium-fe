@@ -16,11 +16,13 @@ type LibraryModalProps = {
   busy: boolean;
   // 영수증 재료 목록처럼 한 줄에 칸이 많은 모달은 넓게 연다.
   wide?: boolean;
+  // top: 탭으로 내용 높이가 자주 바뀌는 모달은 위쪽에 붙여서, 높이가 바뀌어도 위쪽 버튼이 움직이지 않게 한다.
+  placement?: "center" | "top";
   onClose: () => void;
   children: ReactNode;
 };
 
-function LibraryModal({ open, title, busy, wide = false, onClose, children }: LibraryModalProps) {
+function LibraryModal({ open, title, busy, wide = false, placement = "center", onClose, children }: LibraryModalProps) {
   const titleId = useId();
   const dialogRef = useRef<HTMLDialogElement>(null);
 
@@ -57,6 +59,7 @@ function LibraryModal({ open, title, busy, wide = false, onClose, children }: Li
       onCancel={handleCancel}
       onClick={handleBackdropClick}
       $wide={wide}
+      $top={placement === "top"}
     >
       {open && (
         <Card>
@@ -159,11 +162,11 @@ const popIn = keyframes`
   }
 `;
 
-const Dialog = styled.dialog<{ $wide: boolean }>`
+const Dialog = styled.dialog<{ $wide: boolean; $top: boolean }>`
   width: min(${(props) => (props.$wide ? "720px" : "460px")}, calc(100% - 32px));
   max-width: none;
   max-height: calc(100% - 32px);
-  margin: auto;
+  margin: ${(props) => (props.$top ? "min(10vh, 80px) auto auto" : "auto")};
   border: 0;
   padding: 0;
   background: transparent;
