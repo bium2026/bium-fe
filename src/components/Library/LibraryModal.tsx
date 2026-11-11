@@ -62,7 +62,7 @@ function LibraryModal({ open, title, busy, wide = false, placement = "center", o
       $top={placement === "top"}
     >
       {open && (
-        <Card>
+        <Card $top={placement === "top"}>
           <Header>
             <Heading id={titleId}>{title}</Heading>
             <CloseButton type="button" onClick={requestClose} disabled={busy} aria-label="닫기">
@@ -162,11 +162,14 @@ const popIn = keyframes`
   }
 `;
 
+// placement="top"일 때 위쪽 여백. 카드 높이에서도 이만큼 빼서 아래가 화면 밖으로 나가지 않게 한다.
+const TOP_GAP = "min(10vh, 80px)";
+
 const Dialog = styled.dialog<{ $wide: boolean; $top: boolean }>`
   width: min(${(props) => (props.$wide ? "720px" : "460px")}, calc(100% - 32px));
   max-width: none;
-  max-height: calc(100% - 32px);
-  margin: ${(props) => (props.$top ? "min(10vh, 80px) auto auto" : "auto")};
+  max-height: ${(props) => (props.$top ? `calc(100% - ${TOP_GAP} - 16px)` : "calc(100% - 32px)")};
+  margin: ${(props) => (props.$top ? `${TOP_GAP} auto auto` : "auto")};
   border: 0;
   padding: 0;
   background: transparent;
@@ -190,9 +193,9 @@ const Dialog = styled.dialog<{ $wide: boolean; $top: boolean }>`
 
 // 세로 flex라서 내용이 min-height: 0을 주면 모달 높이에 맞춰 줄고, 그 안의 목록만 스크롤할 수 있다.
 // 그렇지 않은 내용은 줄지 않고 카드 전체가 스크롤된다.
-const Card = styled.div`
-  max-height: calc(100vh - 32px);
-  max-height: calc(100dvh - 32px);
+const Card = styled.div<{ $top: boolean }>`
+  max-height: ${(props) => (props.$top ? `calc(100vh - ${TOP_GAP} - 16px)` : "calc(100vh - 32px)")};
+  max-height: ${(props) => (props.$top ? `calc(100dvh - ${TOP_GAP} - 16px)` : "calc(100dvh - 32px)")};
   overflow-y: auto;
   display: flex;
   flex-direction: column;
