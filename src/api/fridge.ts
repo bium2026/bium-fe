@@ -163,3 +163,23 @@ export async function deleteFridgeItems(fridgeId: number, items: FridgeItemBulkD
   });
   return deletedItemIds;
 }
+
+// 재료의 기준량(보통 100g)당 영양 정보. 식약처 식품영양성분 DB에서 찾은 값이다 (bium-be #43).
+export type FridgeItemNutrition = {
+  // 식약처에서 맞춘 식품 이름. 재료 이름과 다를 수 있어 화면에 함께 보여 준다.
+  foodName: string;
+  // 기준량(g). 보통 100이고, 화면의 "100g당" 문구를 이 값으로 만든다.
+  baseAmountG: number;
+  caloriesKcal: number | null;
+  carbohydrateG: number | null;
+  proteinG: number | null;
+  fatG: number | null;
+};
+
+// 맞는 식품이 없거나 네 값이 모두 비어 있으면 null이다. 서버가 이 결과를 저장해 두므로 다시 불러도 null이다.
+// 처음 찾는 재료는 서버가 식약처를 부르느라 몇 초 걸릴 수 있다.
+// 실패: FRIDGE_ITEM_NOT_FOUND(404), NUTRITION_FETCH_FAILED(502, 식약처 응답 실패라 다시 시도하면 될 수 있다)
+export function getFridgeItemNutrition(itemId: number) {
+  return request<FridgeItemNutrition | null>(`/api/fridge-items/${itemId}/nutrition`);
+}
+
