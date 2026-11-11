@@ -42,9 +42,10 @@ function emptyMessage(scope: Scope) {
   return scope === "all" ? "냉장고에 재료가 없어요." : `${zoneMeta[scope].title}에 둔 재료가 없어요.`;
 }
 
-// 서버가 아직 찾아보지 않은 재료(pendingCount)를 뒤에서 찾는 동안 다시 불러오는 간격과 횟수
-const POLL_DELAY_MS = 2000;
-const MAX_POLLS = 3;
+// 서버가 아직 찾아보지 않은 재료(pendingCount)를 뒤에서 찾는 동안 다시 불러오는 간격과 횟수.
+// 식약처는 처음 찾는 재료 하나에 4~6초가 걸려서, 재료 몇 개를 채울 수 있게 약 18초까지 기다린다.
+const POLL_DELAY_MS = 3000;
+const MAX_POLLS = 6;
 
 function formatNumber(value: number | null, unit: string) {
   return value === null ? "-" : `${Math.round(value * 10) / 10}${unit}`;
