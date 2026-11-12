@@ -31,7 +31,8 @@ type IngredientEditModalProps = {
 
 type ModalStatus = "idle" | "saving" | "deleting";
 
-const NAME_MAX_LENGTH = 30;
+// 서버(FridgeItemUpdateRequest)와 도감·영수증으로 넣을 때처럼 50자까지 받는다.
+const NAME_MAX_LENGTH = 50;
 
 // 국기나 피부색이 들어간 이모지는 여러 글자로 이뤄져 있어서 length로는 개수를 셀 수 없다.
 const graphemeSegmenter = new Intl.Segmenter("ko", { granularity: "grapheme" });
