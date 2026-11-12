@@ -3,7 +3,7 @@
  * 요리로 줄이거나 되돌린 기록은 재료마다 한 줄씩 오는데, 되돌리기는 요리 단위라서 같은 요리는 한 줄로 묶는다.
  * 재료를 줄인 줄의 되돌리기 버튼으로 그 요리에서 뺀 재료를 모두 냉장고로 되돌린다.
  */
-import { useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import styled from "@emotion/styled";
 import { ArrowRightLeft, LogIn, LogOut, CircleMinus, Pencil, Plus, RotateCcw, Trash2 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -72,14 +72,30 @@ function ActivityPanel({ activities, onUndoCooking }: ActivityPanelProps) {
   // 되돌리는 중인 요리와, 되돌리지 못한 요리의 오류를 요리마다 따로 둔다.
   const [undoingIds, setUndoingIds] = useState<number[]>([]);
   const [undoErrors, setUndoErrors] = useState<Record<number, string>>({});
+  const undoneLabelId = useId();
+  // 되돌리면 버튼이 "되돌림" 글자로 바뀌며 사라져 키보드 초점을 잃는다.
+  // 되돌리는 요리를 기억해 두었다가 바뀐 글자가 그려지면 그쪽으로 초점을 옮긴다.
+  const focusAfterUndoRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    const cookingLogId = focusAfterUndoRef.current;
+    if (cookingLogId === null) return;
+    const label = document.getElementById(`${undoneLabelId}-${cookingLogId}`);
+    if (!label) return;
+    focusAfterUndoRef.current = null;
+    label.focus();
+  }, [activities, undoneLabelId]);
 
   const handleUndo = async (cookingLogId: number) => {
     if (undoingIds.includes(cookingLogId)) return;
     setUndoingIds((prev) => [...prev, cookingLogId]);
     setUndoErrors((prev) => ({ ...prev, [cookingLogId]: "" }));
+    // 되돌린 결과는 기다리는 사이에 목록으로 들어올 수 있어 요청 전에 남긴다.
+    focusAfterUndoRef.current = cookingLogId;
     try {
       await onUndoCooking(cookingLogId);
     } catch (error) {
+      focusAfterUndoRef.current = null;
       setUndoErrors((prev) => ({
         ...prev,
         [cookingLogId]: getShareErrorMessage(error, "되돌리지 못했어요. 잠시 후 다시 시도해 주세요."),
@@ -115,7 +131,9 @@ function ActivityPanel({ activities, onUndoCooking }: ActivityPanelProps) {
                 <Side>
                   {canUndo &&
                     (row.undone ? (
-                      <UndoneLabel>되돌림</UndoneLabel>
+                      <UndoneLabel id={`${undoneLabelId}-${cookingLogId}`} tabIndex={-1}>
+                        되돌림
+                      </UndoneLabel>
                     ) : (
                       <OutlineButton
                         type="button"
