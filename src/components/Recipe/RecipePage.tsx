@@ -61,8 +61,12 @@ function RecipePage() {
 
   const fridgeId = fridge.status === "success" ? fridge.fridgeId : null;
   const recipes = fridgeId !== null && storedFridgeId === fridgeId ? storedRecipes : [];
+  // 추천은 한 번에 하나만 보내므로 버튼은 어느 냉장고의 요청이든 기다리는 동안 막는다.
   const isGenerating = recommend.status === "loading";
-  const isLoading = fridge.status === "loading" || isGenerating;
+  // 기다림·오류는 요청한 냉장고 화면에서만 보여 준다. 다른 냉장고의 결과는 이 냉장고의 추천이 아니다.
+  const isGeneratingHere = isGenerating && recommend.fridgeId === fridgeId;
+  const recommendError = recommend.status === "error" && recommend.fridgeId === fridgeId ? recommend : null;
+  const isLoading = fridge.status === "loading" || isGeneratingHere;
 
   const reloadFridge = () => {
     setFridge({ status: "loading" });
@@ -77,7 +81,7 @@ function RecipePage() {
   const handleGenerate = async () => {
     // 다른 화면에 다녀오는 사이 시작된 요청도 막도록 화면 상태 대신 스토어 값을 바로 확인한다.
     if (fridgeId === null || useRecipeStore.getState().recommend.status === "loading") return;
-    setRecommend({ status: "loading" });
+    setRecommend({ status: "loading", fridgeId });
     const requestToken = useAuthStore.getState().accessToken;
     // 응답을 기다리는 사이 로그아웃·토큰 만료로 목록을 지웠다면, 늦게 온 결과로 이전 사용자의 목록을 다시 채우지 않는다.
     const isStale = () => useAuthStore.getState().accessToken !== requestToken;
@@ -87,7 +91,7 @@ function RecipePage() {
       // 다른 계정으로 바로 로그인해 토큰만 바뀐 경우에는 목록을 지우는 구독이 돌지 않아, 여기서 버튼 잠금을 풀어야 한다.
       setRecommend({ status: "idle" });
     } catch (error) {
-      setRecommend(isStale() ? { status: "idle" } : { status: "error", ...getErrorInfo(error) });
+      setRecommend(isStale() ? { status: "idle" } : { status: "error", fridgeId, ...getErrorInfo(error) });
     }
   };
 
@@ -122,13 +126,13 @@ function RecipePage() {
             </StatusBox>
           )}
 
-          {recommend.status === "error" && (
+          {recommendError && (
             <StatusBox role="alert">
               <strong>레시피를 추천하지 못했어요.</strong>
-              <p>{recommend.message}</p>
-              {recommend.code === "NO_USABLE_INGREDIENT" ? (
+              <p>{recommendError.message}</p>
+              {recommendError.code === "NO_USABLE_INGREDIENT" ? (
                 <RetryLink to="/fridge">냉장고 확인하기</RetryLink>
-              ) : recommend.code === "FRIDGE_NOT_FOUND" ? (
+              ) : recommendError.code === "FRIDGE_NOT_FOUND" ? (
                 // 화면을 연 뒤 냉장고에서 나가졌으면 같은 fridgeId로는 계속 실패해서 냉장고부터 다시 불러온다.
                 <RetryButton type="button" onClick={handleFridgeRetry}>
                   냉장고 다시 불러오기
@@ -142,8 +146,8 @@ function RecipePage() {
           )}
 
           {fridge.status === "success" &&
-            !isGenerating &&
-            recommend.status !== "error" &&
+            !isGeneratingHere &&
+            !recommendError &&
             recipes.length === 0 && (
               <StatusBox>
                 <strong>아직 추천받은 레시피가 없어요.</strong>
@@ -162,7 +166,7 @@ function RecipePage() {
             <Empty>{fridge.status === "loading" ? "임박 재료를 불러오는 중이에요." : "냉장고 정보가 없어요."}</Empty>
           )}
           <GenerateButton type="button" onClick={handleGenerate} disabled={fridgeId === null || isGenerating}>
-            {isGenerating ? "추천 생성 중" : "AI 추천 생성"}
+            {isGeneratingHere ? "추천 생성 중" : isGenerating ? "다른 냉장고 추천 생성 중" : "AI 추천 생성"}
           </GenerateButton>
         </UrgentBox>
       </ContentGrid>
