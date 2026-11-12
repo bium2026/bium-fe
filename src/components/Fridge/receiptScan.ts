@@ -10,6 +10,9 @@ import { scanReceipt, type ScannedReceiptItem } from "../../api/receipt";
 const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"];
 const HEIC_EXTENSIONS = ["heic", "heif"];
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+// 영수증은 긴 변이 이 정도면 글자를 충분히 읽을 수 있다. 휴대폰 사진(4000px 안팎)은 줄여서 보낸다.
+const MAX_IMAGE_SIDE = 2560;
+const SHRUNK_IMAGE_QUALITY = 0.9;
 
 // HEIC 형식을 모르는 브라우저에서도 사진 고르기 창에 HEIC 파일이 보이도록 확장자를 함께 적는다.
 export const RECEIPT_IMAGE_ACCEPT = [...IMAGE_TYPES, ...HEIC_EXTENSIONS.map((extension) => `.${extension}`)].join(",");
@@ -41,13 +44,6 @@ function getScanErrorMessage(error: unknown) {
   return "영수증을 읽지 못했어요. 잠시 후 다시 시도해 주세요.";
 }
 
-// 서버의 크기 제한을 크게 넘으면 오류 응답 없이 연결이 끊길 수 있어 보내기 전에 거른다.
-function getImageError(file: File) {
-  if (!IMAGE_TYPES.includes(file.type)) return "JPG, PNG, WEBP, HEIC 사진만 올릴 수 있어요.";
-  if (file.size > MAX_IMAGE_BYTES) return "사진은 10MB까지 올릴 수 있어요.";
-  return "";
-}
-
 // 일부 브라우저는 HEIC·HEIF 사진의 형식(type)을 비워 두므로 확장자로 채운다.
 // 서버도 형식으로 사진을 거르기 때문에 채운 파일을 그대로 보낸다.
 function withImageType(file: File) {
@@ -57,10 +53,45 @@ function withImageType(file: File) {
   return new File([file], file.name, { type: `image/${extension}`, lastModified: file.lastModified });
 }
 
+// 큰 사진은 올리는 데 오래 걸리고 AI가 읽는 데도 오래 걸려, 긴 변을 줄인 JPG로 바꿔 보낸다.
+// 10MB가 넘는 사진도 줄이면 올릴 수 있다. 브라우저가 열지 못하는 사진(크롬의 HEIC 등)은 그대로 보낸다.
+async function shrinkImage(file: File) {
+  let bitmap: ImageBitmap;
+  try {
+    bitmap = await createImageBitmap(file);
+  } catch {
+    return file;
+  }
+
+  try {
+    const scale = Math.min(1, MAX_IMAGE_SIDE / Math.max(bitmap.width, bitmap.height));
+    if (scale === 1 && file.size <= MAX_IMAGE_BYTES) return file;
+
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(bitmap.width * scale);
+    canvas.height = Math.round(bitmap.height * scale);
+    const context = canvas.getContext("2d");
+    if (!context) return file;
+    // 투명한 부분이 있는 PNG를 JPG로 바꾸면 검게 칠해지므로 흰 바탕을 먼저 깐다.
+    context.fillStyle = "#ffffff";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", SHRUNK_IMAGE_QUALITY));
+    if (!blob || blob.size >= file.size) return file;
+    const name = file.name.replace(/\.[^.]*$/, "") || "receipt";
+    return new File([blob], `${name}.jpg`, { type: "image/jpeg", lastModified: file.lastModified });
+  } finally {
+    bitmap.close();
+  }
+}
+
 async function readReceipt(original: File): Promise<ReceiptScanResult> {
-  const file = withImageType(original);
-  const imageError = getImageError(file);
-  if (imageError) return { status: "error", message: imageError };
+  const typed = withImageType(original);
+  if (!IMAGE_TYPES.includes(typed.type)) return { status: "error", message: "JPG, PNG, WEBP, HEIC 사진만 올릴 수 있어요." };
+  const file = await shrinkImage(typed);
+  // 서버의 크기 제한을 크게 넘으면 오류 응답 없이 연결이 끊길 수 있어 보내기 전에 거른다.
+  if (file.size > MAX_IMAGE_BYTES) return { status: "error", message: "사진은 10MB까지 올릴 수 있어요." };
 
   try {
     const fridge = await getMyFridge();
