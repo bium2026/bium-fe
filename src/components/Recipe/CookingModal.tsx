@@ -45,10 +45,12 @@ function getCandidateLabel(item: FridgeItemResponse) {
   return item.expiresAt ? `${item.name} (${formatDate(item.expiresAt)}까지)` : item.name;
 }
 
+// 레시피 재료 두 개가 같은 냉장고 재료를 고를 수 있다(예: 대파·파). 서버도 한 번만 빼므로 한 번만 세고 보낸다.
 function getSelectedItems(ingredients: CookingIngredient[], selection: Selection) {
-  return ingredients.flatMap((ingredient, index) =>
+  const items = ingredients.flatMap((ingredient, index) =>
     ingredient.candidates.filter((candidate) => candidate.id === selection[index]),
   );
+  return items.filter((item, index) => items.findIndex((other) => other.id === item.id) === index);
 }
 
 function CookingModal({ recipeId, open, onClose, onCooked }: CookingModalProps) {
