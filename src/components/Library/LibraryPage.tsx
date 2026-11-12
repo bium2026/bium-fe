@@ -310,7 +310,7 @@ function LibraryPage() {
           {renderContent()}
         </MainColumn>
 
-        <GroceryBag items={groceries} onRemove={handleRemoveGrocery} />
+        <GroceryBag items={groceries} status={status} onRemove={handleRemoveGrocery} />
       </Layout>
 
       <ScreenReaderOnly role="status">{announcement}</ScreenReaderOnly>
