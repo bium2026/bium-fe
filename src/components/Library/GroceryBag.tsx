@@ -11,10 +11,12 @@ import { formatDate } from "./libraryDate";
 
 type GroceryBagProps = {
   items: PurchasedItem[];
+  // 도감과 함께 불러오므로 도감의 불러오기 상태를 받는다. 불러오는 중이거나 실패하면 빈 목록 대신 그 상태를 보여 준다.
+  status: "loading" | "error" | "success";
   onRemove: (item: PurchasedItem) => Promise<void>;
 };
 
-function GroceryBag({ items, onRemove }: GroceryBagProps) {
+function GroceryBag({ items, status, onRemove }: GroceryBagProps) {
   const titleId = useId();
   // 여러 재료를 연달아 뺄 수 있게 빼는 중인 재료와 빼지 못한 재료를 재료마다 따로 둔다.
   const [removingIds, setRemovingIds] = useState<number[]>([]);
@@ -41,11 +43,19 @@ function GroceryBag({ items, onRemove }: GroceryBagProps) {
           <ShoppingBag size={20} aria-hidden="true" />
           장본 음식
         </Title>
-        <Count aria-label={`${items.length}개`}>{items.length}</Count>
+        {status === "success" && <Count aria-label={`${items.length}개`}>{items.length}</Count>}
       </Header>
       <Description>냉장고에 넣기 전에 장 본 재료를 모아 두는 곳이에요.</Description>
 
-      {items.length === 0 ? (
+      {status === "loading" ? (
+        <Empty>장본 음식을 불러오는 중이에요.</Empty>
+      ) : status === "error" ? (
+        <Empty>
+          장본 음식을 불러오지 못했어요.
+          <br />
+          도감을 다시 불러오면 함께 불러와요.
+        </Empty>
+      ) : items.length === 0 ? (
         <Empty>
           아직 담은 재료가 없어요.
           <br />
