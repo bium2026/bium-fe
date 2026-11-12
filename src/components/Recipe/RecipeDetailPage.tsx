@@ -20,7 +20,7 @@ import {
   formatIngredientSource,
   formatServings,
 } from "./recipeFormat";
-import NutritionChart from "./NutritionChart";
+import NutritionChart from "../Common/NutritionChart";
 import CookingModal from "./CookingModal";
 import MissingIngredientModal from "./MissingIngredientModal";
 import { getRecipeTone } from "./recipeTone";

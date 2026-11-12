@@ -7,7 +7,7 @@ import styled from "@emotion/styled";
 import { RotateCw } from "lucide-react";
 import { ApiError } from "../../api/client";
 import { getFridgeItemNutrition, type FridgeItemNutrition } from "../../api/fridge";
-import NutritionChart from "../Recipe/NutritionChart";
+import NutritionChart from "../Common/NutritionChart";
 
 type NutritionResult =
   | { requestKey: string; status: "success"; nutrition: FridgeItemNutrition | null }

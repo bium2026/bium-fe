@@ -9,7 +9,7 @@ import { RotateCw } from "lucide-react";
 import { ApiError } from "../../api/client";
 import { getFridgeNutritionSummary, type FridgeNutritionSummary } from "../../api/fridge";
 import LibraryModal from "../Library/LibraryModal";
-import NutritionChart from "../Recipe/NutritionChart";
+import NutritionChart from "../Common/NutritionChart";
 import { zoneStorage } from "./fridgeLayout";
 import type { ZoneId } from "./fridgeTypes";
 import { zoneMeta, zoneOrder } from "./fridgeZones";
