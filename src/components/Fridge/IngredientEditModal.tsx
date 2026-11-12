@@ -1,5 +1,5 @@
 /*
- * 냉장고 재료의 이름, 아이콘, 유통기한을 고치거나 재료를 삭제하는 모달이다.
+ * 냉장고 재료의 이름, 아이콘, 유통기한을 고치거나 재료를 삭제하는 모달이다. 재료의 100g당 영양 정보도 함께 보여 준다.
  * 여는 쪽에서 재료와 저장·삭제 함수를 넘기고, ingredient가 null이면 닫힌다.
  * 저장·삭제가 끝날 때까지 버튼을 막고, 실패하면 모달을 연 채로 오류를 보여 준다.
  */
@@ -9,6 +9,7 @@ import { keyframes } from "@emotion/react";
 import styled from "@emotion/styled";
 import { CircleAlert, X } from "lucide-react";
 import { ApiError } from "../../api/client";
+import IngredientNutrition from "./IngredientNutrition";
 
 export type EditableIngredient = {
   id: number;
@@ -232,6 +233,8 @@ function IngredientEditForm({
           disabled={isBusy}
           error={expiresAtError}
         />
+
+        <IngredientNutrition itemId={ingredient.id} itemName={ingredient.name} />
 
         {errorMessage && (
           <ErrorBox role="alert">
