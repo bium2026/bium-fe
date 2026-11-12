@@ -8,10 +8,11 @@ import { persist } from "zustand/middleware";
 import type { Recipe } from "../api/recipe";
 import { useAuthStore } from "./authStore";
 
+// 기다리는 사이 헤더에서 냉장고를 바꿀 수 있어, 요청한 냉장고를 함께 남겨 그 냉장고 화면에서만 기다림·오류를 보여 준다.
 export type RecommendState =
   | { status: "idle" }
-  | { status: "loading" }
-  | { status: "error"; code: string; message: string };
+  | { status: "loading"; fridgeId: number }
+  | { status: "error"; fridgeId: number; code: string; message: string };
 
 export type TargetState =
   | { status: "idle" }
