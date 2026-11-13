@@ -1,11 +1,12 @@
 /*
  * 피드에서 고른 공개 냉장고를 구경하는 화면이다.
  * 냉장실·냉동실·실온을 칸(선반·왼쪽 문칸·오른쪽 문칸)별로 모두 보여 주고, 재료는 읽기만 한다.
- * 주인이 공개를 멈췄으면 찾을 수 없다고 알려 준다.
+ * 주인이 공개를 멈췄으면 멤버가 아닌 사람에게는 찾을 수 없다고 알려 준다.
+ * 멤버는 공개하지 않은 냉장고도 미리 볼 수 있고, 이때는 좋아요·저장을 누를 수 없다.
  */
 import { useEffect, useState } from "react";
 import styled from "@emotion/styled";
-import { ArrowLeft, Clock3 } from "lucide-react";
+import { ArrowLeft, Clock3, EyeOff } from "lucide-react";
 import { Link, useParams } from "react-router";
 import { ApiError } from "../../api/client";
 import { getFeedFridge, type FeedFridge, type FeedReaction } from "../../api/feed";
@@ -152,12 +153,19 @@ function FeedFridgePage() {
             3일 안에 먹어야 할 재료 {fridge.expiringCount}개
           </Expiring>
         )}
-        <FeedReactions
-          fridgeId={fridge.fridgeId}
-          fridgeName={fridge.name}
-          reaction={fridge}
-          onChange={handleReactionChange}
-        />
+        {fridge.isPublic ? (
+          <FeedReactions
+            fridgeId={fridge.fridgeId}
+            fridgeName={fridge.name}
+            reaction={fridge}
+            onChange={handleReactionChange}
+          />
+        ) : (
+          <PrivateNote>
+            <EyeOff size={16} aria-hidden="true" />
+            공개하지 않은 냉장고예요. 지금은 멤버만 볼 수 있어요.
+          </PrivateNote>
+        )}
       </Hero>
 
       <Zones>
@@ -242,6 +250,16 @@ const TitleRow = styled.div`
 `;
 
 const Expiring = styled.p`
+  border-radius: 8px;
+  background: var(--surface);
+  padding: 6px 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 480;
+`;
+
+const PrivateNote = styled.p`
   border-radius: 8px;
   background: var(--surface);
   padding: 6px 10px;
