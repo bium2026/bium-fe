@@ -3,6 +3,7 @@
  * 장본 음식에 담기는 서버에 담길 때까지 버튼을 막고, 담기면 잠깐 "담았어요"로 바꾼다. 실패하면 버튼 아래에 알린다.
  * 냉장고에 넣기는 화면의 모달을 열고, 넣고 나면 화면이 isFridgeAdded로 잠깐 "넣었어요"를 보여 주게 한다.
  * 삭제는 카드 위에서 한 번 더 확인하고, 실패하면 확인 영역에 오류를 보여 다시 시도하게 한다.
+ * 공용 도감의 기본 재료는 지울 수 없어서 삭제 버튼 대신 "기본" 표시를 둔다.
  */
 import { useEffect, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
@@ -86,16 +87,20 @@ function IngredientCard({
     <Card>
       <CardTop>
         <Icon aria-hidden="true">{ingredient.emoji}</Icon>
-        <DeleteButton
-          ref={deleteButtonRef}
-          type="button"
-          aria-label={`${ingredient.name} 도감에서 삭제`}
-          onClick={() => setIsConfirmingDelete(true)}
-          // 확인 영역은 화면만 덮으므로, 가려진 버튼에 키보드로 닿지 않게 확인하는 동안 막는다.
-          disabled={isConfirmingDelete}
-        >
-          <Trash2 size={16} aria-hidden="true" />
-        </DeleteButton>
+        {ingredient.basic ? (
+          <BasicBadge>기본</BasicBadge>
+        ) : (
+          <DeleteButton
+            ref={deleteButtonRef}
+            type="button"
+            aria-label={`${ingredient.name} 도감에서 삭제`}
+            onClick={() => setIsConfirmingDelete(true)}
+            // 확인 영역은 화면만 덮으므로, 가려진 버튼에 키보드로 닿지 않게 확인하는 동안 막는다.
+            disabled={isConfirmingDelete}
+          >
+            <Trash2 size={16} aria-hidden="true" />
+          </DeleteButton>
+        )}
       </CardTop>
 
       <Name>{ingredient.name}</Name>
@@ -214,6 +219,16 @@ const DeleteButton = styled.button`
   &:hover {
     background: var(--block-pink);
   }
+`;
+
+const BasicBadge = styled.span`
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  padding: 3px 9px;
+  font-size: 12px;
+  font-weight: 540;
+  line-height: 1.4;
 `;
 
 const Name = styled.strong`
