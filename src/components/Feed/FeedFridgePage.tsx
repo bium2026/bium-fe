@@ -12,10 +12,10 @@ import { ApiError } from "../../api/client";
 import { getFeedFridge, type FeedFridge, type FeedReaction } from "../../api/feed";
 import type { FridgeContentsResponse, FridgeItemResponse, StorageContents } from "../../api/fridge";
 import FeedReactions from "./FeedReactions";
-import { feedStorages, getExpiry, getFeedErrorMessage } from "./feedFormat";
+import { feedStorages, getAvatarText, getCardTone, getExpiry, getFeedErrorMessage } from "./feedFormat";
 import {
+  Avatar,
   freshnessBackground,
-  Hero,
   ItemChip,
   MineBadge,
   OutlineButton,
@@ -138,15 +138,17 @@ function FeedFridgePage() {
   return (
     <Wrapper>
       {backLink}
-      <Hero>
-        <TitleRow>
-          <h1>{fridge.name}</h1>
+      {/* 피드에서 누른 카드와 같은 색으로 칠해 어느 냉장고를 보고 있는지 이어지게 한다. */}
+      <DetailHero $tone={getCardTone(fridge.fridgeId)}>
+        <Owner>
+          <Avatar aria-hidden="true">{getAvatarText(fridge.ownerNickname, fridge.name)}</Avatar>
+          <p>
+            <strong>{fridge.ownerNickname ? `${fridge.ownerNickname} 님` : "주인 없음"}</strong>
+            멤버 {fridge.memberCount}명 · 재료 {fridge.itemCount}개
+          </p>
           {fridge.mine && <MineBadge>내 냉장고</MineBadge>}
-        </TitleRow>
-        <p>
-          {fridge.ownerNickname ? `${fridge.ownerNickname} 님` : "주인 없음"} · 멤버 {fridge.memberCount}명 · 재료{" "}
-          {fridge.itemCount}개
-        </p>
+        </Owner>
+        <h1>{fridge.name}</h1>
         {fridge.expiringCount > 0 && (
           <Expiring>
             <Clock3 size={16} aria-hidden="true" />
@@ -166,7 +168,7 @@ function FeedFridgePage() {
             공개하지 않은 냉장고예요. 지금은 멤버만 볼 수 있어요.
           </PrivateNote>
         )}
-      </Hero>
+      </DetailHero>
 
       <Zones>
         {feedStorages.map(({ key, meta }) => {
@@ -238,21 +240,52 @@ const BackLink = styled(Link)`
   }
 `;
 
-const TitleRow = styled.div`
+const DetailHero = styled.header<{ $tone: string }>`
+  border-radius: 24px;
+  background: ${(props) => props.$tone};
+  padding: 28px;
+  display: grid;
+  justify-items: start;
+  gap: 14px;
+
+  h1 {
+    font-size: clamp(28px, 4.4vw, 44px);
+    line-height: 1.12;
+    font-weight: 540;
+    letter-spacing: -0.6px;
+    overflow-wrap: anywhere;
+  }
+
+  @media (max-width: 760px) {
+    border-radius: 0;
+    margin-inline: -12px;
+    padding: 22px 20px;
+  }
+`;
+
+const Owner = styled.div`
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 10px;
 
-  h1 {
-    overflow-wrap: anywhere;
+  p {
+    display: grid;
+    font-size: 13px;
+    font-weight: 330;
+  }
+
+  strong {
+    font-size: 15px;
+    font-weight: 540;
   }
 `;
 
 const Expiring = styled.p`
-  border-radius: 8px;
-  background: var(--surface);
-  padding: 6px 10px;
+  border-radius: 999px;
+  background: var(--text);
+  color: var(--surface);
+  padding: 6px 12px;
   display: inline-flex;
   align-items: center;
   gap: 6px;
