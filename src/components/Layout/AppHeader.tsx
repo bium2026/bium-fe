@@ -1,11 +1,11 @@
 /*
  * 로그인 뒤 화면들이 함께 쓰는 상단 헤더다.
- * 브랜드와 냉장고·식재료 도감·AI 레시피·장보기 목록·냉장고 공유 메뉴를 보여 주고, 지금 보고 있는 화면의 메뉴에 밑줄을 긋는다.
+ * 브랜드와 냉장고·식재료 도감·AI 레시피·장보기 목록·냉장고 공유·냉장고 피드 메뉴를 보여 주고, 지금 보고 있는 화면의 메뉴에 밑줄을 긋는다.
  * 오른쪽에서는 지금 보고 있는 냉장고를 다른 냉장고로 바꿀 수 있다.
  */
 import { useEffect, useRef } from "react";
 import styled from "@emotion/styled";
-import { BookOpen, Bot, Refrigerator, ShoppingCart, Users } from "lucide-react";
+import { BookOpen, Bot, Newspaper, Refrigerator, ShoppingCart, Users } from "lucide-react";
 import { Link, NavLink, useLocation } from "react-router";
 import FridgeSwitcher from "./FridgeSwitcher";
 
@@ -15,6 +15,7 @@ const menus = [
   { to: "/recipes", label: "AI 레시피", icon: Bot },
   { to: "/shopping", label: "장보기 목록", icon: ShoppingCart },
   { to: "/share", label: "냉장고 공유", icon: Users },
+  { to: "/feed", label: "냉장고 피드", icon: Newspaper },
 ];
 
 function AppHeader() {
@@ -71,13 +72,13 @@ const Header = styled.header`
   align-items: center;
   gap: 16px;
 
-  /* 메뉴가 다섯 개라 좁은 화면에서는 양옆 칸을 줄여 가운데 메뉴 자리를 넓힌다. */
-  @media (max-width: 1100px) {
+  /* 메뉴가 여섯 개라 좁은 화면에서는 양옆 칸을 줄여 가운데 메뉴 자리를 넓힌다. */
+  @media (max-width: 1200px) {
     grid-template-columns: 120px minmax(0, 1fr) 120px;
   }
 
-  /* 메뉴 다섯 개가 한 줄에 들어가지 않는 폭부터는 첫 줄에 브랜드와 냉장고 바꾸기, 둘째 줄에 메뉴를 둔다. */
-  @media (max-width: 900px) {
+  /* 메뉴 여섯 개가 한 줄에 들어가지 않는 폭부터는 첫 줄에 브랜드와 냉장고 바꾸기, 둘째 줄에 메뉴를 둔다. */
+  @media (max-width: 1000px) {
     height: auto;
     padding: 8px 14px 0;
     grid-template-columns: minmax(0, 1fr) auto;
@@ -126,11 +127,11 @@ const Menu = styled.nav`
   gap: 24px;
   min-width: 0;
 
-  @media (max-width: 1100px) {
+  @media (max-width: 1200px) {
     gap: 16px;
   }
 
-  @media (max-width: 900px) {
+  @media (max-width: 1000px) {
     grid-column: 1 / -1;
     grid-row: 2;
     justify-content: flex-start;
@@ -164,7 +165,7 @@ const MenuLink = styled(NavLink)`
     outline-offset: -2px;
   }
 
-  @media (max-width: 900px) {
+  @media (max-width: 1000px) {
     height: 42px;
   }
 `;
