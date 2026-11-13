@@ -1,72 +1,45 @@
 /*
  * 피드에 보이는 공개 냉장고 카드다.
- * 구역마다 재료를 앞에서부터 몇 개 보여 주고, 3일 안에 유통기한이 끝나는 재료 수와 좋아요·저장 버튼을 둔다.
- * 구경하기를 누르면 칸별 재료를 모두 볼 수 있다.
- * 공개하지 않은 내 냉장고를 미리 볼 때는 좋아요·저장을 누를 수 없어 좋아요 수만 보여 준다.
+ * 냉장고마다 다른 파스텔 블록 위에 주인과 냉장고 이름, 냉장고 칸 그림(구역별 재료 타일)을 놓고,
+ * 3일 안에 먹어야 할 재료 수와 좋아요·저장 버튼, 구경하기를 둔다.
  */
 import { useId } from "react";
 import styled from "@emotion/styled";
-import { ArrowRight, Clock3, Heart } from "lucide-react";
+import { ArrowRight, Clock3 } from "lucide-react";
 import { Link } from "react-router";
 import type { FeedFridge, FeedReaction } from "../../api/feed";
 import FeedReactions from "./FeedReactions";
-import { feedStorages } from "./feedFormat";
-import { ItemChip, MineBadge, ScreenReaderText } from "./feedStyles";
+import FridgeShelves from "./FridgeShelves";
+import { getAvatarText, getCardTone } from "./feedFormat";
+import { Avatar, MineBadge } from "./feedStyles";
 
 type FeedCardProps = {
   fridge: FeedFridge;
   onReactionChange: (fridgeId: number, update: (prev: FeedReaction) => FeedReaction) => void;
-  // 내 냉장고 카드 안에 미리보기로 넣을 때는 '내 냉장고' 배지와 그림자를 빼고 제목 단계를 낮춘다.
-  preview?: boolean;
 };
 
-function FeedCard({ fridge, onReactionChange, preview = false }: FeedCardProps) {
+function FeedCard({ fridge, onReactionChange }: FeedCardProps) {
   const titleId = useId();
-  const storages = feedStorages.filter(({ key }) => fridge.storages[key].count > 0);
 
   return (
-    <Card aria-labelledby={titleId} $preview={preview}>
-      <CardHeader>
-        <TitleRow>
-          {preview ? <h3 id={titleId}>{fridge.name}</h3> : <h2 id={titleId}>{fridge.name}</h2>}
-          {fridge.mine && !preview && <MineBadge>내 냉장고</MineBadge>}
-        </TitleRow>
-        <Meta>
-          {fridge.ownerNickname ? `${fridge.ownerNickname} 님` : "주인 없음"} · 멤버 {fridge.memberCount}명 · 재료{" "}
-          {fridge.itemCount}개
-        </Meta>
-      </CardHeader>
+    <Card aria-labelledby={titleId} $tone={getCardTone(fridge.fridgeId)}>
+      <Owner>
+        <Avatar aria-hidden="true">{getAvatarText(fridge.ownerNickname, fridge.name)}</Avatar>
+        <OwnerText>
+          <strong>{fridge.ownerNickname ? `${fridge.ownerNickname} 님` : "주인 없음"}</strong>
+          <span>
+            멤버 {fridge.memberCount}명 · 재료 {fridge.itemCount}개
+          </span>
+        </OwnerText>
+        {fridge.mine && <MineBadge>내 냉장고</MineBadge>}
+      </Owner>
 
-      {storages.length === 0 ? (
-        <Empty>지금은 비어 있는 냉장고예요.</Empty>
+      <Title id={titleId}>{fridge.name}</Title>
+
+      {fridge.itemCount === 0 ? (
+        <EmptyFridge>지금은 텅 빈 냉장고예요.</EmptyFridge>
       ) : (
-        <Storages>
-          {storages.map(({ key, meta }) => {
-            const storage = fridge.storages[key];
-            const hiddenCount = storage.count - storage.items.length;
-            return (
-              <StorageRow key={key}>
-                <ZoneLabel $tone={meta.tone}>
-                  {meta.title} <strong>{storage.count}</strong>
-                </ZoneLabel>
-                <Chips aria-label={`${meta.title} 재료`}>
-                  {storage.items.map((item, index) => (
-                    <PreviewChip key={`${index}-${item.name}`}>
-                      {item.emoji && <i aria-hidden="true">{item.emoji}</i>}
-                      <span>{item.name}</span>
-                    </PreviewChip>
-                  ))}
-                  {hiddenCount > 0 && (
-                    <MoreChip>
-                      <span aria-hidden="true">+{hiddenCount}</span>
-                      <ScreenReaderText>외 {hiddenCount}개</ScreenReaderText>
-                    </MoreChip>
-                  )}
-                </Chips>
-              </StorageRow>
-            );
-          })}
-        </Storages>
+        <FridgeShelves storages={fridge.storages} />
       )}
 
       {fridge.expiringCount > 0 && (
@@ -77,19 +50,12 @@ function FeedCard({ fridge, onReactionChange, preview = false }: FeedCardProps) 
       )}
 
       <Footer>
-        {fridge.isPublic ? (
-          <FeedReactions
-            fridgeId={fridge.fridgeId}
-            fridgeName={fridge.name}
-            reaction={fridge}
-            onChange={(update) => onReactionChange(fridge.fridgeId, update)}
-          />
-        ) : (
-          <LikeCount>
-            <Heart size={18} aria-hidden="true" />
-            좋아요 {fridge.likeCount}
-          </LikeCount>
-        )}
+        <FeedReactions
+          fridgeId={fridge.fridgeId}
+          fridgeName={fridge.name}
+          reaction={fridge}
+          onChange={(update) => onReactionChange(fridge.fridgeId, update)}
+        />
         <ViewLink to={`/feed/${fridge.fridgeId}`} aria-label={`${fridge.name} 구경하기`}>
           구경하기
           <ArrowRight size={16} aria-hidden="true" />
@@ -101,103 +67,70 @@ function FeedCard({ fridge, onReactionChange, preview = false }: FeedCardProps) 
 
 export default FeedCard;
 
-const Card = styled.article<{ $preview: boolean }>`
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  background: var(--surface);
-  padding: 22px;
+// 디자인 기준(DESIGN.md)의 색 블록처럼 테두리·그림자 없이 색으로만 카드를 나눈다.
+const Card = styled.article<{ $tone: string }>`
+  border-radius: 24px;
+  background: ${(props) => props.$tone};
+  padding: 24px;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   align-content: start;
-  gap: 14px;
-  box-shadow: ${(props) => (props.$preview ? "none" : "var(--shadow-sm)")};
+  gap: 16px;
 
   @media (max-width: 760px) {
+    border-radius: 20px;
     padding: 18px;
   }
 `;
 
-const CardHeader = styled.div`
-  display: grid;
-  gap: 4px;
-`;
-
-const TitleRow = styled.div`
+const Owner = styled.div`
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-
-  h2,
-  h3 {
-    min-width: 0;
-    font-size: 21px;
-    font-weight: 540;
-    letter-spacing: -0.2px;
-    overflow-wrap: anywhere;
-  }
-`;
-
-const Meta = styled.p`
-  font-size: 14px;
-  font-weight: 330;
-`;
-
-const Empty = styled.p`
-  border-radius: 12px;
-  background: var(--surface-soft);
-  padding: 14px;
-  font-size: 14px;
-`;
-
-const Storages = styled.div`
-  display: grid;
   gap: 10px;
 `;
 
-const StorageRow = styled.div`
+const OwnerText = styled.div`
+  min-width: 0;
+  flex: 1;
   display: grid;
-  gap: 6px;
-`;
-
-const ZoneLabel = styled.p<{ $tone: string }>`
-  width: fit-content;
-  border-radius: 999px;
-  background: ${(props) => props.$tone};
-  padding: 3px 10px;
-  font-size: 13px;
-  font-weight: 480;
+  gap: 1px;
 
   strong {
-    font-weight: 700;
+    font-size: 15px;
+    font-weight: 540;
+  }
+
+  span {
+    font-size: 13px;
+    font-weight: 330;
   }
 `;
 
-const Chips = styled.ul`
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  list-style: none;
-
-  i {
-    font-style: normal;
-  }
+const Title = styled.h2`
+  font-size: 24px;
+  line-height: 1.3;
+  font-weight: 700;
+  letter-spacing: -0.26px;
+  overflow-wrap: anywhere;
 `;
 
-// 흰 카드 위에 놓이므로 구경하기 화면의 칩과 달리 옅은 회색으로 칠한다.
-const PreviewChip = styled(ItemChip)`
-  background: var(--surface-soft);
-`;
-
-const MoreChip = styled(PreviewChip)`
-  font-weight: 540;
+const EmptyFridge = styled.p`
+  min-height: 72px;
+  border: 1px dashed var(--text);
+  border-radius: 16px;
+  display: grid;
+  place-items: center;
+  font-size: 15px;
+  font-weight: 480;
+  opacity: 0.6;
 `;
 
 const Expiring = styled.p`
   width: fit-content;
-  border-radius: 8px;
-  background: var(--block-coral);
-  padding: 6px 10px;
+  border-radius: 999px;
+  background: var(--text);
+  color: var(--surface);
+  padding: 6px 12px;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -206,8 +139,6 @@ const Expiring = styled.p`
 `;
 
 const Footer = styled.div`
-  border-top: 1px solid var(--border-soft);
-  padding-top: 14px;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -215,21 +146,12 @@ const Footer = styled.div`
   gap: 10px;
 `;
 
-const LikeCount = styled.p`
-  min-height: 40px;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 15px;
-  font-weight: 480;
-`;
-
 const ViewLink = styled(Link)`
-  min-height: 40px;
+  min-height: 42px;
   border-radius: 999px;
   background: var(--text);
   color: var(--surface);
-  padding: 8px 16px;
+  padding: 8px 18px;
   display: inline-flex;
   align-items: center;
   gap: 6px;

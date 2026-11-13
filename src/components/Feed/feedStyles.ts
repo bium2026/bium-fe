@@ -151,3 +151,17 @@ export const ScreenReaderText = styled.span`
   clip: rect(0 0 0 0);
   white-space: nowrap;
 `;
+
+// 냉장고 주인을 닉네임 첫 글자로 보여 주는 동그란 표시. 색 블록 위에 흰색으로 놓는다.
+export const Avatar = styled.span`
+  width: 40px;
+  height: 40px;
+  flex: none;
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  display: grid;
+  place-items: center;
+  font-size: 16px;
+  font-weight: 700;
+`;

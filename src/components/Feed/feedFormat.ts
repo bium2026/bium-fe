@@ -13,6 +13,25 @@ export const feedStorages: { key: keyof FeedStorages; meta: ZoneMeta }[] = [
   { key: "room", meta: zoneMeta.pantry },
 ];
 
+// 피드 카드는 냉장고마다 다른 파스텔 블록으로 칠해 목록에서 서로 구분되게 한다. 같은 냉장고는 늘 같은 색이다.
+const cardTones = [
+  "var(--block-mint)",
+  "var(--block-lilac)",
+  "var(--block-cream)",
+  "var(--block-pink)",
+  "var(--block-coral)",
+  "var(--block-lime)",
+];
+
+export function getCardTone(fridgeId: number) {
+  return cardTones[fridgeId % cardTones.length];
+}
+
+// 아바타에는 주인 닉네임의 첫 글자를 쓴다. 주인이 없으면(나간 경우) 냉장고 이름의 첫 글자를 쓴다.
+export function getAvatarText(ownerNickname: string | null, fridgeName: string) {
+  return (ownerNickname ?? fridgeName).slice(0, 1);
+}
+
 export type Freshness = "expired" | "urgent" | "soon" | "safe";
 
 // 냉장고 화면의 재료 카드와 같은 기준으로 유통기한 배지 문구와 색을 정한다.

@@ -54,29 +54,28 @@ function FeedReactions({ fridgeId, fridgeName, reaction, onChange }: FeedReactio
   return (
     <Wrapper>
       <Buttons>
-        <ReactionButton
+        <LikeButton
           type="button"
           aria-pressed={reaction.liked}
           aria-disabled={pending.includes("like")}
           aria-label={`${fridgeName} 좋아요, 지금 ${reaction.likeCount}개`}
           onClick={() => handleToggle("like")}
           $active={reaction.liked}
-          $accent
         >
-          <Heart size={18} aria-hidden="true" fill={reaction.liked ? "currentColor" : "none"} />
+          <Heart size={20} aria-hidden="true" fill={reaction.liked ? "currentColor" : "none"} />
           {reaction.likeCount}
-        </ReactionButton>
-        <ReactionButton
+        </LikeButton>
+        <SaveButton
           type="button"
           aria-pressed={reaction.saved}
           aria-disabled={pending.includes("save")}
           aria-label={`${fridgeName} 저장`}
+          title={reaction.saved ? "저장됨" : "저장"}
           onClick={() => handleToggle("save")}
           $active={reaction.saved}
         >
-          <Bookmark size={18} aria-hidden="true" fill={reaction.saved ? "currentColor" : "none"} />
-          {reaction.saved ? "저장됨" : "저장"}
-        </ReactionButton>
+          <Bookmark size={20} aria-hidden="true" fill={reaction.saved ? "currentColor" : "none"} />
+        </SaveButton>
       </Buttons>
       {error && <ReactionError role="alert">{error}</ReactionError>}
     </Wrapper>
@@ -92,27 +91,25 @@ const Wrapper = styled.div`
 
 const Buttons = styled.div`
   display: flex;
-  flex-wrap: wrap;
+  align-items: center;
   gap: 8px;
 `;
 
-// 누른 좋아요 하트만 강조색으로 칠하고, 저장은 글자색으로 채운다.
-const ReactionButton = styled.button<{ $active: boolean; $accent?: boolean }>`
-  min-height: 40px;
-  border: 1px solid ${(props) => (props.$active ? "var(--text)" : "var(--border)")};
+// 색 블록 위에 놓이는 흰 버튼이다. 좋아요는 수를 함께 보여 주는 알약, 저장은 동그란 아이콘 버튼이다.
+const buttonBase = `
+  min-height: 42px;
+  border: 0;
   border-radius: 999px;
   background: var(--surface);
   color: var(--text);
-  padding: 8px 14px;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  font-size: 15px;
-  font-weight: 480;
+  justify-content: center;
   cursor: pointer;
+  transition: transform 0.12s ease;
 
-  svg {
-    color: ${(props) => (props.$active && props.$accent ? "var(--accent-magenta)" : "var(--text)")};
+  &:active {
+    transform: scale(0.94);
   }
 
   &:focus-visible {
@@ -123,6 +120,31 @@ const ReactionButton = styled.button<{ $active: boolean; $accent?: boolean }>`
   &[aria-disabled="true"] {
     cursor: progress;
   }
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+  }
+`;
+
+// 누른 좋아요 하트만 강조색으로 칠한다.
+const LikeButton = styled.button<{ $active: boolean }>`
+  ${buttonBase}
+  min-width: 64px;
+  padding: 8px 14px 8px 12px;
+  gap: 6px;
+  font-size: 16px;
+  font-weight: 540;
+
+  svg {
+    color: ${(props) => (props.$active ? "var(--accent-magenta)" : "var(--text)")};
+  }
+`;
+
+const SaveButton = styled.button<{ $active: boolean }>`
+  ${buttonBase}
+  width: 42px;
+  background: ${(props) => (props.$active ? "var(--text)" : "var(--surface)")};
+  color: ${(props) => (props.$active ? "var(--surface)" : "var(--text)")};
 `;
 
 const ReactionError = styled.p`
