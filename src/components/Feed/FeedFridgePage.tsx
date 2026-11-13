@@ -80,9 +80,10 @@ function FeedFridgePage() {
     setAttempt((prev) => prev + 1);
   };
 
-  const handleReactionChange = (update: (prev: FeedReaction) => FeedReaction) => {
+  // 좋아요를 기다리는 사이 주소가 다른 냉장고로 바뀌면, 늦게 온 결과가 바뀐 냉장고의 좋아요·저장을 고치지 않게 한다.
+  const handleReactionChange = (targetFridgeId: number, update: (prev: FeedReaction) => FeedReaction) => {
     setResult((prev) =>
-      prev?.state.status === "success"
+      prev?.fridgeId === targetFridgeId && prev.state.status === "success"
         ? { ...prev, state: { ...prev.state, fridge: { ...prev.state.fridge, ...update(prev.state.fridge) } } }
         : prev,
     );
@@ -160,7 +161,7 @@ function FeedFridgePage() {
             fridgeId={fridge.fridgeId}
             fridgeName={fridge.name}
             reaction={fridge}
-            onChange={handleReactionChange}
+            onChange={(update) => handleReactionChange(fridge.fridgeId, update)}
           />
         ) : (
           <PrivateNote>
