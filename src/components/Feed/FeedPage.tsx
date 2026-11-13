@@ -95,6 +95,8 @@ function FeedList({ saved, hiddenFridgeId }: FeedListProps) {
   const [more, setMore] = useState<MoreState>({ status: "idle" });
   // 다음 페이지를 기다리는 사이 탭을 바꿔 목록이 사라지면 늦게 온 결과를 버린다.
   const mountedRef = useRef(false);
+  const regionRef = useRef<HTMLDivElement>(null);
+  const [announcement, setAnnouncement] = useState("");
 
   useEffect(() => {
     mountedRef.current = true;
@@ -190,27 +192,46 @@ function FeedList({ saved, hiddenFridgeId }: FeedListProps) {
 
   const shownFridges = feed.fridges.filter((fridge) => fridge.fridgeId !== hiddenFridgeId);
 
-  if (shownFridges.length === 0 && feed.nextCursor === null) {
-    return saved ? (
-      <StatusBox>
-        <strong>저장한 냉장고가 없어요.</strong>
-        <p>전체 피드에서 마음에 드는 냉장고를 저장하면 여기에서 다시 볼 수 있어요.</p>
-      </StatusBox>
-    ) : (
-      <StatusBox>
-        <strong>아직 다른 사람이 공개한 냉장고가 없어요.</strong>
-        <p>위에서 내 냉장고를 피드에 공개하면 다른 사람이 구경할 수 있어요.</p>
-      </StatusBox>
+  // 저장한 냉장고 탭에서 저장을 취소하면 서버의 저장 목록과 맞게 그 카드를 뺀다.
+  // 누른 버튼이 카드와 함께 사라지므로 초점은 목록으로 옮기고, 무엇이 바뀌었는지 읽어 준다.
+  const handleSaveSettled = (fridgeId: number, isSaved: boolean) => {
+    if (!saved || isSaved) return;
+    setFeed((prev) =>
+      prev.status === "success" ? { ...prev, fridges: prev.fridges.filter((fridge) => fridge.fridgeId !== fridgeId) } : prev,
     );
-  }
+    setAnnouncement("저장을 취소해 저장한 냉장고에서 뺐어요.");
+    regionRef.current?.focus();
+  };
+
+  const isEmpty = shownFridges.length === 0 && feed.nextCursor === null;
 
   return (
-    <>
-      <CardGrid>
-        {shownFridges.map((fridge) => (
-          <FeedCard key={fridge.fridgeId} fridge={fridge} onReactionChange={handleReactionChange} />
-        ))}
-      </CardGrid>
+    <ListRegion ref={regionRef} tabIndex={-1} aria-label={saved ? "저장한 냉장고 목록" : "냉장고 목록"}>
+      <ScreenReaderText role="status">{announcement}</ScreenReaderText>
+      {isEmpty && saved && (
+        <StatusBox>
+          <strong>저장한 냉장고가 없어요.</strong>
+          <p>전체 피드에서 마음에 드는 냉장고를 저장하면 여기에서 다시 볼 수 있어요.</p>
+        </StatusBox>
+      )}
+      {isEmpty && !saved && (
+        <StatusBox>
+          <strong>아직 다른 사람이 공개한 냉장고가 없어요.</strong>
+          <p>위에서 내 냉장고를 피드에 공개하면 다른 사람이 구경할 수 있어요.</p>
+        </StatusBox>
+      )}
+      {!isEmpty && (
+        <CardGrid>
+          {shownFridges.map((fridge) => (
+            <FeedCard
+              key={fridge.fridgeId}
+              fridge={fridge}
+              onReactionChange={handleReactionChange}
+              onSaveSettled={handleSaveSettled}
+            />
+          ))}
+        </CardGrid>
+      )}
       {more.status === "error" && <MoreError role="alert">{more.message}</MoreError>}
       {feed.nextCursor !== null && (
         <MoreRow>
@@ -219,9 +240,20 @@ function FeedList({ saved, hiddenFridgeId }: FeedListProps) {
           </OutlineButton>
         </MoreRow>
       )}
-    </>
+    </ListRegion>
   );
 }
+
+// 카드가 빠져 누른 버튼이 사라질 때 초점을 받는 목록 영역이다. 코드로만 초점을 옮겨 테두리는 그리지 않는다.
+const ListRegion = styled.div`
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 20px;
+
+  &:focus {
+    outline: none;
+  }
+`;
 
 const Layout = styled.div`
   display: grid;

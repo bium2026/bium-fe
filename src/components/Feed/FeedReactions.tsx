@@ -17,13 +17,15 @@ type FeedReactionsProps = {
   reaction: FeedReaction;
   // 좋아요와 저장 요청이 겹칠 수 있어, 바꿀 값 대신 지금 값을 받아 고치는 함수를 넘긴다.
   onChange: (update: (prev: FeedReaction) => FeedReaction) => void;
+  // 저장·저장 취소가 서버에 반영된 뒤에 부른다. 저장한 냉장고 목록에서 취소한 카드를 뺄 때 쓴다.
+  onSaveSettled?: (saved: boolean) => void;
 };
 
 function toggleLike(prev: FeedReaction): FeedReaction {
   return { ...prev, liked: !prev.liked, likeCount: Math.max(0, prev.likeCount + (prev.liked ? -1 : 1)) };
 }
 
-function FeedReactions({ fridgeId, fridgeName, reaction, onChange }: FeedReactionsProps) {
+function FeedReactions({ fridgeId, fridgeName, reaction, onChange, onSaveSettled }: FeedReactionsProps) {
   const [pending, setPending] = useState<ReactionKind[]>([]);
   const [error, setError] = useState("");
 
@@ -41,6 +43,7 @@ function FeedReactions({ fridgeId, fridgeName, reaction, onChange }: FeedReactio
         onChange((prev) => ({ ...prev, saved: !prev.saved }));
         const result = await setFeedSave(fridgeId, !reaction.saved);
         onChange((prev) => ({ ...prev, saved: result.saved }));
+        onSaveSettled?.(result.saved);
       }
     } catch (toggleError) {
       onChange(kind === "like" ? toggleLike : (prev) => ({ ...prev, saved: !prev.saved }));

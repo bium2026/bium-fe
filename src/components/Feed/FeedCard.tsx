@@ -16,9 +16,10 @@ import { Avatar, MineBadge } from "./feedStyles";
 type FeedCardProps = {
   fridge: FeedFridge;
   onReactionChange: (fridgeId: number, update: (prev: FeedReaction) => FeedReaction) => void;
+  onSaveSettled?: (fridgeId: number, saved: boolean) => void;
 };
 
-function FeedCard({ fridge, onReactionChange }: FeedCardProps) {
+function FeedCard({ fridge, onReactionChange, onSaveSettled }: FeedCardProps) {
   const titleId = useId();
 
   return (
@@ -55,6 +56,7 @@ function FeedCard({ fridge, onReactionChange }: FeedCardProps) {
           fridgeName={fridge.name}
           reaction={fridge}
           onChange={(update) => onReactionChange(fridge.fridgeId, update)}
+          onSaveSettled={onSaveSettled && ((saved) => onSaveSettled(fridge.fridgeId, saved))}
         />
         <ViewLink to={`/feed/${fridge.fridgeId}`} aria-label={`${fridge.name} 구경하기`}>
           구경하기
