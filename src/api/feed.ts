@@ -27,6 +27,8 @@ export type FeedStorages = {
 export type FeedFridge = {
   fridgeId: number;
   name: string;
+  // 피드 목록에서는 늘 true다. 멤버가 공개하지 않은 내 냉장고를 미리 볼 때만 false다.
+  isPublic: boolean;
   ownerNickname: string | null;
   memberCount: number;
   itemCount: number;
@@ -66,7 +68,8 @@ export function getFeed({ cursor, saved }: { cursor: number | null; saved: boole
   return request<FeedPage>(`/api/feed/fridges${query ? `?${query}` : ""}`);
 }
 
-// 실패: FRIDGE_NOT_FOUND(404, 공개하지 않은 냉장고 포함)
+// 공개하지 않은 냉장고도 멤버에게는 준다(내 냉장고 미리보기).
+// 실패: FRIDGE_NOT_FOUND(404, 멤버가 아닌데 공개하지 않은 냉장고 포함)
 export function getFeedFridge(fridgeId: number) {
   return request<FeedFridgeDetail>(`/api/feed/fridges/${fridgeId}`);
 }

@@ -1,14 +1,16 @@
 /*
  * 냉장고 피드 화면이다. 주인이 공개한 냉장고를 최근에 만든 순서로 10개씩 보여 주고, 저장한 냉장고만 골라 볼 수 있다.
- * 맨 위에서 지금 보고 있는 내 냉장고를 피드에 공개하거나 숨긴다.
+ * 맨 위 내 냉장고 카드에서 지금 보고 있는 냉장고를 피드에 공개하거나 숨기고, 피드에 어떻게 보이는지 늘 미리 본다.
+ * 그래서 전체 목록에서는 그 냉장고를 빼서 두 번 보이지 않게 한다.
  */
 import { useEffect, useRef, useState } from "react";
 import styled from "@emotion/styled";
 import { useSearchParams } from "react-router";
 import { getFeed, type FeedFridge, type FeedReaction } from "../../api/feed";
+import { pickFridge, useFridgeStore } from "../../store/fridgeStore";
 import FeedCard from "./FeedCard";
-import FeedVisibilityCard from "./FeedVisibilityCard";
 import { getFeedErrorMessage } from "./feedFormat";
+import MyFridgeCard from "./MyFridgeCard";
 import { Hero, OutlineButton, ScreenReaderText, Skeleton, StatusBox, Wrapper } from "./feedStyles";
 
 type FeedTab = "all" | "saved";
@@ -23,6 +25,9 @@ function FeedPage() {
   const tab: FeedTab = searchParams.get("tab") === "saved" ? "saved" : "all";
   // 공개 여부를 바꾸면 목록을 처음부터 다시 불러온다.
   const [reloadKey, setReloadKey] = useState(0);
+  const list = useFridgeStore((state) => state.list);
+  const selectedFridgeId = useFridgeStore((state) => state.selectedFridgeId);
+  const myFridgeId = list.status === "success" ? (pickFridge(list.fridges, selectedFridgeId)?.id ?? null) : null;
 
   const changeTab = (next: FeedTab) => {
     // 탭을 바꿀 때마다 방문 기록이 쌓이면 뒤로 가기로 피드를 벗어나기 어려워서 주소를 바꿔치기한다.
@@ -36,7 +41,7 @@ function FeedPage() {
         <p>다른 사람들이 공개한 냉장고를 구경하고, 마음에 드는 냉장고에 좋아요를 누르거나 저장해 보세요.</p>
       </Hero>
 
-      <FeedVisibilityCard onChange={() => setReloadKey((prev) => prev + 1)} />
+      <MyFridgeCard onChange={() => setReloadKey((prev) => prev + 1)} />
 
       <Tabs aria-label="피드 보기">
         {tabs.map((item) => (
@@ -53,7 +58,11 @@ function FeedPage() {
       </Tabs>
 
       {/* 탭이나 공개 여부가 바뀌면 목록을 처음 상태로 다시 그린다. */}
-      <FeedList key={`${tab}-${reloadKey}`} saved={tab === "saved"} />
+      <FeedList
+        key={`${tab}-${reloadKey}`}
+        saved={tab === "saved"}
+        hiddenFridgeId={tab === "all" ? myFridgeId : null}
+      />
     </Wrapper>
   );
 }
@@ -67,7 +76,13 @@ type FeedState =
 
 type MoreState = { status: "idle" | "loading" } | { status: "error"; message: string };
 
-function FeedList({ saved }: { saved: boolean }) {
+type FeedListProps = {
+  saved: boolean;
+  // 내 냉장고 카드에서 이미 보여 주는 냉장고. 저장한 냉장고 탭에서는 직접 저장한 것이라 빼지 않는다.
+  hiddenFridgeId: number | null;
+};
+
+function FeedList({ saved, hiddenFridgeId }: FeedListProps) {
   const [feed, setFeed] = useState<FeedState>({ status: "loading" });
   const [attempt, setAttempt] = useState(0);
   const [more, setMore] = useState<MoreState>({ status: "idle" });
@@ -166,7 +181,9 @@ function FeedList({ saved }: { saved: boolean }) {
     );
   }
 
-  if (feed.fridges.length === 0) {
+  const shownFridges = feed.fridges.filter((fridge) => fridge.fridgeId !== hiddenFridgeId);
+
+  if (shownFridges.length === 0 && feed.nextCursor === null) {
     return saved ? (
       <StatusBox>
         <strong>저장한 냉장고가 없어요.</strong>
@@ -174,7 +191,7 @@ function FeedList({ saved }: { saved: boolean }) {
       </StatusBox>
     ) : (
       <StatusBox>
-        <strong>아직 공개된 냉장고가 없어요.</strong>
+        <strong>아직 다른 사람이 공개한 냉장고가 없어요.</strong>
         <p>위에서 내 냉장고를 피드에 공개하면 다른 사람이 구경할 수 있어요.</p>
       </StatusBox>
     );
@@ -183,7 +200,7 @@ function FeedList({ saved }: { saved: boolean }) {
   return (
     <>
       <CardGrid>
-        {feed.fridges.map((fridge) => (
+        {shownFridges.map((fridge) => (
           <FeedCard key={fridge.fridgeId} fridge={fridge} onReactionChange={handleReactionChange} />
         ))}
       </CardGrid>

@@ -2,10 +2,11 @@
  * 피드에 보이는 공개 냉장고 카드다.
  * 구역마다 재료를 앞에서부터 몇 개 보여 주고, 3일 안에 유통기한이 끝나는 재료 수와 좋아요·저장 버튼을 둔다.
  * 구경하기를 누르면 칸별 재료를 모두 볼 수 있다.
+ * 공개하지 않은 내 냉장고를 미리 볼 때는 좋아요·저장을 누를 수 없어 좋아요 수만 보여 준다.
  */
 import { useId } from "react";
 import styled from "@emotion/styled";
-import { ArrowRight, Clock3 } from "lucide-react";
+import { ArrowRight, Clock3, Heart } from "lucide-react";
 import { Link } from "react-router";
 import type { FeedFridge, FeedReaction } from "../../api/feed";
 import FeedReactions from "./FeedReactions";
@@ -15,18 +16,20 @@ import { ItemChip, MineBadge, ScreenReaderText } from "./feedStyles";
 type FeedCardProps = {
   fridge: FeedFridge;
   onReactionChange: (fridgeId: number, update: (prev: FeedReaction) => FeedReaction) => void;
+  // 내 냉장고 카드 안에 미리보기로 넣을 때는 '내 냉장고' 배지와 그림자를 빼고 제목 단계를 낮춘다.
+  preview?: boolean;
 };
 
-function FeedCard({ fridge, onReactionChange }: FeedCardProps) {
+function FeedCard({ fridge, onReactionChange, preview = false }: FeedCardProps) {
   const titleId = useId();
   const storages = feedStorages.filter(({ key }) => fridge.storages[key].count > 0);
 
   return (
-    <Card aria-labelledby={titleId}>
+    <Card aria-labelledby={titleId} $preview={preview}>
       <CardHeader>
         <TitleRow>
-          <h2 id={titleId}>{fridge.name}</h2>
-          {fridge.mine && <MineBadge>내 냉장고</MineBadge>}
+          {preview ? <h3 id={titleId}>{fridge.name}</h3> : <h2 id={titleId}>{fridge.name}</h2>}
+          {fridge.mine && !preview && <MineBadge>내 냉장고</MineBadge>}
         </TitleRow>
         <Meta>
           {fridge.ownerNickname ? `${fridge.ownerNickname} 님` : "주인 없음"} · 멤버 {fridge.memberCount}명 · 재료{" "}
@@ -74,12 +77,19 @@ function FeedCard({ fridge, onReactionChange }: FeedCardProps) {
       )}
 
       <Footer>
-        <FeedReactions
-          fridgeId={fridge.fridgeId}
-          fridgeName={fridge.name}
-          reaction={fridge}
-          onChange={(update) => onReactionChange(fridge.fridgeId, update)}
-        />
+        {fridge.isPublic ? (
+          <FeedReactions
+            fridgeId={fridge.fridgeId}
+            fridgeName={fridge.name}
+            reaction={fridge}
+            onChange={(update) => onReactionChange(fridge.fridgeId, update)}
+          />
+        ) : (
+          <LikeCount>
+            <Heart size={18} aria-hidden="true" />
+            좋아요 {fridge.likeCount}
+          </LikeCount>
+        )}
         <ViewLink to={`/feed/${fridge.fridgeId}`} aria-label={`${fridge.name} 구경하기`}>
           구경하기
           <ArrowRight size={16} aria-hidden="true" />
@@ -91,7 +101,7 @@ function FeedCard({ fridge, onReactionChange }: FeedCardProps) {
 
 export default FeedCard;
 
-const Card = styled.article`
+const Card = styled.article<{ $preview: boolean }>`
   border: 1px solid var(--border);
   border-radius: 16px;
   background: var(--surface);
@@ -100,7 +110,7 @@ const Card = styled.article`
   grid-template-columns: minmax(0, 1fr);
   align-content: start;
   gap: 14px;
-  box-shadow: var(--shadow-sm);
+  box-shadow: ${(props) => (props.$preview ? "none" : "var(--shadow-sm)")};
 
   @media (max-width: 760px) {
     padding: 18px;
@@ -118,7 +128,8 @@ const TitleRow = styled.div`
   flex-wrap: wrap;
   gap: 8px;
 
-  h2 {
+  h2,
+  h3 {
     min-width: 0;
     font-size: 21px;
     font-weight: 540;
@@ -202,6 +213,15 @@ const Footer = styled.div`
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 10px;
+`;
+
+const LikeCount = styled.p`
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 15px;
+  font-weight: 480;
 `;
 
 const ViewLink = styled(Link)`
