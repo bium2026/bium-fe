@@ -38,7 +38,7 @@ export function pickFridge(fridges: Fridge[], selectedFridgeId: number | null) {
 
 export const useFridgeStore = create<FridgeState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       selectedFridgeId: null,
       list: { status: "idle" },
       selectFridge: (selectedFridgeId) => set({ selectedFridgeId }),
@@ -62,17 +62,16 @@ export const useFridgeStore = create<FridgeState>()(
             ? { list: { status: "success", fridges: [...state.list.fridges, fridge] } }
             : state,
         ),
-      updateFridge: (fridge) =>
-        set((state) =>
-          state.list.status === "success"
-            ? {
-                list: {
-                  status: "success",
-                  fridges: state.list.fridges.map((item) => (item.id === fridge.id ? fridge : item)),
-                },
-              }
-            : state,
-        ),
+      updateFridge: (fridge) => {
+        const { list } = get();
+        if (list.status !== "success") return;
+        // 그 전에 시작한 목록 요청은 바뀌기 전 값을 담고 있을 수 있어, 늦게 와도 버리도록 요청 번호를 올린다.
+        // 다른 냉장고의 변경은 다음 목록 요청에서 반영된다.
+        listRequestId += 1;
+        set({
+          list: { status: "success", fridges: list.fridges.map((item) => (item.id === fridge.id ? fridge : item)) },
+        });
+      },
       removeFridge: (fridgeId) =>
         set((state) =>
           state.list.status === "success"
