@@ -36,6 +36,8 @@ export const router = createBrowserRouter([
           { path: '/recipes/:recipeId', ...page(() => import('./components/Recipe/RecipeDetailPage.tsx')) },
           { path: '/shopping', ...page(() => import('./components/ShoppingList/ShoppingListPage.tsx')) },
           { path: '/share', ...page(() => import('./components/Share/SharePage.tsx')) },
+          { path: '/feed', ...page(() => import('./components/Feed/FeedPage.tsx')) },
+          { path: '/feed/:fridgeId', ...page(() => import('./components/Feed/FeedFridgePage.tsx')) },
         ],
       },
     ],
