@@ -73,12 +73,12 @@ const Header = styled.header`
   gap: 16px;
 
   /* 메뉴가 여섯 개라 좁은 화면에서는 양옆 칸을 줄여 가운데 메뉴 자리를 넓힌다. */
-  @media (max-width: 1100px) {
+  @media (max-width: 1200px) {
     grid-template-columns: 120px minmax(0, 1fr) 120px;
   }
 
   /* 메뉴 여섯 개가 한 줄에 들어가지 않는 폭부터는 첫 줄에 브랜드와 냉장고 바꾸기, 둘째 줄에 메뉴를 둔다. */
-  @media (max-width: 900px) {
+  @media (max-width: 1000px) {
     height: auto;
     padding: 8px 14px 0;
     grid-template-columns: minmax(0, 1fr) auto;
@@ -127,11 +127,11 @@ const Menu = styled.nav`
   gap: 24px;
   min-width: 0;
 
-  @media (max-width: 1100px) {
+  @media (max-width: 1200px) {
     gap: 16px;
   }
 
-  @media (max-width: 900px) {
+  @media (max-width: 1000px) {
     grid-column: 1 / -1;
     grid-row: 2;
     justify-content: flex-start;
@@ -165,7 +165,7 @@ const MenuLink = styled(NavLink)`
     outline-offset: -2px;
   }
 
-  @media (max-width: 900px) {
+  @media (max-width: 1000px) {
     height: 42px;
   }
 `;
