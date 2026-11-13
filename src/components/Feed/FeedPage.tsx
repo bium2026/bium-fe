@@ -41,28 +41,35 @@ function FeedPage() {
         <p>다른 사람들이 공개한 냉장고를 구경하고, 마음에 드는 냉장고에 좋아요를 누르거나 저장해 보세요.</p>
       </Hero>
 
-      <MyFridgeCard onChange={() => setReloadKey((prev) => prev + 1)} />
+      <Layout>
+        {/* 좁은 화면에서는 내 냉장고가 피드 위에, 넓은 화면에서는 오른쪽에 붙어 따라온다. */}
+        <MineArea>
+          <MyFridgeCard onChange={() => setReloadKey((prev) => prev + 1)} />
+        </MineArea>
 
-      <Tabs aria-label="피드 보기">
-        {tabs.map((item) => (
-          <TabButton
-            key={item.id}
-            type="button"
-            aria-pressed={tab === item.id}
-            $active={tab === item.id}
-            onClick={() => changeTab(item.id)}
-          >
-            {item.label}
-          </TabButton>
-        ))}
-      </Tabs>
+        <FeedArea>
+          <Tabs aria-label="피드 보기">
+            {tabs.map((item) => (
+              <TabButton
+                key={item.id}
+                type="button"
+                aria-pressed={tab === item.id}
+                $active={tab === item.id}
+                onClick={() => changeTab(item.id)}
+              >
+                {item.label}
+              </TabButton>
+            ))}
+          </Tabs>
 
-      {/* 탭이나 공개 여부가 바뀌면 목록을 처음 상태로 다시 그린다. */}
-      <FeedList
-        key={`${tab}-${reloadKey}`}
-        saved={tab === "saved"}
-        hiddenFridgeId={tab === "all" ? myFridgeId : null}
-      />
+          {/* 탭이나 공개 여부가 바뀌면 목록을 처음 상태로 다시 그린다. */}
+          <FeedList
+            key={`${tab}-${reloadKey}`}
+            saved={tab === "saved"}
+            hiddenFridgeId={tab === "all" ? myFridgeId : null}
+          />
+        </FeedArea>
+      </Layout>
     </Wrapper>
   );
 }
@@ -216,6 +223,39 @@ function FeedList({ saved, hiddenFridgeId }: FeedListProps) {
   );
 }
 
+const Layout = styled.div`
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  grid-template-areas: "feed mine";
+  align-items: start;
+  gap: 28px;
+
+  @media (max-width: 1000px) {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "mine"
+      "feed";
+    gap: 20px;
+  }
+`;
+
+const MineArea = styled.aside`
+  grid-area: mine;
+  position: sticky;
+  top: 80px;
+
+  @media (max-width: 1000px) {
+    position: static;
+  }
+`;
+
+const FeedArea = styled.div`
+  grid-area: feed;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 20px;
+`;
+
 const Tabs = styled.div`
   display: flex;
   flex-wrap: wrap;
@@ -243,15 +283,12 @@ const TabButton = styled.button<{ $active: boolean }>`
   }
 `;
 
+// 카드가 380px보다 좁아지면 한 줄에 하나씩 놓는다.
 const CardGrid = styled.div`
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(380px, 100%), 1fr));
   align-items: start;
   gap: 20px;
-
-  @media (max-width: 900px) {
-    grid-template-columns: minmax(0, 1fr);
-  }
 `;
 
 const MoreRow = styled.div`

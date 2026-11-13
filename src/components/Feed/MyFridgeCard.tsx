@@ -1,16 +1,19 @@
 /*
- * 피드 맨 위의 내 냉장고 카드다. 지금 보고 있는 냉장고를 피드에 공개하거나 숨기고,
- * 공개 여부와 상관없이 그 냉장고가 피드에 어떻게 보이는지 미리 보여 준다.
+ * 피드 옆의 내 냉장고 카드다. 지금 보고 있는 냉장고를 피드에 공개하거나 숨기고,
+ * 공개 여부와 상관없이 그 냉장고가 피드에 어떻게 보이는지(재료 수, 좋아요 수, 냉장고 칸) 늘 보여 준다.
  * 공개하면 다른 사용자가 재료와 주인 닉네임을 볼 수 있어서, 냉장고 주인만 공개 여부를 바꿀 수 있다.
+ * 목록의 파스텔 카드와 구분되게 진한 남색 블록으로 칠한다.
  */
 import { useEffect, useId, useState } from "react";
 import styled from "@emotion/styled";
-import { getFeedFridge, type FeedFridge, type FeedReaction } from "../../api/feed";
+import { ArrowRight } from "lucide-react";
+import { Link } from "react-router";
+import { getFeedFridge, type FeedFridge } from "../../api/feed";
 import { changeFridgeVisibility, type Fridge } from "../../api/fridge";
 import { pickFridge, useFridgeStore } from "../../store/fridgeStore";
-import FeedCard from "./FeedCard";
+import FridgeShelves from "./FridgeShelves";
 import { getFeedErrorMessage } from "./feedFormat";
-import { OutlineButton, Skeleton } from "./feedStyles";
+import { Skeleton } from "./feedStyles";
 
 type MyFridgeCardProps = {
   // 공개 여부를 바꾸면 저장한 냉장고 목록이 달라질 수 있어 피드 목록을 다시 불러온다.
@@ -59,36 +62,46 @@ function MyFridgeCard({ onChange }: MyFridgeCardProps) {
   const description = !isOwner
     ? "냉장고 주인만 공개 여부를 바꿀 수 있어요."
     : fridge.isPublic
-      ? "피드에 공개 중이에요. 재료와 주인 닉네임이 다른 사람에게 보여요."
-      : "공개하면 다른 사람이 이 냉장고의 재료를 구경하고 좋아요를 누를 수 있어요.";
+      ? "재료와 주인 닉네임이 다른 사람에게 보여요."
+      : "공개하면 다른 사람이 재료를 구경하고 좋아요를 누를 수 있어요.";
 
   return (
     <Card aria-labelledby={titleId}>
-      <Row>
-        <Text>
-          <h2 id={titleId}>내 냉장고</h2>
-          <p id={descriptionId}>{description}</p>
-        </Text>
-        <Switch
-          type="button"
-          role="switch"
-          aria-checked={fridge.isPublic}
-          aria-disabled={isDisabled}
-          aria-describedby={descriptionId}
-          onClick={handleToggle}
-          $on={fridge.isPublic}
-        >
-          <span aria-hidden="true" className="track" />
-          {isSaving ? "바꾸는 중" : "피드에 공개"}
-        </Switch>
-      </Row>
+      <Eyebrow>내 냉장고</Eyebrow>
+      <TitleRow>
+        <h2 id={titleId}>{fridge.name}</h2>
+        <StatusPill $public={fridge.isPublic}>{fridge.isPublic ? "공개 중" : "나만 보기"}</StatusPill>
+      </TitleRow>
+
+      {/* 공개 여부가 바뀌면 미리보기를 다시 불러와 바뀐 모습을 보여 준다. */}
+      <MyFridgePreview key={`${fridge.id}-${fridge.isPublic}`} fridge={fridge} />
+
+      <Controls>
+        <ControlRow>
+          <Switch
+            type="button"
+            role="switch"
+            aria-checked={fridge.isPublic}
+            aria-disabled={isDisabled}
+            aria-describedby={descriptionId}
+            onClick={handleToggle}
+            $on={fridge.isPublic}
+          >
+            <span aria-hidden="true" className="track" />
+            {isSaving ? "바꾸는 중" : "피드에 공개"}
+          </Switch>
+          <LightLink to={`/feed/${fridge.id}`} aria-label={`${fridge.name} 구경하기`}>
+            {fridge.isPublic ? "보이는 모습" : "미리보기"}
+            <ArrowRight size={16} aria-hidden="true" />
+          </LightLink>
+        </ControlRow>
+        <p id={descriptionId}>{description}</p>
+      </Controls>
       {message && (
         <Feedback role={message.error ? "alert" : "status"} $error={message.error}>
           {message.text}
         </Feedback>
       )}
-      {/* 공개 여부가 바뀌면 미리보기를 다시 불러와 바뀐 모습(좋아요 버튼 등)을 보여 준다. */}
-      <MyFridgePreview key={`${fridge.id}-${fridge.isPublic}`} fridge={fridge} />
     </Card>
   );
 }
@@ -124,85 +137,220 @@ function MyFridgePreview({ fridge }: { fridge: Fridge }) {
     };
   }, [fridge.id, attempt]);
 
-  const handleReactionChange = (_fridgeId: number, update: (prev: FeedReaction) => FeedReaction) => {
-    setPreview((prev) => (prev.status === "success" ? { ...prev, fridge: { ...prev.fridge, ...update(prev.fridge) } } : prev));
-  };
+  if (preview.status === "loading") return <Skeleton aria-hidden="true" $height={200} />;
 
+  if (preview.status === "error") {
+    return (
+      <PreviewError role="alert">
+        <p>{preview.message}</p>
+        <LightButton
+          type="button"
+          onClick={() => {
+            setPreview({ status: "loading" });
+            setAttempt((prev) => prev + 1);
+          }}
+        >
+          다시 시도
+        </LightButton>
+      </PreviewError>
+    );
+  }
+
+  const summary = preview.fridge;
   return (
-    <Preview>
-      <PreviewLabel $public={fridge.isPublic}>
-        {fridge.isPublic ? "다른 사람에게 이렇게 보여요" : "나만 보는 미리보기"}
-      </PreviewLabel>
-      {preview.status === "loading" && <Skeleton aria-hidden="true" $height={180} />}
-      {preview.status === "error" && (
-        <PreviewError role="alert">
-          <p>{preview.message}</p>
-          <OutlineButton
-            type="button"
-            onClick={() => {
-              setPreview({ status: "loading" });
-              setAttempt((prev) => prev + 1);
-            }}
-          >
-            다시 시도
-          </OutlineButton>
-        </PreviewError>
-      )}
-      {preview.status === "success" && (
-        <FeedCard fridge={preview.fridge} onReactionChange={handleReactionChange} preview />
-      )}
-    </Preview>
+    <>
+      <Stats>
+        <div>
+          <dt>재료</dt>
+          <dd>{summary.itemCount}</dd>
+        </div>
+        <div>
+          <dt>좋아요</dt>
+          <dd>{summary.likeCount}</dd>
+        </div>
+        <div>
+          <dt>3일 안에</dt>
+          <dd>{summary.expiringCount}</dd>
+        </div>
+      </Stats>
+      {/* 좁은 화면에서는 피드를 밀어내지 않게 냉장고 칸 그림을 빼고 숫자만 남긴다. 미리보기 링크로 볼 수 있다. */}
+      <ShelvesArea>
+        {summary.itemCount === 0 ? (
+          <EmptyFridge>아직 비어 있어요. 재료를 넣으면 여기에 보여요.</EmptyFridge>
+        ) : (
+          <FridgeShelves storages={summary.storages} compact />
+        )}
+      </ShelvesArea>
+    </>
   );
 }
 
 const Card = styled.section`
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  background: var(--surface);
-  padding: 18px 22px;
+  border-radius: 24px;
+  background: var(--block-navy);
+  color: var(--surface);
+  padding: 24px;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 14px;
 
   @media (max-width: 760px) {
-    padding: 16px;
+    border-radius: 20px;
+    padding: 18px;
   }
 `;
 
-const Row = styled.div`
+const Eyebrow = styled.p`
+  font-size: 13px;
+  font-weight: 540;
+  letter-spacing: 0.6px;
+  opacity: 0.75;
+`;
+
+const TitleRow = styled.div`
   display: flex;
   align-items: center;
-  justify-content: space-between;
   flex-wrap: wrap;
-  gap: 12px 20px;
-`;
-
-const Text = styled.div`
-  min-width: 0;
-  flex: 1 1 260px;
-  display: grid;
-  gap: 4px;
+  gap: 8px 10px;
 
   h2 {
-    font-size: 20px;
-    font-weight: 540;
-    letter-spacing: -0.2px;
+    min-width: 0;
+    font-size: 24px;
+    line-height: 1.3;
+    font-weight: 700;
+    letter-spacing: -0.26px;
+    overflow-wrap: anywhere;
   }
+`;
+
+const StatusPill = styled.span<{ $public: boolean }>`
+  border-radius: 999px;
+  border: 1px solid ${(props) => (props.$public ? "var(--block-lime)" : "var(--surface)")};
+  background: ${(props) => (props.$public ? "var(--block-lime)" : "transparent")};
+  color: ${(props) => (props.$public ? "var(--text)" : "var(--surface)")};
+  padding: 3px 10px;
+  font-size: 13px;
+  font-weight: 540;
+  white-space: nowrap;
+`;
+
+const Stats = styled.dl`
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+
+  div {
+    border-radius: 14px;
+    background: color-mix(in srgb, var(--surface) 12%, transparent);
+    padding: 10px 12px;
+    display: grid;
+    gap: 2px;
+  }
+
+  dt {
+    font-size: 12px;
+    font-weight: 480;
+    opacity: 0.75;
+  }
+
+  dd {
+    margin: 0;
+    font-size: 22px;
+    font-weight: 700;
+  }
+
+  @media (max-width: 760px) {
+    div {
+      padding: 8px 10px;
+    }
+
+    dd {
+      font-size: 18px;
+    }
+  }
+`;
+
+const ShelvesArea = styled.div`
+  display: grid;
+
+  @media (max-width: 760px) {
+    display: none;
+  }
+`;
+
+const EmptyFridge = styled.p`
+  min-height: 64px;
+  border: 1px dashed var(--surface);
+  border-radius: 16px;
+  padding: 12px;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 480;
+  opacity: 0.8;
+`;
+
+const lightControl = `
+  min-height: 42px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  padding: 8px 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 15px;
+  font-weight: 480;
+  text-decoration: none;
+  cursor: pointer;
+
+  &:focus-visible {
+    outline: 2px solid var(--surface);
+    outline-offset: 2px;
+  }
+`;
+
+const LightLink = styled(Link)`
+  ${lightControl}
+  width: fit-content;
+`;
+
+const LightButton = styled.button`
+  ${lightControl}
+`;
+
+const Controls = styled.div`
+  border-top: 1px solid color-mix(in srgb, var(--surface) 20%, transparent);
+  padding-top: 14px;
+  display: grid;
+  gap: 8px;
 
   p {
     font-size: 14px;
     font-weight: 330;
     line-height: 1.5;
+    opacity: 0.85;
   }
 `;
 
-// 레시피 화면의 '임박 재료 우선 사용' 토글과 같은 모양이다.
+const ControlRow = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+`;
+
+// 레시피 화면의 '임박 재료 우선 사용' 토글과 같은 모양을 남색 블록 위에 맞게 뒤집었다.
 const Switch = styled.button<{ $on: boolean }>`
   min-height: 44px;
-  border: 1px solid var(--border);
+  border: 1px solid color-mix(in srgb, var(--surface) 35%, transparent);
   border-radius: 50px;
-  background: var(--surface);
-  color: var(--text);
+  background: transparent;
+  color: var(--surface);
   padding: 6px 16px 6px 6px;
   display: inline-flex;
   align-items: center;
@@ -216,7 +364,7 @@ const Switch = styled.button<{ $on: boolean }>`
     width: 42px;
     height: 24px;
     border-radius: 999px;
-    background: ${(props) => (props.$on ? "var(--text)" : "var(--border)")};
+    background: ${(props) => (props.$on ? "var(--block-lime)" : "color-mix(in srgb, var(--surface) 30%, transparent)")};
     position: relative;
     transition: background 0.24s ease;
   }
@@ -226,7 +374,7 @@ const Switch = styled.button<{ $on: boolean }>`
     width: 18px;
     height: 18px;
     border-radius: 50%;
-    background: var(--surface);
+    background: ${(props) => (props.$on ? "var(--block-navy)" : "var(--surface)")};
     position: absolute;
     top: 3px;
     left: ${(props) => (props.$on ? "21px" : "3px")};
@@ -234,13 +382,13 @@ const Switch = styled.button<{ $on: boolean }>`
   }
 
   &:focus-visible {
-    outline: 2px solid var(--text);
+    outline: 2px solid var(--surface);
     outline-offset: 2px;
   }
 
   &[aria-disabled="true"] {
     cursor: not-allowed;
-    opacity: 0.45;
+    opacity: 0.5;
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -252,35 +400,13 @@ const Switch = styled.button<{ $on: boolean }>`
 `;
 
 const Feedback = styled.p<{ $error: boolean }>`
-  border-radius: 8px;
+  border-radius: 12px;
   background: ${(props) => (props.$error ? "var(--block-pink)" : "var(--block-mint)")};
+  color: var(--text);
   padding: 10px 14px;
   font-size: 14px;
   font-weight: 480;
   line-height: 1.5;
-`;
-
-const Preview = styled.div`
-  border-radius: 16px;
-  background: var(--surface-soft);
-  padding: 14px;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 10px;
-
-  @media (max-width: 760px) {
-    padding: 10px;
-  }
-`;
-
-const PreviewLabel = styled.p<{ $public: boolean }>`
-  width: fit-content;
-  border-radius: 999px;
-  background: ${(props) => (props.$public ? "var(--block-lime)" : "var(--surface)")};
-  border: 1px solid ${(props) => (props.$public ? "var(--block-lime)" : "var(--border)")};
-  padding: 3px 10px;
-  font-size: 13px;
-  font-weight: 540;
 `;
 
 const PreviewError = styled.div`
