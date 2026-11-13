@@ -12,6 +12,8 @@ export type Fridge = {
   id: number;
   name: string;
   role: MemberRole;
+  // 냉장고 피드에 공개했는지
+  isPublic: boolean;
 };
 
 // FRIDGE: 냉장실, FREEZER: 냉동실, ROOM: 실온
@@ -47,6 +49,12 @@ export type FridgeContentsResponse = {
 // 내가 소유자·멤버인 냉장고 목록
 export function getMyFridges() {
   return request<Fridge[]>("/api/fridges");
+}
+
+// 냉장고를 피드에 공개하거나 숨긴다. 소유자만 할 수 있다.
+// 실패: FRIDGE_OWNER_ONLY(403), FRIDGE_NOT_FOUND(404, 멤버가 아닌 냉장고 포함)
+export function changeFridgeVisibility(fridgeId: number, isPublic: boolean) {
+  return request<Fridge>(`/api/fridges/${fridgeId}/visibility`, { method: "PATCH", body: { isPublic } });
 }
 
 // 실패: FRIDGE_NOT_FOUND(404, 멤버가 아닌 냉장고 포함)

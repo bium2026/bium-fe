@@ -18,6 +18,8 @@ type FridgeState = {
   loadFridges: () => Promise<void>;
   // 참여·나가기처럼 서버에 반영된 결과를 목록을 다시 받기 전에 바로 보여 줄 때 쓴다.
   addFridge: (fridge: Fridge) => void;
+  // 피드 공개처럼 냉장고 하나의 값이 바뀌면 목록을 다시 받지 않고 그 냉장고만 바꾼다.
+  updateFridge: (fridge: Fridge) => void;
   removeFridge: (fridgeId: number) => void;
 };
 
@@ -58,6 +60,17 @@ export const useFridgeStore = create<FridgeState>()(
         set((state) =>
           state.list.status === "success" && !state.list.fridges.some((item) => item.id === fridge.id)
             ? { list: { status: "success", fridges: [...state.list.fridges, fridge] } }
+            : state,
+        ),
+      updateFridge: (fridge) =>
+        set((state) =>
+          state.list.status === "success"
+            ? {
+                list: {
+                  status: "success",
+                  fridges: state.list.fridges.map((item) => (item.id === fridge.id ? fridge : item)),
+                },
+              }
             : state,
         ),
       removeFridge: (fridgeId) =>
