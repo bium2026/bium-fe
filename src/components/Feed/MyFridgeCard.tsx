@@ -28,11 +28,39 @@ function MyFridgeCard({ onChange }: MyFridgeCardProps) {
   const list = useFridgeStore((state) => state.list);
   const selectedFridgeId = useFridgeStore((state) => state.selectedFridgeId);
   const updateFridge = useFridgeStore((state) => state.updateFridge);
+  const loadFridges = useFridgeStore((state) => state.loadFridges);
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState<Message | null>(null);
 
-  const fridge = list.status === "success" ? pickFridge(list.fridges, selectedFridgeId) : null;
-  if (!fridge) return null;
+  // 냉장고 목록은 헤더가 불러온다. 목록을 받기 전·받지 못했을 때·속한 냉장고가 없을 때도 이유를 알려 준다.
+  if (list.status !== "success") {
+    if (list.status !== "error") return <Skeleton aria-hidden="true" $height={240} />;
+    return (
+      <Card aria-labelledby={titleId}>
+        <Eyebrow>내 냉장고</Eyebrow>
+        <TitleRow>
+          <h2 id={titleId}>냉장고 목록을 불러오지 못했어요.</h2>
+        </TitleRow>
+        <Note role="alert">잠시 후 다시 시도해 주세요. 목록을 불러오면 공개 여부를 바꿀 수 있어요.</Note>
+        <LightButton type="button" onClick={() => loadFridges()}>
+          다시 시도
+        </LightButton>
+      </Card>
+    );
+  }
+
+  const fridge = pickFridge(list.fridges, selectedFridgeId);
+  if (!fridge) {
+    return (
+      <Card aria-labelledby={titleId}>
+        <Eyebrow>내 냉장고</Eyebrow>
+        <TitleRow>
+          <h2 id={titleId}>아직 속한 냉장고가 없어요.</h2>
+        </TitleRow>
+        <Note>헤더 오른쪽 냉장고 버튼에서 받은 초대 코드로 참여할 수 있어요.</Note>
+      </Card>
+    );
+  }
 
   const isOwner = fridge.role === "OWNER";
   const isDisabled = !isOwner || isSaving;
@@ -223,6 +251,13 @@ const TitleRow = styled.div`
   }
 `;
 
+const Note = styled.p`
+  font-size: 14px;
+  font-weight: 330;
+  line-height: 1.5;
+  opacity: 0.85;
+`;
+
 const StatusPill = styled.span<{ $public: boolean }>`
   border-radius: 999px;
   border: 1px solid ${(props) => (props.$public ? "var(--block-lime)" : "var(--surface)")};
@@ -320,6 +355,7 @@ const LightLink = styled(Link)`
 
 const LightButton = styled.button`
   ${lightControl}
+  width: fit-content;
 `;
 
 const Controls = styled.div`
