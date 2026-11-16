@@ -74,7 +74,8 @@ function RecipePage() {
   };
 
   const handleFridgeRetry = () => {
-    setRecommend({ status: "idle" });
+    // 오류만 지운다. 기다리던 추천까지 지우면 버튼이 다시 열려 같은 요청을 또 보낼 수 있다.
+    if (useRecipeStore.getState().recommend.status === "error") setRecommend({ status: "idle" });
     reloadFridge();
   };
 
@@ -83,15 +84,17 @@ function RecipePage() {
     if (fridgeId === null || useRecipeStore.getState().recommend.status === "loading") return;
     setRecommend({ status: "loading", fridgeId });
     const requestToken = useAuthStore.getState().accessToken;
-    // 응답을 기다리는 사이 로그아웃·토큰 만료로 목록을 지웠다면, 늦게 온 결과로 이전 사용자의 목록을 다시 채우지 않는다.
+    // 응답을 기다리는 사이 로그아웃·토큰 만료·다른 계정 로그인이 있었다면 늦게 온 결과는 버린다.
+    // 토큰이 바뀌면 스토어가 목록과 요청 상태를 비우므로, 그 뒤 새 계정이 보낸 요청의 상태를 지우지 않게 아무것도 바꾸지 않는다.
     const isStale = () => useAuthStore.getState().accessToken !== requestToken;
     try {
       const nextRecipes = await recommendRecipes(fridgeId, prioritizeUrgent);
-      if (!isStale()) setRecipes(fridgeId, nextRecipes);
-      // 다른 계정으로 바로 로그인해 토큰만 바뀐 경우에는 목록을 지우는 구독이 돌지 않아, 여기서 버튼 잠금을 풀어야 한다.
+      if (isStale()) return;
+      setRecipes(fridgeId, nextRecipes);
       setRecommend({ status: "idle" });
     } catch (error) {
-      setRecommend(isStale() ? { status: "idle" } : { status: "error", fridgeId, ...getErrorInfo(error) });
+      if (isStale()) return;
+      setRecommend({ status: "error", fridgeId, ...getErrorInfo(error) });
     }
   };
 

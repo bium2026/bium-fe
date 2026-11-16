@@ -279,6 +279,18 @@ function FridgePage() {
     if (error instanceof ApiError && error.code === "FRIDGE_ITEM_NOT_FOUND") removeIngredient(id);
   };
 
+  // 다른 멤버가 먼저 고친 재료는 가진 버전으로 다시 보내도 계속 거절된다.
+  // 냉장고를 다시 받고 모달을 닫아, 최신 내용을 본 뒤 다시 열어 고치게 한다. 다시 받지 못하면 모달에 서버 안내를 그대로 둔다.
+  const closeIfChanged = async (id: number, error: unknown) => {
+    if (fridgeId === null || !(error instanceof ApiError && error.code === "CONCURRENT_MODIFICATION")) return;
+    const next = await refreshContents(fridgeId);
+    if (!next) return;
+    // 다른 구역으로 옮겨졌으면 모달을 연 카드가 화면에 없어 포커스를 돌려줄 곳이 없다.
+    if (findInContents(next, id)?.zoneId !== zoneId) removedWhileOpenRef.current = true;
+    setSelectedIngredient(null);
+    setNotice("다른 멤버가 먼저 바꾼 재료라 냉장고를 다시 불러왔어요. 확인하고 다시 시도해 주세요.");
+  };
+
   // 실패하면 모달이 오류를 보여 주고, 화면은 서버에 반영된 뒤에만 바꾸므로 되돌릴 것이 없다.
   const handleSave = async (ingredient: FridgeIngredient, values: IngredientEditValues) => {
     try {
@@ -292,6 +304,7 @@ function FridgePage() {
       setFridgeContents((prev) => replaceIngredient(prev, ingredient.id, toIngredient(updated)));
     } catch (error) {
       removeIfGone(ingredient.id, error);
+      await closeIfChanged(ingredient.id, error);
       throw error;
     }
   };
@@ -302,6 +315,7 @@ function FridgePage() {
       removeIngredient(ingredient.id);
     } catch (error) {
       removeIfGone(ingredient.id, error);
+      await closeIfChanged(ingredient.id, error);
       throw error;
     }
   };
@@ -340,12 +354,15 @@ function FridgePage() {
     setPurchasedAttempt((prev) => prev + 1);
   };
 
-  // 그사이 다른 멤버가 바꾼 냉장고를 다시 받는다. 받지 못하면 지금 화면을 그대로 둔다.
+  // 그사이 다른 멤버가 바꾼 냉장고를 다시 받아 돌려준다. 받지 못하면 지금 화면을 그대로 두고 null을 돌려준다.
   const refreshContents = async (targetFridgeId: number) => {
     try {
-      setFridgeContents(toFridgeContents(await getFridgeItems(targetFridgeId)));
+      const next = toFridgeContents(await getFridgeItems(targetFridgeId));
+      setFridgeContents(next);
+      return next;
     } catch {
       // 다음에 화면을 다시 열면 새로 불러온다.
+      return null;
     }
   };
 

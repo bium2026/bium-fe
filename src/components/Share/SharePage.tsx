@@ -4,7 +4,7 @@
  * 받은 코드로 다른 냉장고에 참여하는 것은 헤더의 냉장고 목록에서 한다.
  * 냉장고 이름과 내 역할은 헤더에서 고른 냉장고를 따르고, 초대 코드·멤버·활동 기록은 그 냉장고 기준으로 서버에서 불러온다.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { keyframes } from "@emotion/react";
 import styled from "@emotion/styled";
 import { useNavigate } from "react-router";
@@ -153,6 +153,19 @@ function ShareContent({ fridge }: ShareContentProps) {
     setLoadAttempt((prev) => prev + 1);
   };
 
+  // 내보내기·되돌리기를 이어서 하면 활동 기록 요청이 겹친다.
+  // 먼저 보낸 요청이 늦게 와서 새 기록을 덮지 않게 마지막 요청의 응답만 반영하고, 못 받으면 지금 기록을 그대로 둔다.
+  const activitiesRequestRef = useRef(0);
+  const refreshActivities = () => {
+    const requestId = ++activitiesRequestRef.current;
+    getActivities(fridgeId).then(
+      (activities) => {
+        if (requestId === activitiesRequestRef.current) updateData((prev) => ({ ...prev, activities }));
+      },
+      () => undefined,
+    );
+  };
+
   // 아래 요청들은 서버에 반영된 뒤에 화면을 바꾼다. 실패하면 화면은 그대로 두고, 각 영역이 오류를 보여 주도록 그대로 던진다.
   const handleCreateInvite = async () => {
     const invite = await createInvite(fridgeId);
@@ -173,11 +186,8 @@ function ShareContent({ fridge }: ShareContentProps) {
       if (!(error instanceof ApiError && error.code === "FRIDGE_MEMBER_NOT_FOUND")) throw error;
     }
     updateData((prev) => ({ ...prev, members: prev.members.filter((item) => item.userId !== member.userId) }));
-    // 내보내면 서버가 그 사람의 나가기 기록을 남기므로 활동 기록을 다시 받는다. 못 받으면 지금 기록을 그대로 둔다.
-    getActivities(fridgeId).then(
-      (activities) => updateData((prev) => ({ ...prev, activities })),
-      () => undefined,
-    );
+    // 내보내면 서버가 그 사람의 나가기 기록을 남기므로 활동 기록을 다시 받는다.
+    refreshActivities();
   };
 
   // 실패하면 활동 기록이 오류를 보여 주도록 그대로 던진다.
@@ -194,11 +204,8 @@ function ShareContent({ fridge }: ShareContentProps) {
         activity.cookingLogId === cookingLogId ? { ...activity, undone: true } : activity,
       ),
     }));
-    // 되돌리면 서버가 재료마다 되돌림 기록을 남기므로 다시 받는다. 못 받으면 지금 기록을 그대로 둔다.
-    getActivities(fridgeId).then(
-      (activities) => updateData((prev) => ({ ...prev, activities })),
-      () => undefined,
-    );
+    // 되돌리면 서버가 재료마다 되돌림 기록을 남기므로 다시 받는다.
+    refreshActivities();
   };
 
   // 나가면 이 냉장고를 더 볼 수 없으므로 내가 주인인 냉장고로 돌아가 냉장고 화면을 보여 준다.
