@@ -74,7 +74,8 @@ function RecipePage() {
   };
 
   const handleFridgeRetry = () => {
-    setRecommend({ status: "idle" });
+    // 오류만 지운다. 기다리던 추천까지 지우면 버튼이 다시 열려 같은 요청을 또 보낼 수 있다.
+    if (useRecipeStore.getState().recommend.status === "error") setRecommend({ status: "idle" });
     reloadFridge();
   };
 
