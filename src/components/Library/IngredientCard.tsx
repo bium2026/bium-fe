@@ -4,11 +4,12 @@
  * 냉장고에 넣기는 화면의 모달을 열고, 넣고 나면 화면이 isFridgeAdded로 잠깐 "넣었어요"를 보여 주게 한다.
  * 삭제는 카드 위에서 한 번 더 확인하고, 실패하면 확인 영역에 오류를 보여 다시 시도하게 한다.
  * 공용 도감의 기본 재료는 지울 수 없어서 삭제 버튼 대신 "기본" 표시를 둔다.
+ * 별 버튼으로 즐겨찾기를 켜고 끈다. 서버에 반영될 때까지 버튼을 막고, 실패하면 버튼 아래에 알린다.
  */
 import { useEffect, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
 import styled from "@emotion/styled";
-import { Check, Plus, Refrigerator, Trash2 } from "lucide-react";
+import { Check, Plus, Refrigerator, Star, Trash2 } from "lucide-react";
 import type { CatalogIngredient } from "../../api/ingredientCatalog";
 
 type IngredientCardProps = {
@@ -19,11 +20,14 @@ type IngredientCardProps = {
   onAddToGroceries: (ingredient: CatalogIngredient) => Promise<void>;
   onOpenFridgeAdd: (ingredient: CatalogIngredient) => void;
   onDelete: (ingredient: CatalogIngredient) => Promise<void>;
+  onToggleFavorite: (ingredient: CatalogIngredient) => Promise<void>;
 };
 
 type AddStatus = "idle" | "adding" | "added" | "error";
 
 type DeleteStatus = "idle" | "deleting" | "error";
+
+type FavoriteStatus = "idle" | "saving" | "error";
 
 const ADDED_FEEDBACK_MS = 1200;
 
@@ -34,10 +38,12 @@ function IngredientCard({
   onAddToGroceries,
   onOpenFridgeAdd,
   onDelete,
+  onToggleFavorite,
 }: IngredientCardProps) {
   const [addStatus, setAddStatus] = useState<AddStatus>("idle");
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
   const [deleteStatus, setDeleteStatus] = useState<DeleteStatus>("idle");
+  const [favoriteStatus, setFavoriteStatus] = useState<FavoriteStatus>("idle");
   const deleteButtonRef = useRef<HTMLButtonElement>(null);
   const timerRef = useRef<number | undefined>(undefined);
 
@@ -55,6 +61,20 @@ function IngredientCard({
       timerRef.current = window.setTimeout(() => setAddStatus("idle"), ADDED_FEEDBACK_MS);
     } catch {
       setAddStatus("error");
+    }
+  };
+
+  const isSavingFavorite = favoriteStatus === "saving";
+
+  const handleToggleFavorite = async () => {
+    // 요청 중에 다시 누르면 켜기·끄기 요청이 겹쳐 결과가 뒤바뀔 수 있어 막는다.
+    if (isSavingFavorite) return;
+    setFavoriteStatus("saving");
+    try {
+      await onToggleFavorite(ingredient);
+      setFavoriteStatus("idle");
+    } catch {
+      setFavoriteStatus("error");
     }
   };
 
@@ -87,20 +107,34 @@ function IngredientCard({
     <Card>
       <CardTop>
         <Icon aria-hidden="true">{ingredient.emoji}</Icon>
-        {ingredient.basic ? (
-          <BasicBadge>기본</BasicBadge>
-        ) : (
-          <DeleteButton
-            ref={deleteButtonRef}
+        <TopActions>
+          <FavoriteButton
             type="button"
-            aria-label={`${ingredient.name} 도감에서 삭제`}
-            onClick={() => setIsConfirmingDelete(true)}
-            // 확인 영역은 화면만 덮으므로, 가려진 버튼에 키보드로 닿지 않게 확인하는 동안 막는다.
+            onClick={handleToggleFavorite}
             disabled={isConfirmingDelete}
+            // disabled 대신 aria-disabled로 막아, 요청 중에도 포커스가 버튼에서 빠져나가지 않게 한다.
+            aria-disabled={isSavingFavorite || undefined}
+            aria-pressed={ingredient.favorite}
+            aria-label={`${ingredient.name} 즐겨찾기`}
+            $active={ingredient.favorite}
           >
-            <Trash2 size={16} aria-hidden="true" />
-          </DeleteButton>
-        )}
+            <Star size={16} aria-hidden="true" fill={ingredient.favorite ? "currentColor" : "none"} />
+          </FavoriteButton>
+          {ingredient.basic ? (
+            <BasicBadge>기본</BasicBadge>
+          ) : (
+            <DeleteButton
+              ref={deleteButtonRef}
+              type="button"
+              aria-label={`${ingredient.name} 도감에서 삭제`}
+              onClick={() => setIsConfirmingDelete(true)}
+              // 확인 영역은 화면만 덮으므로, 가려진 버튼에 키보드로 닿지 않게 확인하는 동안 막는다.
+              disabled={isConfirmingDelete}
+            >
+              <Trash2 size={16} aria-hidden="true" />
+            </DeleteButton>
+          )}
+        </TopActions>
       </CardTop>
 
       <Name>{ingredient.name}</Name>
@@ -131,6 +165,7 @@ function IngredientCard({
           {isFridgeAdded ? "넣었어요" : "냉장고에 넣기"}
         </FridgeButton>
         {addStatus === "error" && <AddError role="alert">담지 못했어요. 다시 눌러 주세요.</AddError>}
+        {favoriteStatus === "error" && <AddError role="alert">즐겨찾기를 바꾸지 못했어요. 다시 눌러 주세요.</AddError>}
       </Actions>
 
       {isConfirmingDelete && (
@@ -204,6 +239,38 @@ const CardTop = styled.div`
 const Icon = styled.span`
   font-size: 30px;
   line-height: 1;
+`;
+
+const TopActions = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 4px;
+`;
+
+const FavoriteButton = styled.button<{ $active: boolean }>`
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 999px;
+  background: ${(props) => (props.$active ? "var(--block-cream)" : "var(--surface)")};
+  color: var(--text);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    background: var(--block-cream);
+  }
+
+  &[aria-disabled="true"] {
+    cursor: default;
+    opacity: 0.5;
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.3;
+  }
 `;
 
 const DeleteButton = styled.button`

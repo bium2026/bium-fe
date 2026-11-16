@@ -4,6 +4,7 @@
  * 전체 탭에서는 카테고리별로 묶어 보여 주고, 고른 탭은 주소(?category=)에 남겨 새로고침해도 유지한다.
  * 도감과 내 냉장고, 그 냉장고의 장본 음식을 함께 불러오고, 장본 음식에 담거나 뺀 결과는 서버에 반영된 뒤 패널에 보인다.
  * 도감 재료를 고른 보관 위치에 바로 넣을 수도 있다.
+ * 즐겨찾기한 재료는 서버가 정해 준 순서대로 각 묶음의 맨 앞에 온다.
  */
 import { useEffect, useRef, useState } from "react";
 import { keyframes } from "@emotion/react";
@@ -12,7 +13,13 @@ import { Plus, Search } from "lucide-react";
 import { useSearchParams } from "react-router";
 import { ApiError, NETWORK_ERROR } from "../../api/client";
 import { addFridgeItem, getMyFridge } from "../../api/fridge";
-import { createCatalogIngredient, deleteCatalogIngredient, getMyCatalog } from "../../api/ingredientCatalog";
+import {
+  addCatalogFavorite,
+  createCatalogIngredient,
+  deleteCatalogIngredient,
+  getMyCatalog,
+  removeCatalogFavorite,
+} from "../../api/ingredientCatalog";
 import type { CatalogIngredient, CatalogIngredientCreateRequest } from "../../api/ingredientCatalog";
 import { addPurchasedItem, getPurchasedItems, removePurchasedItem } from "../../api/purchasedItem";
 import type { PurchasedItem } from "../../api/purchasedItem";
@@ -162,10 +169,35 @@ function LibraryPage() {
     setAnnouncement(`${ingredient.name}을(를) 도감에서 삭제했어요.`);
   };
 
+  // 서버에 반영된 뒤 카드의 별을 바꾸고, 즐겨찾기가 위로 오는 서버 순서대로 목록을 다시 받는다.
+  // 바꾸지 못하면 카드가 오류를 보여 주도록 그대로 던진다.
+  const handleToggleFavorite = async (ingredient: CatalogIngredient) => {
+    const updated = ingredient.favorite
+      ? await removeCatalogFavorite(ingredient.id)
+      : await addCatalogFavorite(ingredient.id);
+    updateIngredients((prev) =>
+      prev.map((item) => (item.id === updated.id ? { ...item, favorite: updated.favorite } : item)),
+    );
+    setAnnouncement(
+      updated.favorite ? `${updated.name}을(를) 즐겨찾기했어요.` : `${updated.name}을(를) 즐겨찾기에서 뺐어요.`,
+    );
+    try {
+      const ingredients = await getMyCatalog();
+      updateIngredients(() => ingredients);
+    } catch {
+      // 즐겨찾기는 이미 바뀌었으므로, 순서만 못 받았을 때는 별만 바뀐 채로 두고 다음에 불러올 때 맞춘다.
+    }
+  };
+
   // 실패하면 모달이 오류를 보여 주도록 그대로 던진다.
   const handleAdd = async (values: CatalogIngredientCreateRequest) => {
     const created = await createCatalogIngredient(values);
-    updateIngredients((prev) => [created, ...prev]);
+    // 서버 순서처럼 즐겨찾기 재료 뒤, 다른 재료 앞에 넣는다.
+    updateIngredients((prev) => {
+      const index = prev.findIndex((item) => !item.favorite);
+      const at = index === -1 ? prev.length : index;
+      return [...prev.slice(0, at), created, ...prev.slice(at)];
+    });
     // 추가한 재료가 바로 보이도록 그 카테고리 탭으로 옮기고 검색어를 지운다.
     changeCategory(created.category);
     setQuery("");
@@ -245,6 +277,7 @@ function LibraryPage() {
                   onAddToGroceries={handleAddToGroceries}
                   onOpenFridgeAdd={setFridgeTarget}
                   onDelete={handleDelete}
+                  onToggleFavorite={handleToggleFavorite}
                 />
               ))}
             </Grid>
