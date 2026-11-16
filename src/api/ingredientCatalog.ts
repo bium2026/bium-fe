@@ -17,15 +17,18 @@ export type CatalogIngredient = {
   shelfLifeDays: number;
   // 공용 도감의 기본 재료. 냉장고에 넣거나 장본 음식에 담을 수 있지만 지울 수 없다.
   basic: boolean;
+  // 사용자별 즐겨찾기. 기본 재료도 즐겨찾기할 수 있다.
+  favorite: boolean;
 };
 
-export type CatalogIngredientCreateRequest = Omit<CatalogIngredient, "id" | "basic">;
+export type CatalogIngredientCreateRequest = Omit<CatalogIngredient, "id" | "basic" | "favorite">;
 
 type CatalogListResponse = {
   ingredients: CatalogIngredient[];
 };
 
-// 내가 추가한 재료가 최근 순서로 먼저 오고, 그다음 기본 재료가 온다. 내 재료와 이름이 같은 기본 재료는 오지 않는다.
+// 즐겨찾기한 재료가 먼저 온다. 그 안에서는 내가 추가한 재료가 최근 순서로 먼저 오고, 그다음 기본 재료가 온다.
+// 내 재료와 이름이 같은 기본 재료는 오지 않는다.
 export async function getMyCatalog() {
   const { ingredients } = await request<CatalogListResponse>("/api/ingredient-catalogs");
   return ingredients;
@@ -41,4 +44,16 @@ export function createCatalogIngredient(body: CatalogIngredientCreateRequest) {
 // 실패: CATALOG_NOT_FOUND(404)
 export function deleteCatalogIngredient(catalogId: number) {
   return request<null>(`/api/ingredient-catalogs/${catalogId}`, { method: "DELETE" });
+}
+
+// 이미 즐겨찾기한 재료여도 성공한다. 바뀐 재료(favorite: true)를 돌려준다.
+// 실패: CATALOG_NOT_FOUND(404)
+export function addCatalogFavorite(catalogId: number) {
+  return request<CatalogIngredient>(`/api/ingredient-catalogs/${catalogId}/favorite`, { method: "POST" });
+}
+
+// 즐겨찾기하지 않은 재료여도 성공한다. 바뀐 재료(favorite: false)를 돌려준다.
+// 실패: CATALOG_NOT_FOUND(404)
+export function removeCatalogFavorite(catalogId: number) {
+  return request<CatalogIngredient>(`/api/ingredient-catalogs/${catalogId}/favorite`, { method: "DELETE" });
 }
