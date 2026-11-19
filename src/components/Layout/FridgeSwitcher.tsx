@@ -5,7 +5,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import styled from "@emotion/styled";
 import { Check, ChevronDown, Refrigerator, UserPlus } from "lucide-react";
-import { useNavigate } from "react-router";
+import { useMatch, useNavigate } from "react-router";
 import { ApiError } from "../../api/client";
 import type { Fridge } from "../../api/fridge";
 import { joinFridge } from "../../api/fridgeShare";
@@ -16,6 +16,7 @@ import { pickFridge, useFridgeStore } from "../../store/fridgeStore";
 function FridgeSwitcher() {
   const menuId = useId();
   const navigate = useNavigate();
+  const isRecipeDetail = useMatch("/recipes/:recipeId") !== null;
   const list = useFridgeStore((state) => state.list);
   const selectedFridgeId = useFridgeStore((state) => state.selectedFridgeId);
   const selectFridge = useFridgeStore((state) => state.selectFridge);
@@ -51,6 +52,10 @@ function FridgeSwitcher() {
   };
 
   const handleSelect = (fridge: Fridge) => {
+    // 레시피 응답에는 냉장고 id가 없고 서버는 요리 차감·부족 재료 담기를 레시피가 속한 냉장고 기준으로 한다.
+    // 상세를 그대로 두면 헤더는 바꾼 냉장고인데 이전 냉장고의 레시피가 남으므로, 바꾼 냉장고의 목록으로 보낸다.
+    // 뒤로 가기로 이전 냉장고의 상세에 다시 들어가지 않게 replace로 옮긴다.
+    if (isRecipeDetail && fridge.id !== current?.id) navigate("/recipes", { replace: true });
     selectFridge(fridge.id);
     close();
   };
