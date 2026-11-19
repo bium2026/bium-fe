@@ -3,13 +3,14 @@
  * 주소의 id로 레시피를 불러와 조리 순서, 활용 팁, 재료, 냉장고 매칭, 영양 정보를 보여 준다.
  * 재료는 냉장고 보유·기본 양념·부족으로 나눠 표시하고, 부족 재료가 있으면 위쪽에 모아 보여 준다.
  * 부족 재료는 확인 모달에서 골라 장보기 목록에 담는다. 방금 만든 레시피면 모달을 한 번 먼저 띄운다.
- * 요리를 마치면 쓴 재료를 확인 모달에서 골라 냉장고에서 뺀다. 잘못 뺀 재료는 활동 기록에서 되돌린다.
+ * 요리를 마치면 쓴 재료를 확인 모달에서 골라 냉장고에서 뺀다. 잘못 뺐으면 안내 옆 버튼이나 활동 기록에서 되돌린다.
  */
 import { useEffect, useId, useRef, useState } from "react";
 import styled from "@emotion/styled";
 import { ArrowLeft, CheckCircle2, ChefHat, Clock3, Flame, ShoppingCart, Sparkles, Users } from "lucide-react";
 import { Link, useParams } from "react-router";
 import { ApiError } from "../../api/client";
+import { undoCooking } from "../../api/cooking";
 import { getRecipe, type IngredientSource, type Recipe, type RecipeIngredient } from "../../api/recipe";
 import { useRecipeStore } from "../../store/recipeStore";
 import {
@@ -21,6 +22,8 @@ import {
   formatServings,
 } from "./recipeFormat";
 import NutritionChart from "../Common/NutritionChart";
+import { getShareErrorMessage } from "../Share/shareFormat";
+import { OutlineButton } from "../Share/shareStyles";
 import CookingModal from "./CookingModal";
 import MissingIngredientModal from "./MissingIngredientModal";
 import { getRecipeTone } from "./recipeTone";
@@ -33,6 +36,13 @@ type DetailView =
 
 // 다시 시도를 누르거나 주소의 id가 바뀌면 requestKey가 바뀌어, 이전 결과 대신 로딩을 보여 준다.
 type DetailResult = { requestKey: string } & Exclude<DetailView, { status: "loading" }>;
+
+type CookedState = {
+  count: number;
+  cookingLogId: number;
+  undo: "idle" | "undoing" | "undone";
+  error: string;
+};
 
 // AI가 같은 재료를 두 번 줄 수 있어 이름이 같으면 하나로 합친다. 한 번이라도 필수로 나오면 필수로 본다.
 function getMissingIngredients(ingredients: RecipeIngredient[]) {
@@ -59,9 +69,11 @@ function RecipeDetailPage() {
   const [result, setResult] = useState<DetailResult | null>(null);
   const [isShoppingOpen, setIsShoppingOpen] = useState(false);
   const [isCookingOpen, setIsCookingOpen] = useState(false);
-  // 방금 냉장고에서 뺀 재료 수. 안내 문구에 쓴다.
-  const [cookedCount, setCookedCount] = useState<number | null>(null);
+  // 방금 마친 요리. 안내 문구와 바로 되돌리기에 쓴다.
+  const [cooked, setCooked] = useState<CookedState | null>(null);
   const shoppingButtonRef = useRef<HTMLButtonElement>(null);
+  // 되돌리면 버튼이 사라져 키보드 초점을 잃으므로 바뀐 안내로 옮긴다.
+  const cookedNoticeRef = useRef<HTMLParagraphElement>(null);
   const requestKey = `${recipeId}-${attempt}`;
 
   useEffect(() => {
@@ -92,6 +104,28 @@ function RecipeDetailPage() {
       ignore = true;
     };
   }, [recipeId, requestKey]);
+
+  // 활동 기록은 최근 줄만 보여 줘서 밀려나면 되돌릴 수 없으므로, 요리를 마친 자리에서 바로 되돌리게 한다.
+  const handleUndoCooking = async () => {
+    if (!cooked || cooked.undo !== "idle") return;
+    const { cookingLogId } = cooked;
+    // 되돌리는 사이에 다시 요리하면 새 요리의 안내는 건드리지 않는다.
+    const updateIfSame = (update: (prev: CookedState) => CookedState) =>
+      setCooked((prev) => (prev?.cookingLogId === cookingLogId ? update(prev) : prev));
+    updateIfSame((prev) => ({ ...prev, undo: "undoing", error: "" }));
+    try {
+      await undoCooking(cookingLogId);
+    } catch (error) {
+      // 다른 멤버가 활동 기록에서 먼저 되돌렸으면 되돌리려던 결과와 같으므로 그대로 넘어간다.
+      if (!(error instanceof ApiError && error.code === "ALREADY_UNDONE")) {
+        const message = getShareErrorMessage(error, "되돌리지 못했어요. 잠시 후 다시 시도해 주세요.");
+        updateIfSame((prev) => ({ ...prev, undo: "idle", error: message }));
+        return;
+      }
+    }
+    updateIfSame((prev) => ({ ...prev, undo: "undone", error: "" }));
+    cookedNoticeRef.current?.focus();
+  };
 
   const backLink = (
     <BackLink to="/recipes">
@@ -184,19 +218,27 @@ function RecipeDetailPage() {
             <CheckCircle2 size={18} aria-hidden="true" />
             요리 완료
           </CookButton>
-          <CookedNotice role="status">
-            {cookedCount !== null && (
-              <>
-                재료 {cookedCount}개를 냉장고에서 뺐어요. 잘못 뺐다면 <Link to="/share">활동 기록</Link>에서 되돌릴 수
-                있어요.
-              </>
-            )}
+          <CookedNotice ref={cookedNoticeRef} role="status" tabIndex={-1}>
+            {cooked &&
+              (cooked.undo === "undone"
+                ? `요리 전으로 되돌렸어요. 뺀 재료 ${cooked.count}개를 냉장고에 다시 넣었어요.`
+                : `재료 ${cooked.count}개를 냉장고에서 뺐어요.`)}
           </CookedNotice>
+          {cooked && cooked.undo !== "undone" && (
+            <UndoCookingButton
+              type="button"
+              aria-disabled={cooked.undo === "undoing" || undefined}
+              onClick={handleUndoCooking}
+            >
+              {cooked.undo === "undoing" ? "되돌리는 중" : "되돌리기"}
+            </UndoCookingButton>
+          )}
+          {cooked?.error && <UndoCookingError role="alert">{cooked.error}</UndoCookingError>}
           <CookingModal
             recipeId={recipe.id}
             open={isCookingOpen}
             onClose={() => setIsCookingOpen(false)}
-            onCooked={setCookedCount}
+            onCooked={(count, cookingLogId) => setCooked({ count, cookingLogId, undo: "idle", error: "" })}
           />
         </HeroCopy>
         <HeroVisual $tone={getRecipeTone(recipe.id)}>
@@ -570,10 +612,19 @@ const CookedNotice = styled.p`
     display: none;
   }
 
-  a {
-    color: inherit;
-    text-decoration: underline;
+  &:focus {
+    outline: none;
   }
+`;
+
+const UndoCookingButton = styled(OutlineButton)`
+  justify-self: start;
+`;
+
+const UndoCookingError = styled.p`
+  font-size: 13px;
+  font-weight: 540;
+  line-height: 1.4;
 `;
 
 const DetailGrid = styled.div`

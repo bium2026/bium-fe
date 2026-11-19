@@ -16,8 +16,8 @@ type CookingModalProps = {
   recipeId: number;
   open: boolean;
   onClose: () => void;
-  // 뺀 재료 수를 넘긴다.
-  onCooked: (count: number) => void;
+  // 뺀 재료 수와, 바로 되돌릴 때 쓰는 요리 기록 id를 넘긴다.
+  onCooked: (count: number, cookingLogId: number) => void;
 };
 
 type LoadState =
@@ -77,7 +77,7 @@ type CookingContentProps = {
   isCooking: boolean;
   onCookingChange: (isCooking: boolean) => void;
   onClose: () => void;
-  onCooked: (count: number) => void;
+  onCooked: (count: number, cookingLogId: number) => void;
 };
 
 function CookingContent({ recipeId, isCooking, onCookingChange, onClose, onCooked }: CookingContentProps) {
@@ -130,11 +130,11 @@ function CookingContent({ recipeId, isCooking, onCookingChange, onClose, onCooke
     onCookingChange(true);
     setError("");
     try {
-      const { deductedItemIds } = await cook(
+      const { id, deductedItemIds } = await cook(
         recipeId,
         selectedItems.map((item) => ({ fridgeItemId: item.id, version: item.version })),
       );
-      onCooked(deductedItemIds.length);
+      onCooked(deductedItemIds.length, id);
       onClose();
     } catch (cookError) {
       if (isStaleItemError(cookError)) {
