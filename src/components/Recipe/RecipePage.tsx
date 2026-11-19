@@ -164,7 +164,7 @@ function RecipePage() {
         <UrgentBox>
           <h2>내 냉장고 임박 재료</h2>
           {fridgeId !== null ? (
-            <UrgentIngredientList fridgeId={fridgeId} />
+            <UrgentIngredientList fridgeId={fridgeId} onFridgeRetry={reloadFridge} />
           ) : (
             <Empty>{fridge.status === "loading" ? "임박 재료를 불러오는 중이에요." : "냉장고 정보가 없어요."}</Empty>
           )}
