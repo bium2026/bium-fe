@@ -82,10 +82,26 @@ const Header = styled.header`
   align-items: center;
   gap: 16px;
 
-  /* 메뉴가 여섯 개라 좁은 화면에서는 칸 사이 간격과 왼쪽 칸을 줄여 가운데 메뉴 자리를 넓힌다. */
-  @media (max-width: 1200px) {
-    grid-template-columns: clamp(88px, calc(100% - 847px), 164px) minmax(0, 1fr) 164px;
+  /* 좁아질수록 메뉴 자리를 더 확보한다. 메뉴가 가운데에서 벗어나는 정도는 (왼쪽 칸 - 오른쪽 칸) / 2라서 왼쪽 칸을 되도록 줄이지 않는다.
+     오른쪽 칸 206px = 이름 94px + 냉장고 버튼의 나머지 68px(테두리·여백·아이콘 둘·간격) + 간격 8px + 로그아웃 버튼 36px.
+     왼쪽 칸이 남는 폭은 100% - (오른쪽 칸 206 + 칸 사이 간격 둘 + 메뉴 폭 + 왼쪽 칸)이고,
+     메뉴 폭은 글자 폭 621px + 항목 좌우 여백 24px + 항목 사이 간격 5개다. */
+  @media (max-width: 1250px) {
+    grid-template-columns: clamp(86px, calc(100% - 947px), 206px) minmax(0, 1fr) 206px;
     column-gap: 8px;
+  }
+
+  /* 메뉴 폭 705px(항목 사이 간격 12px). 헤더 좌우 여백을 줄여 본문 끝선보다 16px 바깥에 둔다. */
+  @media (max-width: 1176px) {
+    padding: 0 16px;
+    grid-template-columns: clamp(86px, calc(100% - 927px), 206px) minmax(0, 1fr) 206px;
+  }
+
+  /* 메뉴 폭 671px(항목 사이 간격 10px, 항목 좌우 여백 없음). 1001px에서 브랜드 86px, 오른쪽 칸 206px, 칸 사이 간격 둘 12px이 들어간다. */
+  @media (max-width: 1124px) {
+    padding: 0 12px;
+    grid-template-columns: clamp(86px, calc(100% - 889px), 206px) minmax(0, 1fr) 206px;
+    column-gap: 6px;
   }
 
   /* 메뉴 여섯 개가 한 줄에 들어가지 않는 폭부터는 첫 줄에 브랜드와 냉장고 바꾸기, 둘째 줄에 메뉴를 둔다. */
@@ -138,8 +154,16 @@ const Menu = styled.nav`
   gap: 24px;
   min-width: 0;
 
-  @media (max-width: 1200px) {
+  @media (max-width: 1250px) {
     gap: 16px;
+  }
+
+  @media (max-width: 1176px) {
+    gap: 12px;
+  }
+
+  @media (max-width: 1124px) {
+    gap: 10px;
   }
 
   @media (max-width: 1000px) {
@@ -174,6 +198,10 @@ const MenuLink = styled(NavLink)`
   &:focus-visible {
     outline: 2px solid var(--text);
     outline-offset: -2px;
+  }
+
+  @media (min-width: 1001px) and (max-width: 1124px) {
+    padding: 0;
   }
 
   @media (max-width: 1000px) {

@@ -54,7 +54,6 @@ function ShoppingSection({
   children,
 }: ShoppingSectionProps) {
   const titleId = useId();
-  const hasMarketPrice = items.some((item) => item.marketPrice !== null);
 
   return (
     <Panel aria-labelledby={titleId} $muted={muted}>
@@ -124,8 +123,6 @@ function ShoppingSection({
           })}
         </List>
       )}
-
-      {hasMarketPrice && <PriceNote>시세는 KAMIS 소매가 기준이라 실제 판매 가격과 다를 수 있어요.</PriceNote>}
     </Panel>
   );
 }
@@ -348,13 +345,6 @@ const Trend = styled.span`
   svg {
     flex-shrink: 0;
   }
-`;
-
-const PriceNote = styled.p`
-  font-size: 12px;
-  font-weight: 330;
-  line-height: 1.5;
-  word-break: keep-all;
 `;
 
 const ItemError = styled.p`

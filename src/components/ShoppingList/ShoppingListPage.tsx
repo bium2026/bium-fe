@@ -281,6 +281,9 @@ function ShoppingListPage() {
     );
   };
 
+  // 시세 안내는 두 묶음 모두에 붙이면 두 번 보이므로, 시세가 있는 재료가 하나라도 있을 때 한 번만 보여 준다.
+  const hasMarketPrice = items.some((item) => item.marketPrice !== null);
+
   return (
     <Wrapper>
       <Hero>
@@ -304,6 +307,8 @@ function ShoppingListPage() {
       )}
 
       {renderContent()}
+
+      {hasMarketPrice && <PriceNote>시세는 KAMIS 소매가 기준이라 실제 판매 가격과 다를 수 있어요.</PriceNote>}
 
       <ScreenReaderOnly role="status">{announcement}</ScreenReaderOnly>
     </Wrapper>
@@ -415,6 +420,13 @@ const Grid = styled.div`
     grid-template-columns: minmax(0, 1fr);
     gap: 16px;
   }
+`;
+
+const PriceNote = styled.p`
+  font-size: 12px;
+  font-weight: 330;
+  line-height: 1.5;
+  word-break: keep-all;
 `;
 
 const StatusBox = styled.div`
