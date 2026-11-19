@@ -1,6 +1,7 @@
 import type { ComponentType } from 'react'
 import { createBrowserRouter, Navigate } from 'react-router'
 import AuthPage from './components/Auth/AuthPage.tsx'
+import RedirectIfAuth from './components/Auth/RedirectIfAuth.tsx'
 import RequireAuth from './components/Auth/RequireAuth.tsx'
 import AppLayout from './components/Layout/AppLayout.tsx'
 import RouteError from './components/Layout/RouteError.tsx'
@@ -17,8 +18,22 @@ function page(load: () => Promise<{ default: ComponentType }>) {
 }
 
 export const router = createBrowserRouter([
-  { path: '/', element: <Navigate to="/login" replace /> },
-  { path: '/login', element: <AuthPage /> },
+  {
+    path: '/',
+    element: (
+      <RedirectIfAuth>
+        <Navigate to="/login" replace />
+      </RedirectIfAuth>
+    ),
+  },
+  {
+    path: '/login',
+    element: (
+      <RedirectIfAuth>
+        <AuthPage />
+      </RedirectIfAuth>
+    ),
+  },
   {
     element: (
       <RequireAuth>
