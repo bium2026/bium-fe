@@ -20,6 +20,7 @@ import {
 } from "../../api/shoppingList";
 import type { ShoppingListItem } from "../../api/shoppingList";
 import { useFridgeStore } from "../../store/fridgeStore";
+import ShoppingDayCard from "./ShoppingDayCard";
 import ShoppingAddForm from "./ShoppingAddForm";
 import ShoppingSection from "./ShoppingSection";
 
@@ -296,6 +297,8 @@ function ShoppingListPage() {
         )}
         <p>냉장고를 함께 쓰는 사람과 같은 목록을 봐요. 장을 보며 산 재료를 체크해 두세요.</p>
       </Hero>
+
+      {page.status === "success" && <ShoppingDayCard />}
 
       {notice && (
         <Notice role="status">

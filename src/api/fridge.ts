@@ -8,12 +8,16 @@ import { request, requestNoContent } from "./client";
 
 export type MemberRole = "OWNER" | "MEMBER";
 
+export type DayOfWeek = "MONDAY" | "TUESDAY" | "WEDNESDAY" | "THURSDAY" | "FRIDAY" | "SATURDAY" | "SUNDAY";
+
 export type Fridge = {
   id: number;
   name: string;
   role: MemberRole;
   // 냉장고 피드에 공개했는지
   isPublic: boolean;
+  // 멤버들이 장을 보는 요일, 정하지 않았으면 null
+  shoppingDay: DayOfWeek | null;
 };
 
 // FRIDGE: 냉장실, FREEZER: 냉동실, ROOM: 실온
@@ -28,6 +32,8 @@ export type FridgeItemResponse = {
   emoji: string | null;
   // "YYYY-MM-DD", 유통기한이 없는 재료는 null
   expiresAt: string | null;
+  // 냉장고에 넣은(산) 날 "YYYY-MM-DD", 모르면 null
+  purchasedAt: string | null;
   // 재료를 수정·삭제할 때 함께 보내 다른 멤버의 수정과 겹치지 않게 한다.
   version: number;
 };
@@ -55,6 +61,11 @@ export function getMyFridges() {
 // 실패: FRIDGE_OWNER_ONLY(403), FRIDGE_NOT_FOUND(404, 멤버가 아닌 냉장고 포함)
 export function changeFridgeVisibility(fridgeId: number, isPublic: boolean) {
   return request<Fridge>(`/api/fridges/${fridgeId}/visibility`, { method: "PATCH", body: { isPublic } });
+}
+
+// 장보는 요일을 정하거나 null로 지운다. 멤버 누구나 할 수 있다. 실패: FRIDGE_NOT_FOUND(404)
+export function changeShoppingDay(fridgeId: number, shoppingDay: DayOfWeek | null) {
+  return request<Fridge>(`/api/fridges/${fridgeId}/shopping-day`, { method: "PATCH", body: { shoppingDay } });
 }
 
 // 실패: FRIDGE_NOT_FOUND(404, 멤버가 아닌 냉장고 포함)

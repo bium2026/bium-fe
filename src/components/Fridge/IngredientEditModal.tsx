@@ -16,6 +16,8 @@ export type EditableIngredient = {
   name: string;
   emoji: string;
   expiresAt: string;
+  // 냉장고에 넣은 날. 카드가 넣은 날부터 유통기한까지 얼마나 지났는지 막대로 보여 줄 때 쓴다.
+  purchasedAt?: string | null;
   // 저장·삭제 요청에 함께 보내 다른 멤버가 먼저 고친 재료를 덮어쓰지 않게 한다.
   version: number;
 };

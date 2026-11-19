@@ -27,7 +27,7 @@ import {
 } from "@dnd-kit/core";
 import { keyframes } from "@emotion/react";
 import styled from "@emotion/styled";
-import { BellRing, ChartPie, ChevronLeft, ChevronRight, ReceiptText, ShoppingBag, Trash2 } from "lucide-react";
+import { BellRing, ChartPie, ChevronLeft, ChevronRight, Flame, ReceiptText, ShoppingBag, Trash2 } from "lucide-react";
 import { Link, useSearchParams } from "react-router";
 import { ApiError, NETWORK_ERROR } from "../../api/client";
 import {
@@ -52,6 +52,8 @@ import ReceiptScanModal, { ReceiptFileInput } from "./ReceiptScanModal";
 import {
   emptyFridgeContents,
   findExpiredIngredients,
+  findUrgentIngredients,
+  FEVER_DAYS,
   findInContents,
   findIngredient,
   insertIntoZone,
@@ -250,6 +252,9 @@ function FridgePage() {
   const isLoading = load.status === "loading";
   const purchasedItems = purchased.status === "success" ? purchased.items : [];
   const expiredItems = findExpiredIngredients(fridgeContents);
+  // 피버타임: 3일 안에 먹어야 할 재료가 이만큼 쌓이면 레시피 추천으로 바로 비우도록 알린다
+  const urgentItems = findUrgentIngredients(fridgeContents);
+  const isFeverTime = load.status === "success" && urgentItems.length >= FEVER_MIN_ITEMS;
   // API가 한 번에 받는 수까지만 지운다. 더 많으면 남은 재료는 버튼에 그대로 남아 한 번 더 지울 수 있다.
   const expiredTargets = expiredItems.slice(0, MAX_BULK_DELETE_ITEMS);
 
@@ -602,6 +607,25 @@ function FridgePage() {
           />
         </Pager>
 
+        {isFeverTime && (
+          <FeverBanner role="status">
+            <FeverText>
+              <strong>
+                <Flame size={20} aria-hidden="true" />
+                피버타임!
+              </strong>
+              <span>
+                {FEVER_DAYS}일 안에 먹어야 할 재료가 {urgentItems.length}개 있어요.{" "}
+                {urgentItems
+                  .slice(0, 4)
+                  .map((item) => `${item.emoji} ${item.name}`.trim())
+                  .join(", ")}
+                {urgentItems.length > 4 ? ` 외 ${urgentItems.length - 4}개` : ""}
+              </span>
+            </FeverText>
+            <FeverLink to="/recipes">이 재료로 레시피 추천받기</FeverLink>
+          </FeverBanner>
+        )}
         <Toolbar>
           <Notice role="status">{notice}</Notice>
           {load.status === "success" && (
@@ -781,6 +805,59 @@ const ArrowButton = styled.button<{ $highlighted: boolean }>`
   display: grid;
   place-items: center;
   cursor: pointer;
+`;
+
+// 3일 안에 먹어야 할 재료가 이 수 이상이면 피버타임을 띄운다
+const FEVER_MIN_ITEMS = 3;
+
+const FeverBanner = styled.section`
+  width: min(1240px, 100%);
+  border-radius: 24px;
+  background: var(--block-coral);
+  padding: 18px 22px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+`;
+
+const FeverText = styled.p`
+  min-width: 0;
+  flex: 1 1 320px;
+  display: grid;
+  gap: 4px;
+
+  strong {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 20px;
+    font-weight: 700;
+  }
+
+  span {
+    font-size: 15px;
+    line-height: 1.5;
+  }
+`;
+
+const FeverLink = styled(Link)`
+  min-height: 44px;
+  border-radius: 999px;
+  background: var(--text);
+  color: var(--surface);
+  padding: 10px 18px;
+  display: inline-flex;
+  align-items: center;
+  font-size: 15px;
+  font-weight: 480;
+  text-decoration: none;
+
+  &:focus-visible {
+    outline: 2px solid var(--text);
+    outline-offset: 2px;
+  }
 `;
 
 const Toolbar = styled.div`
