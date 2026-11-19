@@ -1,14 +1,29 @@
 /*
  * 장보기 목록의 한 묶음(살 것 또는 산 것)이다.
  * 재료마다 산 것 체크와 빼기 버튼을 두고, 레시피의 부족 재료로 담긴 재료에는 그 레시피를 함께 보여 준다.
+ * 시세가 있는 재료에는 KAMIS 소매가 시세와 1주 전과의 차이를 보여 준다.
  * 요청 중인 재료는 버튼을 잠그고, 요청에 실패한 재료 아래에 오류를 보여 준다.
  */
 import { useId } from "react";
 import type { ReactNode, RefObject } from "react";
 import styled from "@emotion/styled";
-import { Check, ChefHat, X } from "lucide-react";
+import { Check, ChefHat, Minus, TrendingDown, TrendingUp, X } from "lucide-react";
 import { Link } from "react-router";
-import type { ShoppingListItem } from "../../api/shoppingList";
+import type { MarketPrice, ShoppingListItem } from "../../api/shoppingList";
+
+// "2026-11-10" -> "11.10"
+function formatSurveyDate(surveyDate: string) {
+  const [, month, day] = surveyDate.split("-");
+  return `${Number(month)}.${Number(day)}`;
+}
+
+function getTrend({ price, weekAgoPrice }: MarketPrice) {
+  if (weekAgoPrice === null) return null;
+  const diff = price - weekAgoPrice;
+  if (diff > 0) return { Icon: TrendingUp, text: `1주 전보다 ${diff.toLocaleString("ko-KR")}원 올랐어요` };
+  if (diff < 0) return { Icon: TrendingDown, text: `1주 전보다 ${Math.abs(diff).toLocaleString("ko-KR")}원 내렸어요` };
+  return { Icon: Minus, text: "1주 전과 같아요" };
+}
 
 type ShoppingSectionProps = {
   title: string;
@@ -39,6 +54,7 @@ function ShoppingSection({
   children,
 }: ShoppingSectionProps) {
   const titleId = useId();
+  const hasMarketPrice = items.some((item) => item.marketPrice !== null);
 
   return (
     <Panel aria-labelledby={titleId} $muted={muted}>
@@ -79,6 +95,8 @@ function ShoppingSection({
                     <ItemName $checked={item.checked}>{item.name}</ItemName>
                   </CheckLabel>
 
+                  {item.marketPrice && <MarketPriceLine marketPrice={item.marketPrice} checked={item.checked} />}
+
                   {item.recipeId !== null && item.recipeName && (
                     <RecipeLink to={`/recipes/${item.recipeId}`}>
                       <ChefHat size={13} aria-hidden="true" />
@@ -106,7 +124,29 @@ function ShoppingSection({
           })}
         </List>
       )}
+
+      {hasMarketPrice && <PriceNote>시세는 KAMIS 소매가 기준이라 실제 판매 가격과 다를 수 있어요.</PriceNote>}
     </Panel>
+  );
+}
+
+function MarketPriceLine({ marketPrice, checked }: { marketPrice: MarketPrice; checked: boolean }) {
+  const trend = getTrend(marketPrice);
+  const unit = marketPrice.unit ? ` / ${marketPrice.unit}` : "";
+
+  return (
+    <PriceLine $checked={checked}>
+      <strong>
+        시세 {marketPrice.price.toLocaleString("ko-KR")}원{unit}
+      </strong>
+      <span>{formatSurveyDate(marketPrice.surveyDate)} 기준</span>
+      {trend && (
+        <Trend>
+          <trend.Icon size={13} aria-hidden="true" />
+          <span>{trend.text}</span>
+        </Trend>
+      )}
+    </PriceLine>
   );
 }
 
@@ -275,6 +315,46 @@ const RecipeLink = styled(Link)`
     outline: 2px solid var(--text);
     outline-offset: 2px;
   }
+`;
+
+// 시세도 체크 상자 너비만큼 들이고, 산 것은 재료 이름처럼 흐리게 한다. 좁은 화면에서는 줄바꿈한다.
+const PriceLine = styled.p<{ $checked: boolean }>`
+  margin-left: 34px;
+  max-width: calc(100% - 34px);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 8px;
+  font-size: 13px;
+  font-weight: 330;
+  line-height: 1.5;
+  opacity: ${(props) => (props.$checked ? 0.55 : 1)};
+
+  strong {
+    font-weight: 540;
+  }
+`;
+
+const Trend = styled.span`
+  border-radius: 999px;
+  background: var(--block-lime);
+  padding: 0 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 540;
+
+  svg {
+    flex-shrink: 0;
+  }
+`;
+
+const PriceNote = styled.p`
+  font-size: 12px;
+  font-weight: 330;
+  line-height: 1.5;
+  word-break: keep-all;
 `;
 
 const ItemError = styled.p`

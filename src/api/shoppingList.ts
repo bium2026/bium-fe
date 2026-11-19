@@ -5,6 +5,18 @@
  */
 import { request, requestNoContent } from "./client";
 
+// KAMIS 소매가 중 품종·등급을 통틀어 가장 싼 가격이다. 쇼핑몰 최저가가 아니다.
+export type MarketPrice = {
+  price: number;
+  unit: string;
+  kindName: string;
+  grade: string;
+  // yyyy-MM-dd
+  surveyDate: string;
+  // 조사하지 않은 날이면 null이다.
+  weekAgoPrice: number | null;
+};
+
 export type ShoppingListItem = {
   id: number;
   name: string;
@@ -13,6 +25,8 @@ export type ShoppingListItem = {
   recipeId: number | null;
   recipeName: string | null;
   createdAt: string;
+  // 시세를 모르는 재료는 null이다.
+  marketPrice: MarketPrice | null;
 };
 
 type ShoppingListItemsResponse = {
