@@ -101,12 +101,14 @@ export const useFridgeStore = create<FridgeState>()(
         if (list.status === "success" && !isListStale) return Promise.resolve(list.fridges);
         return pendingList ?? requestFridges();
       },
-      addFridge: (fridge) =>
-        set((state) =>
-          state.list.status === "success" && !state.list.fridges.some((item) => item.id === fridge.id)
-            ? { list: { status: "success", fridges: [...state.list.fridges, fridge] } }
-            : state,
-        ),
+      addFridge: (fridge) => {
+        const { list } = get();
+        if (list.status !== "success" || list.fridges.some((item) => item.id === fridge.id)) return;
+        // 참여 전에 시작한 목록 요청은 참여한 냉장고가 없는 목록일 수 있어, 늦게 와도 버리도록 요청 번호를 올린다.
+        // 버리지 않으면 방금 참여한 냉장고가 목록에서 사라지고, 그 냉장고를 골랐다면 고른 것도 지워진다.
+        listRequestId += 1;
+        set({ list: { status: "success", fridges: [...list.fridges, fridge] } });
+      },
       updateFridge: (fridge) => {
         const { list } = get();
         if (list.status !== "success") return;
