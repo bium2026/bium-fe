@@ -14,10 +14,11 @@ export type RecommendState =
   | { status: "loading"; fridgeId: number }
   | { status: "error"; fridgeId: number; code: string; message: string };
 
+// 만들고 싶은 음식도 추천과 같은 이유로 요청한 냉장고를 함께 남긴다.
 export type TargetState =
   | { status: "idle" }
-  | { status: "loading"; dishName: string }
-  | { status: "error"; dishName: string; httpStatus: number; code: string; message: string };
+  | { status: "loading"; fridgeId: number; dishName: string }
+  | { status: "error"; fridgeId: number; dishName: string; httpStatus: number; code: string; message: string };
 
 // 기다리는 사이 다른 화면으로 가서 상세 화면으로 바로 보내지 못한 결과다. 레시피 화면에 돌아오면 보여 준다.
 // 만든 레시피를 다시 찾을 목록이 없어서, 새 요청이 덮지 않게 요청 상태와 따로 둔다.

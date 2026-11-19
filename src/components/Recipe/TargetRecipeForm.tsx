@@ -44,10 +44,9 @@ function TargetRecipeForm({ fridgeId, onFridgeRetry }: TargetRecipeFormProps) {
   const targetDone = useRecipeStore((state) => state.targetDone);
   const setTargetDone = useRecipeStore((state) => state.setTargetDone);
   const setAskShoppingRecipeId = useRecipeStore((state) => state.setAskShoppingRecipeId);
-  // 다른 화면에 다녀와도 입력칸이 비지 않게, 진행 중이거나 실패한 요청의 음식 이름으로 채운다.
-  const [value, setValue] = useState(() =>
-    target.status === "loading" || target.status === "error" ? target.dishName : "",
-  );
+  // 입력하기 전(null)에는 이 냉장고에서 진행 중이거나 실패한 요청의 음식 이름을 보여 준다.
+  // 다른 화면에 다녀와도 입력칸이 비지 않게 하려는 것이고, 냉장고는 불러온 뒤에야 알 수 있어 렌더링마다 구한다.
+  const [typed, setTyped] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const isMountedRef = useRef(false);
 
@@ -58,8 +57,13 @@ function TargetRecipeForm({ fridgeId, onFridgeRetry }: TargetRecipeFormProps) {
     };
   }, []);
 
+  const value = typed ?? (target.status !== "idle" && target.fridgeId === fridgeId ? target.dishName : "");
   const dishName = value.trim();
+  // 요청은 한 번에 하나만 보내므로 버튼은 어느 냉장고의 요청이든 기다리는 동안 막는다.
   const isLoading = target.status === "loading";
+  // 기다림·오류는 요청한 냉장고 화면에서만 보여 준다. 다른 냉장고의 결과는 이 냉장고의 요청이 아니다.
+  const targetLoading = target.status === "loading" && target.fridgeId === fridgeId ? target : null;
+  const targetError = target.status === "error" && target.fridgeId === fridgeId ? target : null;
   // 버튼을 막는 까닭을 서버의 입력 오류 문구와 같은 뜻으로 알려 준다.
   const inputMessage =
     value && !dishName
@@ -74,7 +78,8 @@ function TargetRecipeForm({ fridgeId, onFridgeRetry }: TargetRecipeFormProps) {
     if (fridgeId === null || !dishName || useRecipeStore.getState().target.status === "loading") return;
     if (dishName.length > DISH_NAME_MAX_LENGTH) return;
 
-    setTarget({ status: "loading", dishName });
+    setTyped(value);
+    setTarget({ status: "loading", fridgeId, dishName });
     const requestToken = useAuthStore.getState().accessToken;
     // 응답을 기다리는 사이 로그아웃·토큰 만료·다른 계정 로그인이 있었다면 늦게 온 결과는 버린다.
     // 토큰이 바뀌면 스토어가 요청 상태를 비우므로, 그 뒤 새 계정이 보낸 요청의 상태를 지우지 않게 아무것도 바꾸지 않는다.
@@ -94,7 +99,7 @@ function TargetRecipeForm({ fridgeId, onFridgeRetry }: TargetRecipeFormProps) {
     } catch (error) {
       if (isStale()) return;
       const errorInfo = getErrorInfo(error);
-      setTarget({ status: "error", dishName, ...errorInfo });
+      setTarget({ status: "error", fridgeId, dishName, ...errorInfo });
       if (isDishNameError(errorInfo) && isMountedRef.current) {
         requestAnimationFrame(() => inputRef.current?.select());
       }
@@ -126,15 +131,15 @@ function TargetRecipeForm({ fridgeId, onFridgeRetry }: TargetRecipeFormProps) {
             id={inputId}
             value={value}
             onChange={(event) => {
-              setValue(event.target.value);
+              setTyped(event.target.value);
               // 이름을 고치기 시작하면 지난 요청의 오류 안내는 맞지 않아 지운다.
-              if (target.status === "error") setTarget({ status: "idle" });
+              if (targetError) setTarget({ status: "idle" });
             }}
             placeholder="예: 김치찌개"
             autoComplete="off"
             maxLength={DISH_NAME_MAX_LENGTH}
             // 요청 중에도 포커스가 빠지지 않게 disabled 대신 읽기 전용으로 막는다.
-            readOnly={isLoading}
+            readOnly={targetLoading !== null}
             aria-describedby={hintId}
           />
           <SubmitButton
@@ -142,7 +147,7 @@ function TargetRecipeForm({ fridgeId, onFridgeRetry }: TargetRecipeFormProps) {
             disabled={!isLoading && (fridgeId === null || !dishName)}
             aria-disabled={isLoading || undefined}
           >
-            {isLoading ? "레시피 만드는 중" : "레시피 만들기"}
+            {targetLoading ? "레시피 만드는 중" : isLoading ? "다른 냉장고 레시피 만드는 중" : "레시피 만들기"}
           </SubmitButton>
         </InputRow>
         <Hint id={hintId}>
@@ -153,28 +158,28 @@ function TargetRecipeForm({ fridgeId, onFridgeRetry }: TargetRecipeFormProps) {
         </Hint>
       </Form>
 
-      {target.status === "loading" && (
+      {targetLoading && (
         <Progress role="status">
-          <strong>‘{target.dishName}’ 레시피를 만들고 있어요.</strong>
+          <strong>‘{targetLoading.dishName}’ 레시피를 만들고 있어요.</strong>
           <p>AI가 레시피를 만들고 냉장고 재료와 비교하는 데 몇 초 걸려요.</p>
           <ProgressBar aria-hidden="true" />
         </Progress>
       )}
 
-      {target.status === "error" && (
+      {targetError && (
         <ErrorBox role="alert">
           <strong>
             <CircleAlert size={16} aria-hidden="true" />
             레시피를 만들지 못했어요.
           </strong>
-          <p>{target.message}</p>
-          {target.code === "FRIDGE_NOT_FOUND" ? (
+          <p>{targetError.message}</p>
+          {targetError.code === "FRIDGE_NOT_FOUND" ? (
             // 화면을 연 뒤 냉장고에서 나가졌으면 같은 fridgeId로는 계속 실패해서 냉장고부터 다시 불러온다.
             <ActionButton type="button" onClick={handleFridgeRetry}>
               냉장고 다시 불러오기
             </ActionButton>
           ) : (
-            !isDishNameError(target) && (
+            !isDishNameError(targetError) && (
               <ActionButton type="button" onClick={() => handleSubmit()} disabled={fridgeId === null || !dishName}>
                 다시 시도
               </ActionButton>
