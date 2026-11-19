@@ -60,7 +60,13 @@ function requestFridges() {
       if (pendingList === request) pendingList = null;
       if (requestId === listRequestId) {
         isListStale = false;
-        useFridgeStore.setState({ list: { status: "success", fridges } });
+        useFridgeStore.setState((state) => ({
+          list: { status: "success", fridges },
+          // 고른 냉장고가 받은 목록에 없으면(내보내졌거나 다른 기기에서 나감) 고른 것을 지운다.
+          // 남겨 두면 화면은 그 냉장고 내용을 둔 채 헤더와 getMyFridge()만 내 냉장고로 바뀌고, 나중에 다시 참여하면 저절로 다시 골라진다.
+          // 고른 것이 바뀌면 AppLayout이 화면을 새로 그려 바뀐 냉장고의 데이터를 다시 불러온다.
+          selectedFridgeId: fridges.some((fridge) => fridge.id === state.selectedFridgeId) ? state.selectedFridgeId : null,
+        }));
       }
       return fridges;
     },
