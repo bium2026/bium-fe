@@ -8,6 +8,7 @@ import { useEffect, useId, useState } from "react";
 import styled from "@emotion/styled";
 import { ArrowRight } from "lucide-react";
 import { Link } from "react-router";
+import { ApiError } from "../../api/client";
 import { getFeedFridge, type FeedFridge } from "../../api/feed";
 import { changeFridgeVisibility, type Fridge } from "../../api/fridge";
 import { pickFridge, useFridgeStore } from "../../store/fridgeStore";
@@ -102,7 +103,7 @@ function MyFridgeCard({ onChange }: MyFridgeCardProps) {
       </TitleRow>
 
       {/* 공개 여부가 바뀌면 미리보기를 다시 불러와 바뀐 모습을 보여 준다. */}
-      <MyFridgePreview key={`${fridge.id}-${fridge.isPublic}`} fridge={fridge} />
+      <MyFridgePreview key={`${fridge.id}-${fridge.isPublic}`} fridge={fridge} onFridgeRetry={loadFridges} />
 
       <Controls>
         <ControlRow>
@@ -138,10 +139,11 @@ export default MyFridgeCard;
 
 type PreviewState =
   | { status: "loading" }
-  | { status: "error"; message: string }
+  // isFridgeGone: 그사이 그 냉장고에서 나갔거나 내보내져 같은 냉장고로는 계속 실패하는 경우
+  | { status: "error"; message: string; isFridgeGone: boolean }
   | { status: "success"; fridge: FeedFridge };
 
-function MyFridgePreview({ fridge }: { fridge: Fridge }) {
+function MyFridgePreview({ fridge, onFridgeRetry }: { fridge: Fridge; onFridgeRetry: () => Promise<void> }) {
   const [preview, setPreview] = useState<PreviewState>({ status: "loading" });
   const [attempt, setAttempt] = useState(0);
 
@@ -156,6 +158,7 @@ function MyFridgePreview({ fridge }: { fridge: Fridge }) {
           setPreview({
             status: "error",
             message: getFeedErrorMessage(error, "미리보기를 불러오지 못했어요. 잠시 후 다시 시도해 주세요."),
+            isFridgeGone: error instanceof ApiError && error.code === "FRIDGE_NOT_FOUND",
           });
         }
       },
@@ -173,8 +176,11 @@ function MyFridgePreview({ fridge }: { fridge: Fridge }) {
         <p>{preview.message}</p>
         <LightButton
           type="button"
-          onClick={() => {
+          onClick={async () => {
             setPreview({ status: "loading" });
+            // 냉장고에서 나가졌으면 같은 냉장고를 또 불러도 같은 오류라, 냉장고 목록부터 새로 받는다.
+            // 고른 냉장고가 목록에서 빠지면 카드가 다른 냉장고로 이 미리보기를 새로 그린다.
+            if (preview.isFridgeGone) await onFridgeRetry();
             setAttempt((prev) => prev + 1);
           }}
         >
