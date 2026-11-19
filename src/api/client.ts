@@ -3,8 +3,10 @@
  * 백엔드 공통 응답({ success, data, error })에서 data만 꺼내 돌려주고, 실패하면 ApiError를 던진다.
  * 로그인 토큰을 Authorization 헤더에 담고, 토큰이 만료돼 401을 받으면 저장된 토큰을 지운다.
  * 토큰이 지워지면 RequireAuth가 로그인 화면으로 보낸다.
+ * 냉장고를 찾지 못했다는 오류(FRIDGE_NOT_FOUND)를 받으면 받아 둔 냉장고 목록을 낡은 것으로 표시한다.
  */
 import { useAuthStore } from "../store/authStore";
+import { markFridgeListStale } from "../store/fridgeStore";
 
 const API_URL = import.meta.env.VITE_API_URL;
 
@@ -65,6 +67,10 @@ async function readData<T>(response: Response, token: string | null): Promise<T>
   if (response.status === 401 && token) {
     useAuthStore.getState().clearAuth();
   }
+
+  // 멤버가 아닌 냉장고도 서버가 이 오류로 거절한다. 그사이 내보내졌거나 다른 기기에서 나갔을 수 있어
+  // 다음 getMyFridge()가 냉장고 목록부터 다시 받게 한다. 어느 화면에서 받았든 같은 곳에서 표시해 화면마다 처리하지 않는다.
+  if (result?.error?.code === "FRIDGE_NOT_FOUND") markFridgeListStale();
 
   // 본문이 성공처럼 보여도 HTTP 상태가 실패면 실패로 본다.
   if (!response.ok || !result?.success) {

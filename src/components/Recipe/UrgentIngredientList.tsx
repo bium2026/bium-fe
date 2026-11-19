@@ -4,6 +4,7 @@
  */
 import { useEffect, useState } from "react";
 import styled from "@emotion/styled";
+import { ApiError } from "../../api/client";
 import { getFridgeItems, type FridgeContentsResponse } from "../../api/fridge";
 
 const URGENT_DAYS = 5;
@@ -12,10 +13,15 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 type UrgentIngredientListProps = {
   fridgeId: number;
+  onFridgeRetry: () => void;
 };
 
 // 다시 불러오기를 누르거나 냉장고가 바뀌면 requestKey가 바뀌어, 이전 결과 대신 로딩을 보여 준다.
-type ItemsResult = { requestKey: string } & ({ contents: FridgeContentsResponse } | { failed: true });
+type ItemsResult = { requestKey: string } & (
+  | { contents: FridgeContentsResponse }
+  // isFridgeGone: 화면을 연 뒤 그 냉장고에서 나갔거나 내보내져 같은 fridgeId로는 계속 실패하는 경우
+  | { failed: true; isFridgeGone: boolean }
+);
 
 // "YYYY-MM-DD"를 new Date()에 그대로 넣으면 UTC 자정으로 읽혀서, 지역 날짜로 바꿔 오늘과 비교한다.
 function getDaysLeft(expiresAt: string) {
@@ -37,7 +43,7 @@ function getUrgentItems({ fridge, freezer, room }: FridgeContentsResponse) {
     .slice(0, MAX_URGENT_ITEMS);
 }
 
-function UrgentIngredientList({ fridgeId }: UrgentIngredientListProps) {
+function UrgentIngredientList({ fridgeId, onFridgeRetry }: UrgentIngredientListProps) {
   const [attempt, setAttempt] = useState(0);
   const [result, setResult] = useState<ItemsResult | null>(null);
   const requestKey = `${fridgeId}-${attempt}`;
@@ -48,8 +54,10 @@ function UrgentIngredientList({ fridgeId }: UrgentIngredientListProps) {
       (contents) => {
         if (!ignore) setResult({ requestKey, contents });
       },
-      () => {
-        if (!ignore) setResult({ requestKey, failed: true });
+      (error: unknown) => {
+        if (ignore) return;
+        const isFridgeGone = error instanceof ApiError && error.code === "FRIDGE_NOT_FOUND";
+        setResult({ requestKey, failed: true, isFridgeGone });
       },
     );
     return () => {
@@ -65,7 +73,8 @@ function UrgentIngredientList({ fridgeId }: UrgentIngredientListProps) {
     return (
       <Message role="alert">
         임박 재료를 불러오지 못했어요.
-        <RetryButton type="button" onClick={() => setAttempt((prev) => prev + 1)}>
+        {/* 냉장고에서 나가졌으면 재료만 다시 받아도 같은 오류라 냉장고부터 다시 불러온다. */}
+        <RetryButton type="button" onClick={result.isFridgeGone ? onFridgeRetry : () => setAttempt((prev) => prev + 1)}>
           다시 불러오기
         </RetryButton>
       </Message>
