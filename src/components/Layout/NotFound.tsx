@@ -48,6 +48,8 @@ const HomeLink = styled(Link)`
   border-radius: 50px;
   background: var(--surface);
   padding: 10px 18px;
+  color: var(--text);
   font-size: 15px;
   font-weight: 480;
+  text-decoration: none;
 `;
