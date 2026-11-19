@@ -87,6 +87,19 @@ export function findExpiredIngredients(contents: FridgeContents): ExpiredIngredi
   );
 }
 
+// 피버타임: 오늘부터 3일 안에 유통기한이 끝나는 재료(지난 재료 제외)를 유통기한이 빠른 순으로 모은다.
+export const FEVER_DAYS = 3;
+export function findUrgentIngredients(contents: FridgeContents): FridgeIngredient[] {
+  return zoneOrder
+    .flatMap((zoneId) => sectionIds.flatMap((sectionId) => contents[zoneId][sectionId]))
+    .filter((ingredient) => {
+      if (ingredient.expiresAt === "") return false;
+      const daysLeft = getDaysLeft(ingredient.expiresAt);
+      return daysLeft >= 0 && daysLeft <= FEVER_DAYS;
+    })
+    .sort((a, b) => a.expiresAt.localeCompare(b.expiresAt));
+}
+
 // 재료가 들어 있는 구역과 칸 안의 자리
 export type ZoneLocation = { zoneId: ZoneId; location: ItemLocation };
 
