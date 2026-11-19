@@ -38,6 +38,7 @@ export const router = createBrowserRouter([
           { path: '/share', ...page(() => import('./components/Share/SharePage.tsx')) },
           { path: '/feed', ...page(() => import('./components/Feed/FeedPage.tsx')) },
           { path: '/feed/:fridgeId', ...page(() => import('./components/Feed/FeedFridgePage.tsx')) },
+          { path: '/notifications', ...page(() => import('./components/Notification/NotificationSettingsPage.tsx')) },
         ],
       },
     ],
