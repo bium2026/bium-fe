@@ -12,7 +12,8 @@ type RedirectIfAuthProps = {
 };
 
 function RedirectIfAuth({ children }: RedirectIfAuthProps) {
-  const [isLoggedIn] = useState(() => useAuthStore.getState().accessToken !== null);
+  // RequireAuth와 같은 기준으로 본다. 기준이 다르면 빈 토큰이 저장됐을 때 두 가드가 서로에게 보내며 맴돈다.
+  const [isLoggedIn] = useState(() => Boolean(useAuthStore.getState().accessToken));
 
   if (isLoggedIn) return <Navigate to="/fridge" replace />;
   return children;
