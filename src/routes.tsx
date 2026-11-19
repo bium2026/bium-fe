@@ -4,6 +4,7 @@ import AuthPage from './components/Auth/AuthPage.tsx'
 import RedirectIfAuth from './components/Auth/RedirectIfAuth.tsx'
 import RequireAuth from './components/Auth/RequireAuth.tsx'
 import AppLayout from './components/Layout/AppLayout.tsx'
+import NotFound from './components/Layout/NotFound.tsx'
 import RouteError from './components/Layout/RouteError.tsx'
 
 // 로그인해야 보는 화면은 그 화면에 처음 들어갈 때 코드를 받아, 첫 화면(로그인)을 가볍게 연다.
@@ -56,6 +57,8 @@ export const router = createBrowserRouter([
           { path: '/notifications', ...page(() => import('./components/Notification/NotificationSettingsPage.tsx')) },
         ],
       },
+      // 위에 없는 주소는 모두 여기로 온다. 로그인하지 않았다면 RequireAuth가 먼저 로그인 화면으로 보낸다.
+      { path: '*', element: <NotFound /> },
     ],
   },
 ])
