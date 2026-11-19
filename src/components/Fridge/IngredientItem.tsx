@@ -38,9 +38,19 @@ function getBadgeDescription(daysLeft: number) {
   return `유통기한 ${daysLeft}일 남음`;
 }
 
+// 유통기한 막대: 넣은 날부터 유통기한까지 중 남은 비율. 넣은 날이나 유통기한을 모르거나 이미 지났으면 그리지 않는다.
+function getRemainingRatio(purchasedAt: string | null | undefined, expiresAt: string, daysLeft: number | null) {
+  if (!purchasedAt || !expiresAt || daysLeft === null || daysLeft < 0) return null;
+  const total = getDaysLeft(expiresAt) - getDaysLeft(purchasedAt);
+  // 넣은 날이 유통기한인 재료(오늘 넣고 오늘까지)는 남은 기간이 없어 거의 빈 막대로 그린다.
+  if (total <= 0) return 0;
+  return Math.min(1, daysLeft / total);
+}
+
 function IngredientItem({ ingredient, variant, onSelect, dragListeners, isDragging = false }: IngredientItemProps) {
   const daysLeft = ingredient.expiresAt ? getDaysLeft(ingredient.expiresAt) : null;
   const freshness = daysLeft === null ? "safe" : getFreshness(daysLeft);
+  const remaining = getRemainingRatio(ingredient.purchasedAt, ingredient.expiresAt, daysLeft);
 
   return (
     <Card
@@ -61,6 +71,11 @@ function IngredientItem({ ingredient, variant, onSelect, dragListeners, isDraggi
           <span aria-hidden="true">{getBadgeText(daysLeft)}</span>
           <ScreenReaderText>{getBadgeDescription(daysLeft)}</ScreenReaderText>
         </Badge>
+      )}
+      {remaining !== null && (
+        <ExpiryBar aria-hidden="true">
+          <ExpiryFill $freshness={freshness} style={{ width: `${Math.max(remaining * 100, 4)}%` }} />
+        </ExpiryBar>
       )}
     </Card>
   );
@@ -192,4 +207,32 @@ const Badge = styled.span<StyleProps>`
 
 const ScreenReaderText = styled.span`
   ${screenReaderOnly}
+`;
+
+// 막대는 얇아서 배지의 옅은 파스텔 대신 진한 색을 쓴다. 지난 재료는 막대를 그리지 않는다.
+const barColor: Record<Freshness, string> = {
+  expired: "var(--text)",
+  urgent: "var(--accent-magenta)",
+  soon: "var(--block-coral)",
+  safe: "var(--success)",
+};
+
+// 카드 아래쪽에 붙는 유통기한 막대. 남은 기간만큼 채우고, 배지와 같은 색으로 신선도를 보여 준다.
+const ExpiryBar = styled.span`
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--border-soft);
+  overflow: hidden;
+  pointer-events: none;
+`;
+
+const ExpiryFill = styled.span<{ $freshness: Freshness }>`
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: ${(props) => barColor[props.$freshness]};
 `;
