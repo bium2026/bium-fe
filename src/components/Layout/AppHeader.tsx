@@ -1,12 +1,13 @@
 /*
  * 로그인 뒤 화면들이 함께 쓰는 상단 헤더다.
  * 브랜드와 냉장고·식재료 도감·AI 레시피·장보기 목록·냉장고 공유·냉장고 피드 메뉴를 보여 주고, 지금 보고 있는 화면의 메뉴에 밑줄을 긋는다.
- * 오른쪽에서는 지금 보고 있는 냉장고를 다른 냉장고로 바꿀 수 있다.
+ * 오른쪽에서는 지금 보고 있는 냉장고를 다른 냉장고로 바꾸거나 로그아웃할 수 있다.
  */
 import { useEffect, useRef } from "react";
 import styled from "@emotion/styled";
-import { BookOpen, Bot, Newspaper, Refrigerator, ShoppingCart, Users } from "lucide-react";
+import { BookOpen, Bot, LogOut, Newspaper, Refrigerator, ShoppingCart, Users } from "lucide-react";
 import { Link, NavLink, useLocation } from "react-router";
+import { useAuthStore } from "../../store/authStore";
 import FridgeSwitcher from "./FridgeSwitcher";
 
 const menus = [
@@ -21,6 +22,7 @@ const menus = [
 function AppHeader() {
   const { pathname } = useLocation();
   const menuRef = useRef<HTMLElement>(null);
+  const clearAuth = useAuthStore((state) => state.clearAuth);
 
   // 좁은 화면에서는 메뉴가 한 줄을 넘쳐 가로로 밀리므로, 지금 화면의 메뉴가 가운데 보이도록 메뉴 줄을 옮긴다.
   // 메뉴가 다 들어가는 넓은 화면에서는 옮길 곳이 없어 그대로다.
@@ -52,7 +54,13 @@ function AppHeader() {
         })}
       </Menu>
 
-      <FridgeSwitcher />
+      <Actions>
+        <FridgeSwitcher />
+        {/* 토큰을 지우면 RequireAuth가 로그인 화면으로 보내므로 여기서 따로 이동하지 않는다. 냉장고·추천 목록은 각 스토어가 토큰 변화를 보고 비운다. */}
+        <LogoutButton type="button" aria-label="로그아웃" title="로그아웃" onClick={clearAuth}>
+          <LogOut size={16} aria-hidden="true" />
+        </LogoutButton>
+      </Actions>
     </Header>
   );
 }
@@ -68,13 +76,16 @@ const Header = styled.header`
   background: var(--surface);
   padding: 0 max(32px, calc((100vw - 1280px) / 2));
   display: grid;
-  grid-template-columns: 170px minmax(0, 1fr) 170px;
+  /* 오른쪽 칸은 냉장고 이름이 잘리지 않게 로그아웃 버튼 자리를 포함해 214px로 두고, 왼쪽 칸(브랜드는 86px)은 메뉴가 한 줄에 들어갈 만큼만 남겨 둔다.
+     폭이 넉넉하면 양쪽이 같아져 메뉴가 가운데에 오고, 빠듯하면 왼쪽이 줄어 메뉴가 조금 왼쪽으로 치우친다. */
+  grid-template-columns: clamp(88px, calc(100% - 1013px), 214px) minmax(0, 1fr) 214px;
   align-items: center;
   gap: 16px;
 
-  /* 메뉴가 여섯 개라 좁은 화면에서는 양옆 칸을 줄여 가운데 메뉴 자리를 넓힌다. */
+  /* 메뉴가 여섯 개라 좁은 화면에서는 칸 사이 간격과 왼쪽 칸을 줄여 가운데 메뉴 자리를 넓힌다. */
   @media (max-width: 1200px) {
-    grid-template-columns: 120px minmax(0, 1fr) 120px;
+    grid-template-columns: clamp(88px, calc(100% - 847px), 164px) minmax(0, 1fr) 164px;
+    column-gap: 8px;
   }
 
   /* 메뉴 여섯 개가 한 줄에 들어가지 않는 폭부터는 첫 줄에 브랜드와 냉장고 바꾸기, 둘째 줄에 메뉴를 둔다. */
@@ -167,5 +178,37 @@ const MenuLink = styled(NavLink)`
 
   @media (max-width: 1000px) {
     height: 42px;
+  }
+`;
+
+const Actions = styled.div`
+  justify-self: end;
+  min-width: 0;
+  max-width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+`;
+
+// 냉장고 선택 버튼과 같은 높이·테두리로 맞추고, 실수로 누르지 않게 냉장고 선택 버튼 옆에 작게 둔다.
+const LogoutButton = styled.button`
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--surface-soft);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--text);
+    outline-offset: 2px;
   }
 `;
