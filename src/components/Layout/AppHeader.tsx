@@ -76,13 +76,16 @@ const Header = styled.header`
   background: var(--surface);
   padding: 0 max(32px, calc((100vw - 1280px) / 2));
   display: grid;
-  grid-template-columns: 170px minmax(0, 1fr) 170px;
+  /* 오른쪽 칸은 냉장고 이름이 잘리지 않게 로그아웃 버튼 자리를 포함해 214px로 두고, 왼쪽 칸(브랜드는 86px)은 메뉴가 한 줄에 들어갈 만큼만 남겨 둔다.
+     폭이 넉넉하면 양쪽이 같아져 메뉴가 가운데에 오고, 빠듯하면 왼쪽이 줄어 메뉴가 조금 왼쪽으로 치우친다. */
+  grid-template-columns: clamp(88px, calc(100% - 1013px), 214px) minmax(0, 1fr) 214px;
   align-items: center;
   gap: 16px;
 
-  /* 메뉴가 여섯 개라 좁은 화면에서는 양옆 칸을 줄여 가운데 메뉴 자리를 넓힌다. 오른쪽은 로그아웃 버튼 자리만큼 더 둔다. */
+  /* 메뉴가 여섯 개라 좁은 화면에서는 칸 사이 간격과 왼쪽 칸을 줄여 가운데 메뉴 자리를 넓힌다. */
   @media (max-width: 1200px) {
-    grid-template-columns: 100px minmax(0, 1fr) 140px;
+    grid-template-columns: clamp(88px, calc(100% - 847px), 164px) minmax(0, 1fr) 164px;
+    column-gap: 8px;
   }
 
   /* 메뉴 여섯 개가 한 줄에 들어가지 않는 폭부터는 첫 줄에 브랜드와 냉장고 바꾸기, 둘째 줄에 메뉴를 둔다. */
