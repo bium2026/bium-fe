@@ -71,6 +71,8 @@ function LibraryPage() {
   // 방금 냉장고에 넣은 도감 재료. 카드가 잠깐 "넣었어요"를 보여 준다.
   const [fridgeAddedId, setFridgeAddedId] = useState<number | null>(null);
   const fridgeAddedTimerRef = useRef<number | undefined>(undefined);
+  // 즐겨찾기를 바꾼 뒤 다시 받는 목록 요청의 순번. 마지막 요청의 응답만 반영한다.
+  const favoriteRefreshRef = useRef(0);
   // 담기·추가·삭제 결과를 스크린 리더에 알려 준다. 화면에는 보이지 않는다.
   const [announcement, setAnnouncement] = useState("");
 
@@ -181,9 +183,12 @@ function LibraryPage() {
     setAnnouncement(
       updated.favorite ? `${updated.name}을(를) 즐겨찾기했어요.` : `${updated.name}을(를) 즐겨찾기에서 뺐어요.`,
     );
+    // 여러 재료를 연달아 누르면 먼저 보낸 목록 요청이 늦게 와서, 그 뒤에 켠 별을 꺼진 채로 덮을 수 있다.
+    // 마지막에 보낸 목록 요청의 응답만 반영한다.
+    const requestId = ++favoriteRefreshRef.current;
     try {
       const ingredients = await getMyCatalog();
-      updateIngredients(() => ingredients);
+      if (requestId === favoriteRefreshRef.current) updateIngredients(() => ingredients);
     } catch {
       // 즐겨찾기는 이미 바뀌었으므로, 순서만 못 받았을 때는 별만 바뀐 채로 두고 다음에 불러올 때 맞춘다.
     }
