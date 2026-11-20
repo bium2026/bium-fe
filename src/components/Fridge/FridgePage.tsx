@@ -42,7 +42,7 @@ import {
   type FridgeItemBulkCreateItem,
 } from "../../api/fridge";
 import { getPurchasedItems, movePurchasedItem, type PurchasedItem } from "../../api/purchasedItem";
-import ExpiredDeleteModal from "./ExpiredDeleteModal";
+import ExpiredDeleteModal, { STALE_NOT_RELOADED } from "./ExpiredDeleteModal";
 import FridgeBoard, { DOOR_SLOT_COUNT } from "./FridgeBoard";
 import FridgeNutritionModal from "./FridgeNutritionModal";
 import IngredientEditModal, { type IngredientEditValues } from "./IngredientEditModal";
@@ -346,7 +346,10 @@ function FridgePage() {
       setFridgeContents((prev) => deletedItemIds.reduce((next, id) => replaceIngredient(next, id, null), prev));
       setNotice(`유통기한 지난 재료 ${deletedItemIds.length}개를 지웠어요.`);
     } catch (error) {
-      if (isStaleItemError(error)) await refreshContents(fridgeId);
+      // 다시 받지 못했으면 모달이 "다시 불러왔어요"라고 하지 않도록 다른 오류로 알린다.
+      if (isStaleItemError(error) && (await refreshContents(fridgeId)) === null) {
+        throw new ApiError(409, STALE_NOT_RELOADED, "다른 멤버가 먼저 바꾼 재료가 있어요. 새로고침해서 확인해 주세요.");
+      }
       throw error;
     } finally {
       movingRef.current = false;
@@ -409,15 +412,20 @@ function FridgePage() {
         setNotice(`${ingredient.name}을(를) ${zoneWithParticle[target.zoneId]} 옮겼어요.`);
       }
     } catch (error) {
-      if (isStaleItemError(error)) {
+      // 다시 받은 냉장고가 화면을 덮으므로, 다시 받지 못했을 때만 옮겨 둔 재료를 제자리로 돌린다.
+      const reloaded = isStaleItemError(error) && (await refreshContents(targetFridgeId)) !== null;
+      if (reloaded) {
         setNotice("다른 멤버가 먼저 바꾼 재료라 냉장고를 다시 불러왔어요.");
-        await refreshContents(targetFridgeId);
       } else {
         setFridgeContents((prev) => {
           const current = findInContents(prev, ingredient.id);
           return current ? moveIngredientTo(prev, current, from) : prev;
         });
-        setNotice(getSaveErrorMessage(error, "재료를 옮기지 못했어요. 다시 시도해 주세요."));
+        setNotice(
+          isStaleItemError(error)
+            ? "다른 멤버가 먼저 바꾼 재료라 옮기지 못했어요. 새로고침해서 확인해 주세요."
+            : getSaveErrorMessage(error, "재료를 옮기지 못했어요. 다시 시도해 주세요."),
+        );
       }
     } finally {
       movingRef.current = false;
@@ -450,8 +458,12 @@ function FridgePage() {
     } catch (error) {
       if (error instanceof ApiError && error.code === "PURCHASED_ITEM_NOT_FOUND") {
         removePurchasedItem(item.id);
-        setNotice("다른 멤버가 먼저 넣었거나 뺀 장본 음식이에요. 냉장고를 다시 불러왔어요.");
-        await refreshContents(targetFridgeId);
+        const reloaded = (await refreshContents(targetFridgeId)) !== null;
+        setNotice(
+          reloaded
+            ? "다른 멤버가 먼저 넣었거나 뺀 장본 음식이에요. 냉장고를 다시 불러왔어요."
+            : "다른 멤버가 먼저 넣었거나 뺀 장본 음식이에요. 새로고침해서 냉장고를 확인해 주세요.",
+        );
       } else {
         setNotice(getSaveErrorMessage(error, `${item.name}을(를) 넣지 못했어요. 다시 시도해 주세요.`));
       }

@@ -4,7 +4,7 @@
  * 전체 탭에서는 카테고리별로 묶어 보여 주고, 고른 탭은 주소(?category=)에 남겨 새로고침해도 유지한다.
  * 도감과 내 냉장고, 그 냉장고의 장본 음식을 함께 불러오고, 장본 음식에 담거나 뺀 결과는 서버에 반영된 뒤 패널에 보인다.
  * 도감 재료를 고른 보관 위치에 바로 넣을 수도 있다.
- * 즐겨찾기한 재료는 서버가 정해 준 순서대로 각 묶음의 맨 앞에 온다.
+ * 즐겨찾기한 재료는 전체 탭에서는 맨 위 즐겨찾기 묶음에 모이고, 카테고리 탭에서는 서버 순서대로 맨 앞에 온다.
  */
 import { useEffect, useRef, useState } from "react";
 import { keyframes } from "@emotion/react";
@@ -71,6 +71,8 @@ function LibraryPage() {
   // 방금 냉장고에 넣은 도감 재료. 카드가 잠깐 "넣었어요"를 보여 준다.
   const [fridgeAddedId, setFridgeAddedId] = useState<number | null>(null);
   const fridgeAddedTimerRef = useRef<number | undefined>(undefined);
+  // 즐겨찾기를 바꾼 뒤 다시 받는 목록 요청의 순번. 마지막 요청의 응답만 반영한다.
+  const favoriteRefreshRef = useRef(0);
   // 담기·추가·삭제 결과를 스크린 리더에 알려 준다. 화면에는 보이지 않는다.
   const [announcement, setAnnouncement] = useState("");
 
@@ -106,13 +108,21 @@ function LibraryPage() {
     setCatalog((prev) => (prev.status === "success" ? { ...prev, ingredients: update(prev.ingredients) } : prev));
   };
 
-  const groups = categoryOrder
-    .filter((id) => category === "all" || id === category)
-    .map((id) => ({
-      id,
-      items: ingredients.filter((item) => item.category === id && item.name.toLowerCase().includes(keyword)),
-    }))
-    .filter((group) => group.items.length > 0);
+  const matched = ingredients.filter((item) => item.name.toLowerCase().includes(keyword));
+  // 전체 탭에서는 즐겨찾기를 맨 위 묶음에 모으고 카테고리 묶음에서는 빼서 두 번 보이지 않게 한다.
+  // 카테고리 탭에서는 서버 순서대로 즐겨찾기가 그 카테고리의 맨 앞에 온다.
+  const groups = [
+    ...(category === "all"
+      ? [{ id: "favorite", title: "즐겨찾기", items: matched.filter((item) => item.favorite) }]
+      : []),
+    ...categoryOrder
+      .filter((id) => category === "all" || id === category)
+      .map((id) => ({
+        id,
+        title: categoryLabel[id],
+        items: matched.filter((item) => item.category === id && !(category === "all" && item.favorite)),
+      })),
+  ].filter((group) => group.items.length > 0);
 
   const changeCategory = (next: CategoryFilter) => {
     // 탭을 바꿀 때마다 방문 기록이 쌓이면 뒤로 가기로 도감을 벗어나기 어려워서 주소를 바꿔치기한다.
@@ -181,9 +191,12 @@ function LibraryPage() {
     setAnnouncement(
       updated.favorite ? `${updated.name}을(를) 즐겨찾기했어요.` : `${updated.name}을(를) 즐겨찾기에서 뺐어요.`,
     );
+    // 여러 재료를 연달아 누르면 먼저 보낸 목록 요청이 늦게 와서, 그 뒤에 켠 별을 꺼진 채로 덮을 수 있다.
+    // 마지막에 보낸 목록 요청의 응답만 반영한다.
+    const requestId = ++favoriteRefreshRef.current;
     try {
       const ingredients = await getMyCatalog();
-      updateIngredients(() => ingredients);
+      if (requestId === favoriteRefreshRef.current) updateIngredients(() => ingredients);
     } catch {
       // 즐겨찾기는 이미 바뀌었으므로, 순서만 못 받았을 때는 별만 바뀐 채로 두고 다음에 불러올 때 맞춘다.
     }
@@ -264,7 +277,7 @@ function LibraryPage() {
           <Group key={group.id} aria-labelledby={`library-group-${group.id}`}>
             {/* 한 카테고리만 볼 때는 탭이 제목 역할을 하므로 묶음 제목을 화면에서 숨긴다. */}
             <GroupTitle id={`library-group-${group.id}`} $hidden={category !== "all"}>
-              {categoryLabel[group.id]}
+              {group.title}
               <span>{group.items.length}</span>
             </GroupTitle>
             <Grid>

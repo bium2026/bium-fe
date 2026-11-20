@@ -17,9 +17,12 @@ type ExpiredDeleteModalProps = {
   onDelete: () => Promise<void>;
 };
 
+// 다른 멤버가 바꾼 재료라 지우지 못했고, 냉장고도 다시 받지 못했을 때 onDelete가 던지는 오류 코드
+export const STALE_NOT_RELOADED = "STALE_NOT_RELOADED";
+
 function getDeleteErrorMessage(error: unknown) {
   if (error instanceof ApiError) {
-    if (error.code === NETWORK_ERROR) return error.message;
+    if (error.code === NETWORK_ERROR || error.code === STALE_NOT_RELOADED) return error.message;
     if (error.code === "CONCURRENT_MODIFICATION" || error.code === "FRIDGE_ITEM_NOT_FOUND") {
       return "다른 멤버가 먼저 바꾼 재료가 있어 목록을 다시 불러왔어요. 확인하고 다시 눌러 주세요.";
     }
