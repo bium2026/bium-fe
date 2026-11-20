@@ -23,7 +23,8 @@ export type FridgeMember = {
 };
 
 // MOVE는 이동 API가 아직 없어 오지 않는다.
-export type ActivityAction = "ADD" | "UPDATE" | "MOVE" | "DELETE" | "DEDUCT" | "RESTORE" | "JOIN" | "LEAVE";
+// REMOVE는 주인이 멤버를 내보낸 기록이다. 스스로 나간 기록은 LEAVE다.
+export type ActivityAction = "ADD" | "UPDATE" | "MOVE" | "DELETE" | "DEDUCT" | "RESTORE" | "JOIN" | "LEAVE" | "REMOVE";
 
 export type Activity = {
   id: number;
@@ -35,6 +36,8 @@ export type Activity = {
   cookingLogId: number | null;
   // 이미 되돌린 요리면 true
   undone: boolean;
+  // 내보내진 멤버의 닉네임. 내보낸 기록(REMOVE)에만 값이 있고 nickname은 내보낸 주인이다.
+  targetNickname: string | null;
   createdAt: string;
 };
 
