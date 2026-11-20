@@ -186,7 +186,7 @@ function ShareContent({ fridge }: ShareContentProps) {
       if (!(error instanceof ApiError && error.code === "FRIDGE_MEMBER_NOT_FOUND")) throw error;
     }
     updateData((prev) => ({ ...prev, members: prev.members.filter((item) => item.userId !== member.userId) }));
-    // 내보내면 서버가 그 사람의 나가기 기록을 남기므로 활동 기록을 다시 받는다.
+    // 내보내면 서버가 내보낸 기록을 남기므로 활동 기록을 다시 받는다.
     refreshActivities();
   };
 
