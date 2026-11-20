@@ -110,6 +110,8 @@ function ActivityPanel({ activities, onUndoCooking }: ActivityPanelProps) {
     }
   };
 
+  const rows = groupActivities(activities);
+
   return (
     <Panel aria-labelledby="share-activity-title">
       <PanelHeader>
@@ -117,11 +119,11 @@ function ActivityPanel({ activities, onUndoCooking }: ActivityPanelProps) {
         <p>누가 어떤 재료를 넣고, 고치고, 꺼냈는지 볼 수 있어요.</p>
       </PanelHeader>
 
-      {activities.length === 0 ? (
+      {rows.length === 0 ? (
         <Empty>아직 기록이 없어요. 재료를 넣거나 고치면 여기에 남아요.</Empty>
       ) : (
         <List>
-          {groupActivities(activities).map((row) => {
+          {rows.map((row) => {
             const { icon: Icon, tone } = actionMeta[row.action];
             const { cookingLogId } = row;
             const canUndo = row.action === "DEDUCT" && cookingLogId !== null;
