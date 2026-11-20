@@ -38,6 +38,8 @@ function groupActivities(activities: Activity[]) {
   const rows: ActivityRow[] = [];
   const cookingRows = new Map<string, ActivityRow>();
   for (const activity of activities) {
+    // 서버에 새 동작이 먼저 생기면 화면이 모르는 값이 온다. 보여 줄 문구가 없어 그 줄은 건너뛴다.
+    if (!(activity.action in actionMeta)) continue;
     const itemNames = activity.itemName ? [activity.itemName] : [];
     if (activity.cookingLogId === null) {
       rows.push({ ...activity, itemNames });
