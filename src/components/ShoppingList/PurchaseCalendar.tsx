@@ -77,7 +77,7 @@ function PurchaseCalendar({ fridgeId }: PurchaseCalendarProps) {
   const [schedule, setSchedule] = useState<ScheduleState>({ status: "loading" });
   const [loadAttempt, setLoadAttempt] = useState(0);
   const [viewMonth, setViewMonth] = useState<Month>(() => getMonthOf(getDateAfter(0)));
-  // null이면 아직 고르지 않은 것이라, 이번 달의 가장 가까운 예정일이나 오늘을 보여 준다.
+  // null이거나 보고 있는 달 밖이면 그 달의 가장 가까운 예정일을 보여 준다.
   const [pickedDate, setPickedDate] = useState<string | null>(null);
 
   useEffect(() => {
@@ -141,11 +141,13 @@ function PurchaseCalendar({ fridgeId }: PurchaseCalendarProps) {
     itemsByDate.set(item.nextPurchaseDate, [...(itemsByDate.get(item.nextPurchaseDate) ?? []), item]);
   }
 
-  // 오늘 살 게 없으면 빈 목록보다 곧 사야 할 재료가 보이는 게 쓸모 있어, 이번 달의 가장 가까운 예정일을 먼저 고른다.
-  const thisMonth = getMonthOf(todayKey);
-  const thisMonthPrefix = toDateKey(thisMonth, 1).slice(0, 7);
-  const nearestDate = [...itemsByDate.keys()].filter((date) => date.startsWith(thisMonthPrefix)).sort()[0];
-  const selectedDate = pickedDate ?? nearestDate ?? todayKey;
+  // 고른 날짜는 보고 있는 달 안에서만 쓴다. 다른 달로 넘기면 그 달 목록을 보여 줘야 해서다.
+  // 고른 날이 없으면 빈 목록보다 곧 사야 할 재료가 보이는 게 쓸모 있어, 그 달의 가장 가까운 예정일을 먼저 고른다.
+  // 예정일이 없으면 이번 달은 오늘, 다른 달은 1일을 보여 준다.
+  const viewPrefix = toDateKey(viewMonth, 1).slice(0, 7);
+  const nearestDate = [...itemsByDate.keys()].filter((date) => date.startsWith(viewPrefix)).sort()[0];
+  const fallbackDate = todayKey.startsWith(viewPrefix) ? todayKey : toDateKey(viewMonth, 1);
+  const selectedDate = pickedDate?.startsWith(viewPrefix) ? pickedDate : (nearestDate ?? fallbackDate);
   const selectedItems = itemsByDate.get(selectedDate) ?? [];
 
   const firstWeekday = new Date(viewMonth.year, viewMonth.month, 1).getDay();
@@ -381,7 +383,7 @@ const DayButton = styled.button<{ $isToday: boolean; $isShoppingDay: boolean }>`
     align-items: center;
     justify-content: center;
     gap: 1px;
-    font-size: 14px;
+    font-size: 18px;
     line-height: 1;
   }
 
@@ -395,7 +397,7 @@ const DayButton = styled.button<{ $isToday: boolean; $isShoppingDay: boolean }>`
     min-height: 52px;
 
     .icons {
-      font-size: 12px;
+      font-size: 14px;
     }
   }
 `;
