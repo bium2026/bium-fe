@@ -3,7 +3,7 @@
  * 요청·응답 형식은 백엔드 FeedController의 DTO를 따른다.
  */
 import type { FridgeContentsResponse } from "./fridge";
-import { request } from "./client";
+import { request, requestNoContent } from "./client";
 
 // 아이콘이 없는 재료는 emoji가 null이다.
 export type FeedItemPreview = {
@@ -38,6 +38,8 @@ export type FeedFridge = {
   likeCount: number;
   liked: boolean;
   saved: boolean;
+  // 이 냉장고에 남은 코멘트 수
+  commentCount: number;
   // 내가 주인이나 멤버인 냉장고
   mine: boolean;
 };
@@ -81,4 +83,41 @@ export function setFeedLike(fridgeId: number, liked: boolean) {
 
 export function setFeedSave(fridgeId: number, saved: boolean) {
   return request<FeedReaction>(`/api/feed/fridges/${fridgeId}/save`, { method: saved ? "PUT" : "DELETE" });
+}
+
+// 냉장고에 남긴 코멘트. 음식을 추천하지 않은 코멘트는 dishName이 null이다.
+export type FeedComment = {
+  commentId: number;
+  authorNickname: string;
+  content: string;
+  dishName: string | null;
+  createdAt: string;
+  // 내가 쓴 코멘트
+  mine: boolean;
+  // 내가 지울 수 있는 코멘트 (내가 썼거나 냉장고 주인)
+  deletable: boolean;
+};
+
+type FeedCommentPage = {
+  comments: FeedComment[];
+  // 다음 페이지가 없으면 null이다. 있으면 다음 요청의 cursor로 그대로 보낸다.
+  nextCursor: number | null;
+};
+
+// 최신 코멘트부터 20개씩 준다. 공개하지 않은 냉장고는 멤버에게만 준다. 실패: FRIDGE_NOT_FOUND(404)
+export function getFeedComments(fridgeId: number, cursor: number | null) {
+  const query = cursor === null ? "" : `?cursor=${cursor}`;
+  return request<FeedCommentPage>(`/api/feed/fridges/${fridgeId}/comments${query}`);
+}
+
+// content는 200자, dishName은 50자까지이고 둘 다 줄바꿈을 쓸 수 없다. 공개한 냉장고에만 쓸 수 있다.
+// 실패: INVALID_INPUT(400), FRIDGE_NOT_FOUND(404, 공개를 멈춘 냉장고 포함)
+export function createFeedComment(fridgeId: number, body: { content: string; dishName: string | null }) {
+  return request<FeedComment>(`/api/feed/fridges/${fridgeId}/comments`, { method: "POST", body });
+}
+
+// 쓴 사람이나 냉장고 주인만 지울 수 있다.
+// 실패: FEED_COMMENT_DELETE_FORBIDDEN(403), FEED_COMMENT_NOT_FOUND(404), FRIDGE_NOT_FOUND(404)
+export function deleteFeedComment(fridgeId: number, commentId: number) {
+  return requestNoContent(`/api/feed/fridges/${fridgeId}/comments/${commentId}`, { method: "DELETE" });
 }
