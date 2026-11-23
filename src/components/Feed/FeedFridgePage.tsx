@@ -2,7 +2,8 @@
  * 피드에서 고른 공개 냉장고를 구경하는 화면이다.
  * 냉장실·냉동실·실온을 칸(선반·왼쪽 문칸·오른쪽 문칸)별로 모두 보여 주고, 재료는 읽기만 한다.
  * 주인이 공개를 멈췄으면 멤버가 아닌 사람에게는 찾을 수 없다고 알려 준다.
- * 멤버는 공개하지 않은 냉장고도 미리 볼 수 있고, 이때는 좋아요·저장을 누를 수 없다.
+ * 멤버는 공개하지 않은 냉장고도 미리 볼 수 있고, 이때는 좋아요·저장을 누르거나 코멘트를 새로 남길 수 없다.
+ * 재료 아래에 다른 사람들이 남긴 코멘트와 음식 추천을 보여 준다.
  */
 import { useEffect, useState } from "react";
 import styled from "@emotion/styled";
@@ -11,6 +12,7 @@ import { Link, useParams } from "react-router";
 import { ApiError } from "../../api/client";
 import { getFeedFridge, type FeedFridge, type FeedReaction } from "../../api/feed";
 import type { FridgeContentsResponse, FridgeItemResponse, StorageContents } from "../../api/fridge";
+import FeedComments from "./FeedComments";
 import FeedReactions from "./FeedReactions";
 import { feedStorages, getAvatarText, getCardTone, getExpiry, getFeedErrorMessage } from "./feedFormat";
 import {
@@ -85,6 +87,20 @@ function FeedFridgePage() {
     setResult((prev) =>
       prev?.fridgeId === targetFridgeId && prev.state.status === "success"
         ? { ...prev, state: { ...prev.state, fridge: { ...prev.state.fridge, ...update(prev.state.fridge) } } }
+        : prev,
+    );
+  };
+
+  const handleCommentCountChange = (targetFridgeId: number, delta: number) => {
+    setResult((prev) =>
+      prev?.fridgeId === targetFridgeId && prev.state.status === "success"
+        ? {
+            ...prev,
+            state: {
+              ...prev.state,
+              fridge: { ...prev.state.fridge, commentCount: Math.max(0, prev.state.fridge.commentCount + delta) },
+            },
+          }
         : prev,
     );
   };
@@ -200,6 +216,14 @@ function FeedFridgePage() {
           );
         })}
       </Zones>
+
+      {/* 냉장고가 바뀌면 이전 냉장고의 코멘트와 쓰던 글을 남기지 않게 새로 그린다. */}
+      <FeedComments
+        key={fridge.fridgeId}
+        fridgeId={fridge.fridgeId}
+        canWrite={fridge.isPublic}
+        onCountChange={(delta) => handleCommentCountChange(fridge.fridgeId, delta)}
+      />
     </Wrapper>
   );
 }

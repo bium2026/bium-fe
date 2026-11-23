@@ -1,17 +1,17 @@
 /*
  * 피드에 보이는 공개 냉장고 카드다.
  * 냉장고마다 다른 파스텔 블록 위에 주인과 냉장고 이름, 냉장고 칸 그림(구역별 재료 타일)을 놓고,
- * 3일 안에 먹어야 할 재료 수와 좋아요·저장 버튼, 구경하기를 둔다.
+ * 3일 안에 먹어야 할 재료 수와 좋아요·저장 버튼, 코멘트 수, 구경하기를 둔다.
  */
 import { useId } from "react";
 import styled from "@emotion/styled";
-import { ArrowRight, Clock3 } from "lucide-react";
+import { ArrowRight, Clock3, MessageCircle } from "lucide-react";
 import { Link } from "react-router";
 import type { FeedFridge, FeedReaction } from "../../api/feed";
 import FeedReactions from "./FeedReactions";
 import FridgeShelves from "./FridgeShelves";
 import { getAvatarText, getCardTone } from "./feedFormat";
-import { Avatar, MineBadge } from "./feedStyles";
+import { Avatar, MineBadge, ScreenReaderText } from "./feedStyles";
 
 type FeedCardProps = {
   fridge: FeedFridge;
@@ -51,13 +51,21 @@ function FeedCard({ fridge, onReactionChange, onSaveSettled }: FeedCardProps) {
       )}
 
       <Footer>
-        <FeedReactions
-          fridgeId={fridge.fridgeId}
-          fridgeName={fridge.name}
-          reaction={fridge}
-          onChange={(update) => onReactionChange(fridge.fridgeId, update)}
-          onSaveSettled={onSaveSettled && ((saved) => onSaveSettled(fridge.fridgeId, saved))}
-        />
+        <Reactions>
+          <FeedReactions
+            fridgeId={fridge.fridgeId}
+            fridgeName={fridge.name}
+            reaction={fridge}
+            onChange={(update) => onReactionChange(fridge.fridgeId, update)}
+            onSaveSettled={onSaveSettled && ((saved) => onSaveSettled(fridge.fridgeId, saved))}
+          />
+          {/* 코멘트는 구경하기 화면에서 남기므로 카드에서는 수만 보여 준다. */}
+          <CommentCount>
+            <MessageCircle size={20} aria-hidden="true" />
+            <span aria-hidden="true">{fridge.commentCount}</span>
+            <ScreenReaderText>코멘트 {fridge.commentCount}개</ScreenReaderText>
+          </CommentCount>
+        </Reactions>
         <ViewLink to={`/feed/${fridge.fridgeId}`} aria-label={`${fridge.name} 구경하기`}>
           구경하기
           <ArrowRight size={16} aria-hidden="true" />
@@ -146,6 +154,26 @@ const Footer = styled.div`
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 10px;
+`;
+
+const Reactions = styled.div`
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 8px;
+`;
+
+// 좋아요 버튼과 같은 흰 알약 모양이지만 누를 수 없는 표시다.
+const CommentCount = styled.span`
+  min-height: 42px;
+  border-radius: 999px;
+  background: var(--surface);
+  padding: 8px 14px 8px 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 16px;
+  font-weight: 540;
 `;
 
 const ViewLink = styled(Link)`
