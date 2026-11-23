@@ -20,6 +20,7 @@ import {
 } from "../../api/shoppingList";
 import type { ShoppingListItem } from "../../api/shoppingList";
 import { useFridgeStore } from "../../store/fridgeStore";
+import PurchaseCalendar from "./PurchaseCalendar";
 import ShoppingDayCard from "./ShoppingDayCard";
 import ShoppingAddForm from "./ShoppingAddForm";
 import ShoppingSection from "./ShoppingSection";
@@ -299,6 +300,9 @@ function ShoppingListPage() {
       </Hero>
 
       {page.status === "success" && <ShoppingDayCard />}
+
+      {/* 냉장고가 바뀌면 key로 새로 그려, 이전 냉장고의 일정과 늦게 온 응답이 남지 않게 한다. */}
+      {page.status === "success" && <PurchaseCalendar key={page.fridge.id} fridgeId={page.fridge.id} />}
 
       {notice && (
         <Notice role="status">
