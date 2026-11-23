@@ -39,7 +39,7 @@ const shoppingDayIndex: Record<DayOfWeek, number> = {
   SATURDAY: 6,
 };
 const weekdayLabels = ["일", "월", "화", "수", "목", "금", "토"];
-// 칸이 좁아 아이콘은 이만큼만 보이고 나머지는 +N으로 줄인다.
+// 칸이 좁아 재료는 이만큼만 보이고 나머지는 +N으로 줄인다.
 const MAX_SHOWN_ICONS = 2;
 
 function toDateKey({ year, month }: Month, day: number) {
@@ -219,9 +219,12 @@ function PurchaseCalendar({ fridgeId }: PurchaseCalendarProps) {
               onClick={() => setPickedDate(dateKey)}
             >
               <span className="date">{day}</span>
-              <span className="icons" aria-hidden="true">
+              <span className="items" aria-hidden="true">
                 {dayItems.slice(0, MAX_SHOWN_ICONS).map((item) => (
-                  <ItemIcon key={item.name} item={item} />
+                  <span key={item.name} className="item">
+                    <ItemIcon item={item} />
+                    <span className="name">{item.name}</span>
+                  </span>
                 ))}
                 {dayItems.length > MAX_SHOWN_ICONS && <em>+{dayItems.length - MAX_SHOWN_ICONS}</em>}
               </span>
@@ -376,15 +379,30 @@ const DayButton = styled.button<{ $isToday: boolean; $isShoppingDay: boolean }>`
     font-weight: ${({ $isToday }) => ($isToday ? 700 : 480)};
   }
 
-  .icons {
+  .items {
     min-height: 18px;
+    width: 100%;
+    display: grid;
+    justify-items: start;
+    gap: 3px;
+  }
+
+  .item {
     max-width: 100%;
     display: inline-flex;
     align-items: center;
-    justify-content: center;
-    gap: 1px;
-    font-size: 18px;
+    gap: 3px;
+    font-size: 16px;
     line-height: 1;
+  }
+
+  .name {
+    min-width: 0;
+    overflow: hidden;
+    font-size: 12px;
+    font-weight: 540;
+    white-space: nowrap;
+    text-overflow: ellipsis;
   }
 
   em {
@@ -396,8 +414,17 @@ const DayButton = styled.button<{ $isToday: boolean; $isShoppingDay: boolean }>`
   @media (max-width: 760px) {
     min-height: 52px;
 
-    .icons {
+    /* 모바일 칸은 너무 좁아 이름이 한두 글자만 보이므로 아이콘만 남기고, 이름은 아래 목록에서 본다. */
+    .items {
+      justify-items: center;
+    }
+
+    .item {
       font-size: 14px;
+    }
+
+    .name {
+      display: none;
     }
   }
 `;
