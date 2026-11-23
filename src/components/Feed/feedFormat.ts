@@ -48,11 +48,14 @@ export function getExpiry(expiresAt: string) {
 const feedErrorMessages: Partial<Record<string, string>> = {
   FRIDGE_NOT_FOUND: "주인이 공개를 멈춘 냉장고예요. 피드를 새로 불러와 주세요.",
   FRIDGE_OWNER_ONLY: "냉장고 주인만 공개 여부를 바꿀 수 있어요.",
+  FEED_COMMENT_NOT_FOUND: "이미 지워진 코멘트예요. 코멘트를 새로 불러와 주세요.",
+  FEED_COMMENT_DELETE_FORBIDDEN: "코멘트를 쓴 사람이나 냉장고 주인만 지울 수 있어요.",
 };
 
 // 모르는 오류는 화면마다 정한 문구로 다시 시도를 안내한다.
 export function getFeedErrorMessage(error: unknown, fallback: string) {
   if (!(error instanceof ApiError)) return fallback;
-  if (error.code === NETWORK_ERROR) return error.message;
+  // 입력 오류는 서버가 어느 칸이 왜 틀렸는지 화면 말투로 알려 주므로 그대로 보여 준다.
+  if (error.code === NETWORK_ERROR || error.code === "INVALID_INPUT") return error.message;
   return feedErrorMessages[error.code] ?? fallback;
 }
