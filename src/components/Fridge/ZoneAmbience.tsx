@@ -1,7 +1,7 @@
 /*
- * 냉장고 본체 안쪽 배경에 구역마다 다른 움직임을 깔아 냉장실·냉동실·실온을 한눈에 구분하게 한다.
- * 냉장실은 위에서 찬 공기가 내려오며 찬 바람이 옆으로 흐르고, 냉동실은 눈송이가 내리며 가장자리에 서리가 끼고,
- * 실온은 오른쪽 위에서 햇빛이 번지고 햇살 줄기가 천천히 돌며 먼지가 떠오른다.
+ * 냉장고 본체 안쪽 배경에 차가운 구역만 움직임을 깔아 냉장실·냉동실을 실온과 한눈에 구분하게 한다.
+ * 냉장실은 위에서 찬 공기가 내려오며 찬 바람이 옆으로 흐르고, 냉동실은 눈송이가 내리며 가장자리에 서리가 낀다.
+ * 실온은 장식이 어색해 보여 구역 색으로만 구분한다.
  * 선반과 재료 카드 뒤에 깔리는 장식이라 화면 읽기 프로그램과 마우스·터치 입력에서는 빠진다.
  */
 import { keyframes } from "@emotion/react";
@@ -37,16 +37,9 @@ const flakes = [
   { left: 93, size: 17, duration: 10.5, delay: 7.5 },
 ];
 
-const motes = [
-  { left: 12, size: 7, duration: 12, delay: 0 },
-  { left: 27, size: 6, duration: 14, delay: 5 },
-  { left: 44, size: 8, duration: 13, delay: 2.5 },
-  { left: 61, size: 6, duration: 11, delay: 7 },
-  { left: 76, size: 7, duration: 15, delay: 3.5 },
-  { left: 89, size: 6, duration: 12.5, delay: 9 },
-];
-
 function ZoneAmbience({ zoneId }: ZoneAmbienceProps) {
+  if (zoneId === "pantry") return null;
+
   return (
     <Layer aria-hidden="true" $zoneId={zoneId}>
       {zoneId === "fridge" &&
@@ -79,24 +72,6 @@ function ZoneAmbience({ zoneId }: ZoneAmbienceProps) {
             <Snowflake size={flake.size} strokeWidth={2.2} />
           </Flake>
         ))}
-      {zoneId === "pantry" && (
-        <>
-          <Sunlight />
-          <SunRays />
-          {motes.map((mote, index) => (
-            <Mote
-              key={index}
-              style={{
-                left: `${mote.left}%`,
-                width: mote.size,
-                height: mote.size,
-                animationDuration: `${mote.duration}s`,
-                animationDelay: `${-mote.delay}s`,
-              }}
-            />
-          ))}
-        </>
-      )}
     </Layer>
   );
 }
@@ -184,78 +159,5 @@ const Flake = styled.span`
   @media (prefers-reduced-motion: reduce) {
     animation: none;
     transform: translateY(30cqh);
-  }
-`;
-
-const glow = keyframes`
-  0%, 100% { opacity: 0.55; transform: scale(1); }
-  50% { opacity: 1; transform: scale(1.08); }
-`;
-
-// 크림색 구역 위에서는 흰빛이 묻혀서, 코랄을 섞은 따뜻한 빛으로 번지게 한다.
-const Sunlight = styled.span`
-  position: absolute;
-  top: -35%;
-  right: -25%;
-  width: 85%;
-  aspect-ratio: 1;
-  border-radius: 50%;
-  background: radial-gradient(
-    circle,
-    color-mix(in srgb, var(--block-coral) 70%, var(--surface)) 0%,
-    color-mix(in srgb, var(--block-coral) 35%, transparent) 35%,
-    transparent 65%
-  );
-  animation: ${glow} 6s ease-in-out infinite;
-
-  @media (prefers-reduced-motion: reduce) {
-    animation: none;
-  }
-`;
-
-const turn = keyframes`
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-`;
-
-// 해가 있는 오른쪽 위를 중심으로 햇살 줄기를 그리고, 중심에서 멀어질수록 흐려지게 가린다.
-const SunRays = styled.span`
-  position: absolute;
-  top: -60%;
-  right: -60%;
-  width: 140%;
-  aspect-ratio: 1;
-  background: repeating-conic-gradient(
-    color-mix(in srgb, var(--surface) 75%, transparent) 0deg 5deg,
-    transparent 5deg 20deg
-  );
-  mask-image: radial-gradient(circle, black 0%, transparent 55%);
-  animation: ${turn} 60s linear infinite;
-
-  @media (prefers-reduced-motion: reduce) {
-    animation: none;
-  }
-`;
-
-const rise = keyframes`
-  0% { transform: translate(0, 0); opacity: 0; }
-  15% { opacity: 0.7; }
-  50% { transform: translate(10px, -50cqh); }
-  85% { opacity: 0.7; }
-  100% { transform: translate(-4px, -100cqh); opacity: 0; }
-`;
-
-const Mote = styled.span`
-  position: absolute;
-  bottom: 0;
-  border-radius: 50%;
-  background: color-mix(in srgb, var(--zone-frame) 80%, var(--text));
-  opacity: 0;
-  animation: ${rise} ease-in-out infinite;
-
-  @media (prefers-reduced-motion: reduce) {
-    animation: none;
-    opacity: 0.5;
-    transform: translateY(-40cqh);
   }
 `;
