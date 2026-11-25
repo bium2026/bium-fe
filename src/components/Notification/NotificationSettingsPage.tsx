@@ -390,6 +390,8 @@ const Field = styled.div`
 
   input,
   select {
+    /* 입력칸 기본 너비가 카드보다 넓어 좁은 화면에서 카드 밖으로 나가지 않게 칸 너비에 맞춘다. */
+    width: 100%;
     min-height: 46px;
     border: 1px solid var(--border);
     border-radius: 8px;
