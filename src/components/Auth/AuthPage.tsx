@@ -6,6 +6,7 @@
  */
 import { useLayoutEffect, useRef, useState } from "react";
 import styled from "@emotion/styled";
+import { useAuthStore } from "../../store/authStore";
 import AuthIntro from "./AuthIntro";
 import LoginForm from "./LoginForm";
 import SignupForm from "./SignupForm";
@@ -22,11 +23,18 @@ const slideEasing = "cubic-bezier(0.22, 1, 0.36, 1)";
 function AuthPage() {
   const [mode, setMode] = useState<AuthMode>("login");
   const [signedUpEmail, setSignedUpEmail] = useState<string | null>(null);
+  const dismissExpired = useAuthStore((state) => state.dismissExpired);
   const viewportRef = useRef<HTMLDivElement>(null);
   const loginRef = useRef<HTMLDivElement>(null);
   const signupRef = useRef<HTMLDivElement>(null);
 
   const activeIndex = modes.findIndex((item) => item.id === mode);
+
+  const changeMode = (next: AuthMode) => {
+    // 가입 탭으로 넘어가면 만료 안내는 더 이상 필요 없다.
+    if (next === "signup") dismissExpired();
+    setMode(next);
+  };
 
   const handleSignupSuccess = (email: string) => {
     setSignedUpEmail(email);
@@ -64,7 +72,7 @@ function AuthPage() {
                 type="button"
                 aria-pressed={mode === item.id}
                 $active={mode === item.id}
-                onClick={() => setMode(item.id)}
+                onClick={() => changeMode(item.id)}
               >
                 {item.label}
               </ModeButton>

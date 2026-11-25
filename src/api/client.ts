@@ -1,8 +1,8 @@
 /*
  * 서버 요청을 보내는 공통 함수다.
  * 백엔드 공통 응답({ success, data, error })에서 data만 꺼내 돌려주고, 실패하면 ApiError를 던진다.
- * 로그인 토큰을 Authorization 헤더에 담고, 토큰이 만료돼 401을 받으면 저장된 토큰을 지운다.
- * 토큰이 지워지면 RequireAuth가 로그인 화면으로 보낸다.
+ * 로그인 토큰을 Authorization 헤더에 담고, 토큰이 만료돼 401을 받으면 저장된 토큰을 지우고 만료로 표시한다.
+ * 토큰이 지워지면 RequireAuth가 로그인 화면으로 보내고, 로그인 화면은 만료 안내를 보여 준다.
  * 냉장고를 찾지 못했다는 오류(FRIDGE_NOT_FOUND)를 받으면 받아 둔 냉장고 목록을 낡은 것으로 표시한다.
  */
 import { useAuthStore } from "../store/authStore";
@@ -70,7 +70,7 @@ async function readData<T>(response: Response, token: string | null): Promise<T>
   const result: ApiResponse<T> | null = await response.json().catch(() => null);
 
   if (response.status === 401 && token) {
-    useAuthStore.getState().clearAuth();
+    useAuthStore.getState().expireAuth();
   }
 
   // 멤버가 아닌 냉장고도 서버가 이 오류로 거절한다. 그사이 내보내졌거나 다른 기기에서 나갔을 수 있어

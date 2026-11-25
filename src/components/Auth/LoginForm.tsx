@@ -2,6 +2,7 @@
  * 이메일과 비밀번호로 로그인하는 폼이다.
  * 두 칸이 모두 채워져야 로그인 버튼이 활성화되고, 로그인하면 토큰을 저장한 뒤 냉장고 화면으로 이동한다.
  * 회원가입 직후에는 가입한 이메일을 채워 두고 가입 완료 안내를 보여 준다.
+ * 로그인이 만료돼 이 화면에 왔으면 만료 안내를 보여 준다.
  */
 import { useState } from "react";
 import { useNavigate } from "react-router";
@@ -26,6 +27,7 @@ function getLoginErrorMessage(error: unknown) {
 function LoginForm({ signedUpEmail }: LoginFormProps) {
   const navigate = useNavigate();
   const setAuth = useAuthStore((state) => state.setAuth);
+  const isExpired = useAuthStore((state) => state.isExpired);
   const [email, setEmail] = useState(signedUpEmail ?? "");
   const [password, setPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -52,7 +54,13 @@ function LoginForm({ signedUpEmail }: LoginFormProps) {
       submitLabel={isSubmitting ? "로그인하는 중..." : "로그인"}
       canSubmit={canSubmit}
       onSubmit={handleSubmit}
-      notice={signedUpEmail ? "회원가입이 완료되었어요. 로그인해 주세요." : undefined}
+      notice={
+        signedUpEmail
+          ? "회원가입이 완료되었어요. 로그인해 주세요."
+          : isExpired
+            ? "로그인이 만료됐어요. 다시 로그인해 주세요."
+            : undefined
+      }
       error={error}
     >
       <AuthField
