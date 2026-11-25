@@ -6,6 +6,7 @@
  */
 import { useId } from "react";
 import type { ReactNode, RefObject } from "react";
+import { keyframes } from "@emotion/react";
 import styled from "@emotion/styled";
 import { Check, ChefHat, Minus, TrendingDown, TrendingUp, X } from "lucide-react";
 import { Link } from "react-router";
@@ -33,7 +34,7 @@ type ShoppingSectionProps = {
   itemErrors: Record<number, string>;
   // 체크하면 재료가 다른 묶음으로 옮겨 새로 그려지므로, 화면이 옮긴 재료의 체크 상자를 찾아 포커스를 돌려놓을 때 쓴다.
   checkboxRefs: RefObject<Map<number, HTMLInputElement>>;
-  // 산 것 묶음은 바탕을 옅게 해 살 것보다 덜 눈에 띄게 한다.
+  // 산 것 묶음은 위에 점선을 긋고 제목을 작게 해 살 것보다 덜 눈에 띄게 한다.
   muted?: boolean;
   onToggle: (item: ShoppingListItem, checked: boolean) => void;
   onRemove: (item: ShoppingListItem) => void;
@@ -91,7 +92,10 @@ function ShoppingSection({
                     <CheckBox aria-hidden="true" $checked={item.checked}>
                       {item.checked && <Check size={14} strokeWidth={3} />}
                     </CheckBox>
-                    <ItemName $checked={item.checked}>{item.name}</ItemName>
+                    {/* 막 체크한 재료(요청 중)는 산 것으로 내려오면서 줄이 그어지는 모습을 보여 준다. */}
+                    <ItemName $checked={item.checked} $animate={item.checked && isPending}>
+                      <span>{item.name}</span>
+                    </ItemName>
                   </CheckLabel>
 
                   {item.marketPrice && <MarketPriceLine marketPrice={item.marketPrice} checked={item.checked} />}
@@ -149,52 +153,43 @@ function MarketPriceLine({ marketPrice, checked }: { marketPrice: MarketPrice; c
 
 export default ShoppingSection;
 
+const strike = keyframes`
+  from { background-size: 0% 1.5px; }
+  to { background-size: 100% 1.5px; }
+`;
+
+// 테두리 카드는 두 묶음을 감싼 페이지 쪽 메모가 맡고, 여기서는 묶음 사이를 점선으로만 나눈다.
 const Panel = styled.section<{ $muted: boolean }>`
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  background: ${(props) => (props.$muted ? "var(--surface-soft)" : "var(--surface)")};
-  padding: 24px;
-  display: grid;
   /* 긴 재료 이름이나 입력칸이 좁은 화면에서 패널 밖으로 밀어내지 않게 한다. */
+  display: grid;
   grid-template-columns: minmax(0, 1fr);
   align-content: start;
-  gap: 16px;
+  gap: ${(props) => (props.$muted ? "8px" : "16px")};
+  ${(props) => props.$muted && "border-top: 1px dashed var(--border); padding-top: 20px;"}
 
-  @media (max-width: 760px) {
-    padding: 20px;
+  h2 {
+    font-size: ${(props) => (props.$muted ? "17px" : "22px")};
   }
 `;
 
 const Header = styled.div`
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  align-items: baseline;
+  gap: 8px;
 
   h2 {
-    font-size: 22px;
     font-weight: 540;
     letter-spacing: -0.26px;
   }
 `;
 
 const Count = styled.span`
-  min-width: 32px;
-  height: 32px;
-  border-radius: 999px;
-  background: var(--text);
-  color: var(--surface);
-  padding: 0 8px;
-  display: grid;
-  place-items: center;
-  font-size: 14px;
-  font-weight: 480;
+  font-size: 15px;
+  font-weight: 330;
 `;
 
 const Empty = styled.p`
-  border-radius: 8px;
-  background: var(--block-cream);
-  padding: 18px;
+  padding: 12px 0 4px;
   font-size: 14px;
   font-weight: 330;
   line-height: 1.55;
@@ -206,13 +201,13 @@ const List = styled.ul`
   display: grid;
 
   li + li {
-    border-top: 1px solid var(--border);
+    border-top: 1px solid var(--border-soft);
   }
 `;
 
 const Item = styled.li`
-  min-height: 56px;
-  padding: 8px 0;
+  min-height: 52px;
+  padding: 6px 0;
   display: grid;
   grid-template-columns: minmax(0, 1fr) 36px;
   align-items: center;
@@ -225,7 +220,7 @@ const ItemMain = styled.div`
   /* 한 줄로 줄이는 긴 레시피 이름이 칸을 넓혀 화면 밖으로 밀어내지 않게 한다. */
   grid-template-columns: minmax(0, 1fr);
   justify-items: start;
-  gap: 4px;
+  gap: 2px;
 `;
 
 const CheckLabel = styled.label`
@@ -266,30 +261,46 @@ const CheckBox = styled.span<{ $checked: boolean }>`
   color: var(--surface);
   display: grid;
   place-items: center;
+  transition: background-color 0.15s ease;
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+  }
 `;
 
-const ItemName = styled.span<{ $checked: boolean }>`
+// 줄긋기는 text-decoration 대신 배경 선으로 그려 그어지는 움직임을 줄 수 있게 한다.
+// 이름이 두 줄로 넘어가도 줄마다 선이 그어지게 안쪽 글자를 inline으로 둔다.
+const ItemName = styled.span<{ $checked: boolean; $animate: boolean }>`
   min-width: 0;
   font-size: 16px;
   font-weight: ${(props) => (props.$checked ? 330 : 540)};
   line-height: 1.4;
-  text-decoration: ${(props) => (props.$checked ? "line-through" : "none")};
   overflow-wrap: anywhere;
+
+  span {
+    background: ${(props) => (props.$checked ? "linear-gradient(var(--text), var(--text)) no-repeat 0 52% / 100% 1.5px" : "none")};
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
+    animation: ${(props) => (props.$animate ? strike : "none")} 0.35s ease-out;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    span {
+      animation: none;
+    }
+  }
 `;
 
 // 레시피와 오류는 체크 상자(24px)와 간격(10px)만큼 들여 재료 이름 아래에 맞춘다.
 const RecipeLink = styled(Link)`
   margin-left: 34px;
   max-width: calc(100% - 34px);
-  border-radius: 999px;
-  background: var(--block-lilac);
   color: var(--text);
-  padding: 2px 10px;
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-size: 12px;
-  font-weight: 540;
+  font-size: 13px;
+  font-weight: 480;
   line-height: 1.5;
   text-decoration: none;
 
@@ -333,9 +344,6 @@ const PriceLine = styled.p<{ $checked: boolean }>`
 `;
 
 const Trend = styled.span`
-  border-radius: 999px;
-  background: var(--block-lime);
-  padding: 0 8px;
   display: inline-flex;
   align-items: center;
   gap: 4px;
