@@ -324,7 +324,10 @@ const PhotoButton = styled.button`
   }
 `;
 
+// 사진 버튼이 생겨 윗줄이 좁아져도 "기본"이 한 글자씩 꺾이지 않게 줄바꿈과 줄어듦을 막는다.
 const BasicBadge = styled.span`
+  flex: none;
+  white-space: nowrap;
   border: 1px solid var(--border);
   border-radius: 999px;
   background: var(--surface);
