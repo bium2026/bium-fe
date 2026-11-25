@@ -27,6 +27,7 @@ import { OutlineButton } from "../Share/shareStyles";
 import CookingModal from "./CookingModal";
 import MissingIngredientModal from "./MissingIngredientModal";
 import { getRecipeTone } from "./recipeTone";
+import { playSound } from "../../sound/soundEffects";
 
 type DetailView =
   | { status: "loading" }
@@ -118,11 +119,13 @@ function RecipeDetailPage() {
     } catch (error) {
       // 다른 멤버가 활동 기록에서 먼저 되돌렸으면 되돌리려던 결과와 같으므로 그대로 넘어간다.
       if (!(error instanceof ApiError && error.code === "ALREADY_UNDONE")) {
+        playSound("error");
         const message = getShareErrorMessage(error, "되돌리지 못했어요. 잠시 후 다시 시도해 주세요.");
         updateIfSame((prev) => ({ ...prev, undo: "idle", error: message }));
         return;
       }
     }
+    playSound("delete");
     updateIfSame((prev) => ({ ...prev, undo: "undone", error: "" }));
     cookedNoticeRef.current?.focus();
   };
