@@ -19,9 +19,9 @@ type ReceiptScanResponse = {
   items: ScannedReceiptItem[];
 };
 
-// 사진은 JPG·PNG·WEBP·HEIC·HEIF, 10MB까지 받는다. 식재료를 못 찾으면 빈 배열이 온다.
-// 실패: INVALID_RECEIPT_IMAGE(400), IMAGE_TOO_LARGE(413), FRIDGE_NOT_FOUND(404), TOO_MANY_REQUESTS(429),
-//       RECEIPT_SCAN_FAILED(502), AI_QUOTA_EXCEEDED(503)
+// 사진은 JPG·PNG·WEBP·HEIC·HEIF, 10MB까지 받는다. 영수증에 식재료가 없으면 빈 배열이 온다.
+// 실패: INVALID_RECEIPT_IMAGE(400), RECEIPT_NOT_RECOGNIZED(400, 영수증이 아닌 사진), IMAGE_TOO_LARGE(413),
+//       FRIDGE_NOT_FOUND(404), TOO_MANY_REQUESTS(429), RECEIPT_SCAN_FAILED(502), AI_QUOTA_EXCEEDED(503)
 export async function scanReceipt(fridgeId: number, image: File) {
   const body = new FormData();
   body.append("image", image);
