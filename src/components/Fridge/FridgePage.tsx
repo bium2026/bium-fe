@@ -79,6 +79,8 @@ type ActiveDrag = { kind: "fridge-item"; ingredient: FridgeIngredient } | { kind
 const DOOR_FULL_MESSAGE = `문칸에는 ${DOOR_SLOT_COUNT}개까지 넣을 수 있어요. 다른 재료를 먼저 옮겨 주세요.`;
 // 재료를 끈 채로 화살표 위에 이만큼 머무르면 옆 구역으로 넘어간다.
 const ZONE_SWITCH_DELAY_MS = 700;
+// 안내는 다음 동작까지 남지 않도록 이만큼 지나면 지운다.
+const NOTICE_VISIBLE_MS = 5000;
 const zoneWithParticle: Record<ZoneId, string> = { fridge: "냉장실로", freezer: "냉동실로", pantry: "실온으로" };
 
 // 카드는 칸 안에 들어 있어 포인터 아래에 칸과 재료가 함께 잡힌다.
@@ -178,6 +180,7 @@ function FridgePage() {
   const [receiptScan, setReceiptScan] = useState<ReceiptScan | null>(null);
   // 영수증으로 넣기와 옮기기·넣기 결과를 알려 준다.
   const [notice, setNotice] = useState("");
+  const noticeTimerRef = useRef<number | undefined>(undefined);
   const zoneTitleRef = useRef<HTMLHeadingElement>(null);
   const removedWhileOpenRef = useRef(false);
   const receiptInputRef = useRef<HTMLInputElement>(null);
@@ -232,6 +235,14 @@ function FridgePage() {
   }, [fridgeId, purchasedAttempt]);
 
   useEffect(() => () => window.clearInterval(zoneSwitchTimerRef.current), []);
+  useEffect(() => () => window.clearTimeout(noticeTimerRef.current), []);
+
+  // 새 안내는 이전 안내를 바꾸고, 같은 문구가 다시 와도 사라지는 시간을 처음부터 다시 센다.
+  const showNotice = (message: string) => {
+    window.clearTimeout(noticeTimerRef.current);
+    setNotice(message);
+    if (message) noticeTimerRef.current = window.setTimeout(() => setNotice(""), NOTICE_VISIBLE_MS);
+  };
 
   // 모달을 연 재료 카드가 지워졌으면 모달이 닫힐 때 포커스를 돌려줄 곳이 없어 구역 제목으로 옮긴다.
   useEffect(() => {
@@ -289,7 +300,7 @@ function FridgePage() {
     // 다른 구역으로 옮겨졌으면 모달을 연 카드가 화면에 없어 포커스를 돌려줄 곳이 없다.
     if (findInContents(next, id)?.zoneId !== zoneId) removedWhileOpenRef.current = true;
     setSelectedIngredient(null);
-    setNotice("다른 멤버가 먼저 바꾼 재료라 냉장고를 다시 불러왔어요. 확인하고 다시 시도해 주세요.");
+    showNotice("다른 멤버가 먼저 바꾼 재료라 냉장고를 다시 불러왔어요. 확인하고 다시 시도해 주세요.");
   };
 
   // 실패하면 모달이 오류를 보여 주고, 화면은 서버에 반영된 뒤에만 바꾸므로 되돌릴 것이 없다.
@@ -340,7 +351,7 @@ function FridgePage() {
       // 재료가 모두 지워지면 버튼이 비활성화되어 포커스를 돌려줄 곳이 없다.
       removedWhileOpenRef.current = true;
       setFridgeContents((prev) => deletedItemIds.reduce((next, id) => replaceIngredient(next, id, null), prev));
-      setNotice(`유통기한 지난 재료 ${deletedItemIds.length}개를 지웠어요.`);
+      showNotice(`유통기한 지난 재료 ${deletedItemIds.length}개를 지웠어요.`);
     } catch (error) {
       // 다시 받지 못했으면 모달이 "다시 불러왔어요"라고 하지 않도록 다른 오류로 알린다.
       if (isStaleItemError(error) && (await refreshContents(fridgeId)) === null) {
@@ -387,7 +398,7 @@ function FridgePage() {
     const fromSectionInTargetZone = from.zoneId === target.zoneId ? from.location.sectionId : null;
     if (isDoorFull(fridgeContents[target.zoneId], target.location, fromSectionInTargetZone)) {
       playSound("error");
-      setNotice(DOOR_FULL_MESSAGE);
+      showNotice(DOOR_FULL_MESSAGE);
       return;
     }
 
@@ -397,7 +408,7 @@ function FridgePage() {
     playSound("drop");
     movingRef.current = true;
     setIsMoving(true);
-    setNotice("");
+    showNotice("");
     try {
       const updated = await changeFridgeItemPosition(ingredient.id, {
         storage: zoneStorage[target.zoneId],
@@ -408,20 +419,20 @@ function FridgePage() {
       setFridgeContents((prev) => replaceIngredient(prev, ingredient.id, toIngredient(updated)));
       // 다른 구역으로 옮기면 지금 화면에서 사라지므로 어디로 갔는지 알려 준다.
       if (from.zoneId !== target.zoneId) {
-        setNotice(`${ingredient.name}을(를) ${zoneWithParticle[target.zoneId]} 옮겼어요.`);
+        showNotice(`${ingredient.name}을(를) ${zoneWithParticle[target.zoneId]} 옮겼어요.`);
       }
     } catch (error) {
       playSound("error");
       // 다시 받은 냉장고가 화면을 덮으므로, 다시 받지 못했을 때만 옮겨 둔 재료를 제자리로 돌린다.
       const reloaded = isStaleItemError(error) && (await refreshContents(targetFridgeId)) !== null;
       if (reloaded) {
-        setNotice("다른 멤버가 먼저 바꾼 재료라 냉장고를 다시 불러왔어요.");
+        showNotice("다른 멤버가 먼저 바꾼 재료라 냉장고를 다시 불러왔어요.");
       } else {
         setFridgeContents((prev) => {
           const current = findInContents(prev, ingredient.id);
           return current ? moveIngredientTo(prev, current, from) : prev;
         });
-        setNotice(
+        showNotice(
           isStaleItemError(error)
             ? "다른 멤버가 먼저 바꾼 재료라 옮기지 못했어요. 새로고침해서 확인해 주세요."
             : getSaveErrorMessage(error, "재료를 옮기지 못했어요. 다시 시도해 주세요."),
@@ -437,13 +448,13 @@ function FridgePage() {
   const putPurchasedItem = async (targetFridgeId: number, item: PurchasedItem, to: ZoneLocation) => {
     if (isDoorFull(fridgeContents[to.zoneId], to.location, null)) {
       playSound("error");
-      setNotice(DOOR_FULL_MESSAGE);
+      showNotice(DOOR_FULL_MESSAGE);
       return;
     }
     movingRef.current = true;
     setIsMoving(true);
     setMovingPurchasedId(item.id);
-    setNotice("");
+    showNotice("");
     try {
       const created = await movePurchasedItem(item.id, {
         storage: zoneStorage[to.zoneId],
@@ -456,19 +467,19 @@ function FridgePage() {
       }));
       removePurchasedItem(item.id);
       playSound("drop");
-      setNotice(`${item.name}을(를) ${zoneMeta[to.zoneId].title}에 넣었어요.`);
+      showNotice(`${item.name}을(를) ${zoneMeta[to.zoneId].title}에 넣었어요.`);
     } catch (error) {
       playSound("error");
       if (error instanceof ApiError && error.code === "PURCHASED_ITEM_NOT_FOUND") {
         removePurchasedItem(item.id);
         const reloaded = (await refreshContents(targetFridgeId)) !== null;
-        setNotice(
+        showNotice(
           reloaded
             ? "다른 멤버가 먼저 넣었거나 뺀 장본 음식이에요. 냉장고를 다시 불러왔어요."
             : "다른 멤버가 먼저 넣었거나 뺀 장본 음식이에요. 새로고침해서 냉장고를 확인해 주세요.",
         );
       } else {
-        setNotice(getSaveErrorMessage(error, `${item.name}을(를) 넣지 못했어요. 다시 시도해 주세요.`));
+        showNotice(getSaveErrorMessage(error, `${item.name}을(를) 넣지 못했어요. 다시 시도해 주세요.`));
       }
     } finally {
       movingRef.current = false;
@@ -556,7 +567,7 @@ function FridgePage() {
   };
 
   const handleReceiptSelect = (file: File) => {
-    setNotice("");
+    showNotice("");
     setReceiptScan(startReceiptScan(file));
   };
 
@@ -570,7 +581,7 @@ function FridgePage() {
         added.map((item, index) => ({ zoneId: storageZone[items[index].storage], ingredient: toIngredient(item) })),
       ),
     );
-    setNotice(`${added.length}개를 냉장고에 넣었어요.`);
+    showNotice(`${added.length}개를 냉장고에 넣었어요.`);
   };
 
   const dragPreview: FridgeIngredient | null =
@@ -808,7 +819,11 @@ const Toolbar = styled.div`
   gap: 8px 16px;
 `;
 
+// 안내는 버튼 줄 아래 한 줄을 따로 써서, 문구가 뜨고 사라져도 버튼이 다음 줄로 밀리지 않게 한다.
 const Notice = styled.p`
+  order: 1;
+  flex-basis: 100%;
+  text-align: right;
   font-size: 14px;
   font-weight: 480;
   word-break: keep-all;
