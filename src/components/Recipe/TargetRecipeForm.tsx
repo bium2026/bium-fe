@@ -13,6 +13,7 @@ import { ApiError } from "../../api/client";
 import { recommendTargetRecipe } from "../../api/recipe";
 import { useAuthStore } from "../../store/authStore";
 import { useRecipeStore } from "../../store/recipeStore";
+import { playSound } from "../../sound/soundEffects";
 
 // 백엔드와 같은 기준이다. 둘 다 UTF-16 글자 수로 센다.
 const DISH_NAME_MAX_LENGTH = 50;
@@ -87,6 +88,7 @@ function TargetRecipeForm({ fridgeId, onFridgeRetry }: TargetRecipeFormProps) {
     try {
       const recipe = await recommendTargetRecipe(fridgeId, dishName);
       if (isStale()) return;
+      playSound("success");
       // 기다리는 사이 다른 화면으로 갔으면 그 화면에서 끌고 오지 않고, 돌아왔을 때 결과를 알려 준다.
       if (!isMountedRef.current) {
         setTarget({ status: "idle" });
@@ -98,6 +100,7 @@ function TargetRecipeForm({ fridgeId, onFridgeRetry }: TargetRecipeFormProps) {
       navigate(`/recipes/${recipe.id}`);
     } catch (error) {
       if (isStale()) return;
+      playSound("error");
       const errorInfo = getErrorInfo(error);
       setTarget({ status: "error", fridgeId, dishName, ...errorInfo });
       if (isDishNameError(errorInfo) && isMountedRef.current) {
