@@ -5,7 +5,8 @@
 import { request } from "./client";
 
 export type SignupRequest = {
-  loginId: string;
+  // 로그인에 쓰고, 유통기한 알림을 받을 주소의 처음 값으로도 쓴다. 서버가 소문자로 바꿔 저장한다.
+  email: string;
   password: string;
   nickname: string;
 };
@@ -15,7 +16,7 @@ export type SignupResponse = {
 };
 
 export type LoginRequest = {
-  loginId: string;
+  email: string;
   password: string;
 };
 
@@ -25,7 +26,7 @@ export type LoginResponse = {
   expiresIn: number;
 };
 
-// 실패: INVALID_INPUT(400), DUPLICATE_LOGIN_ID(409)
+// 실패: INVALID_INPUT(400), DUPLICATE_EMAIL(409)
 export function signup(body: SignupRequest) {
   return request<SignupResponse>("/api/auth/signup", { method: "POST", body, auth: false });
 }

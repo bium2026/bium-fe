@@ -2,7 +2,7 @@
  * 로그인·회원가입 화면이다.
  * 왼쪽 라임 블록에 서비스 소개를, 오른쪽 카드에 로그인/회원가입 전환과 폼을 보여 준다.
  * 전환할 때 토글 표시와 폼이 옆으로 미끄러지고, 카드 높이도 부드럽게 바뀐다.
- * 회원가입에 성공하면 로그인 폼으로 넘기고 가입한 아이디를 채워 둔다.
+ * 회원가입에 성공하면 로그인 폼으로 넘기고 가입한 이메일을 채워 둔다.
  */
 import { useLayoutEffect, useRef, useState } from "react";
 import styled from "@emotion/styled";
@@ -21,15 +21,15 @@ const slideEasing = "cubic-bezier(0.22, 1, 0.36, 1)";
 
 function AuthPage() {
   const [mode, setMode] = useState<AuthMode>("login");
-  const [signedUpLoginId, setSignedUpLoginId] = useState<string | null>(null);
+  const [signedUpEmail, setSignedUpEmail] = useState<string | null>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const loginRef = useRef<HTMLDivElement>(null);
   const signupRef = useRef<HTMLDivElement>(null);
 
   const activeIndex = modes.findIndex((item) => item.id === mode);
 
-  const handleSignupSuccess = (loginId: string) => {
-    setSignedUpLoginId(loginId);
+  const handleSignupSuccess = (email: string) => {
+    setSignedUpEmail(email);
     setMode("login");
   };
 
@@ -74,12 +74,12 @@ function AuthPage() {
           <Viewport ref={viewportRef}>
             <Track $index={activeIndex}>
               {/* 화면 밖으로 밀려난 폼은 inert로 탭 이동과 스크린 리더에서 제외한다. */}
-              {/* 가입할 때마다 key를 바꿔 로그인 폼은 가입한 아이디로, 회원가입 폼은 빈 칸으로 새로 그린다. */}
+              {/* 가입할 때마다 key를 바꿔 로그인 폼은 가입한 이메일로, 회원가입 폼은 빈 칸으로 새로 그린다. */}
               <Slide ref={loginRef} inert={mode !== "login"} $active={mode === "login"}>
-                <LoginForm key={signedUpLoginId} signedUpLoginId={signedUpLoginId} />
+                <LoginForm key={signedUpEmail} signedUpEmail={signedUpEmail} />
               </Slide>
               <Slide ref={signupRef} inert={mode !== "signup"} $active={mode === "signup"}>
-                <SignupForm key={signedUpLoginId} onSuccess={handleSignupSuccess} />
+                <SignupForm key={signedUpEmail} onSuccess={handleSignupSuccess} />
               </Slide>
             </Track>
           </Viewport>

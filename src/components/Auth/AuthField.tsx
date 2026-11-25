@@ -8,7 +8,7 @@ import { CircleAlert, Eye, EyeOff } from "lucide-react";
 
 type AuthFieldProps = {
   label: string;
-  type?: "text" | "password";
+  type?: "text" | "password" | "email";
   value: string;
   onChange: (value: string) => void;
   onBlur?: () => void;
@@ -45,14 +45,14 @@ function AuthField({
       <InputBox>
         <Input
           id={id}
-          type={isPassword && !isPasswordVisible ? "password" : "text"}
+          type={isPassword ? (isPasswordVisible ? "text" : "password") : type}
           value={value}
           onChange={(event) => onChange(event.target.value)}
           onBlur={onBlur}
           autoComplete={autoComplete}
           placeholder={placeholder}
           maxLength={maxLength}
-          // 모바일 키보드가 첫 글자를 대문자로 바꾸면 아이디 형식 검사에서 걸린다.
+          // 모바일 키보드가 이메일 첫 글자를 대문자로 바꾸지 않게 한다.
           autoCapitalize="none"
           spellCheck={false}
           aria-invalid={error ? true : undefined}
