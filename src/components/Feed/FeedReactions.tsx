@@ -8,6 +8,7 @@ import styled from "@emotion/styled";
 import { Bookmark, Heart } from "lucide-react";
 import { setFeedLike, setFeedSave, type FeedReaction } from "../../api/feed";
 import { getFeedErrorMessage } from "./feedFormat";
+import { playSound } from "../../sound/soundEffects";
 
 type ReactionKind = "like" | "save";
 
@@ -33,6 +34,9 @@ function FeedReactions({ fridgeId, fridgeName, reaction, onChange, onSaveSettled
     if (pending.includes(kind)) return;
     setPending((prev) => [...prev, kind]);
     setError("");
+    // 화면은 누르자마자 바꿔 보여 주므로 소리도 바로 내고, 실패해서 되돌리면 오류 소리를 낸다.
+    const turningOn = kind === "like" ? !reaction.liked : !reaction.saved;
+    playSound(turningOn ? "toggleOn" : "toggleOff");
     try {
       if (kind === "like") {
         onChange(toggleLike);
@@ -46,6 +50,7 @@ function FeedReactions({ fridgeId, fridgeName, reaction, onChange, onSaveSettled
         onSaveSettled?.(result.saved);
       }
     } catch (toggleError) {
+      playSound("error");
       onChange(kind === "like" ? toggleLike : (prev) => ({ ...prev, saved: !prev.saved }));
       const action = kind === "like" ? "좋아요를" : "저장을";
       setError(getFeedErrorMessage(toggleError, `${action} 바꾸지 못했어요. 잠시 후 다시 시도해 주세요.`));
