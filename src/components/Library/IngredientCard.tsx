@@ -4,7 +4,7 @@
  * 냉장고에 넣기는 화면의 모달을 열고, 넣고 나면 화면이 isFridgeAdded로 잠깐 "넣었어요"를 보여 주게 한다.
  * 삭제는 카드 위에서 한 번 더 확인하고, 실패하면 확인 영역에 오류를 보여 다시 시도하게 한다.
  * 공용 도감의 기본 재료는 지울 수 없어서 삭제 버튼 대신 "기본" 표시를 둔다.
- * 내가 추가한 재료는 사진 버튼으로 아이콘을 이모지 대신 사진으로 바꾸는 모달을 연다.
+ * 사진 버튼으로 아이콘을 이모지 대신 사진으로 바꾸는 모달을 연다. 기본 재료의 사진은 나에게만 보인다.
  * 별 버튼으로 즐겨찾기를 켜고 끈다. 서버에 반영될 때까지 버튼을 막고, 실패하면 버튼 아래에 알린다.
  */
 import { useEffect, useRef, useState } from "react";
@@ -126,17 +126,15 @@ function IngredientCard({
           >
             <Star size={16} aria-hidden="true" fill={ingredient.favorite ? "currentColor" : "none"} />
           </FavoriteButton>
-          {!ingredient.basic && (
-            <PhotoButton
-              type="button"
-              aria-label={`${ingredient.name} 아이콘을 사진으로 바꾸기`}
-              title="사진으로 바꾸기"
-              onClick={() => onOpenImage(ingredient)}
-              disabled={isConfirmingDelete}
-            >
-              <ImagePlus size={16} aria-hidden="true" />
-            </PhotoButton>
-          )}
+          <PhotoButton
+            type="button"
+            aria-label={`${ingredient.name} 아이콘을 사진으로 바꾸기`}
+            title="사진으로 바꾸기"
+            onClick={() => onOpenImage(ingredient)}
+            disabled={isConfirmingDelete}
+          >
+            <ImagePlus size={16} aria-hidden="true" />
+          </PhotoButton>
           {ingredient.basic ? (
             <BasicBadge>기본</BasicBadge>
           ) : (

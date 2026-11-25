@@ -2,6 +2,7 @@
  * 내가 추가한 도감 재료의 아이콘을 이모지 대신 사진(JPG·PNG)으로 바꾸는 모달이다.
  * 사진을 고르면 줄인 사진을 미리 보여 주고, 저장해야 서버에 올린다. 사진이 있으면 이모지로 되돌릴 수도 있다.
  * 도감 재료의 사진은 그 재료로 넣은 냉장고 재료와 장본 음식에도 함께 보인다.
+ * 기본 재료는 모두가 같이 쓰는 재료라서, 올린 사진은 나에게만 보이고 다른 사람에게는 이모지 그대로 보인다.
  * 요청 중에는 모달이 닫히지 않고 버튼을 다시 누를 수 없다.
  */
 import { useEffect, useId, useRef, useState } from "react";
@@ -157,6 +158,7 @@ function ImageForm({ ingredient, isBusy, onBusyChange, onClose, onChange }: Imag
       </PickButton>
       <Hint id={hintId}>
         JPG·PNG 사진을 정사각형에 가깝게 고르면 잘 보여요. 이 재료로 넣은 냉장고 재료와 장본 음식에도 같은 사진이 보여요.
+        {ingredient.basic && " 기본 재료라서 사진은 나에게만 보이고, 다른 사람에게는 이모지 그대로 보여요."}
       </Hint>
 
       {errorMessage && <ModalError message={errorMessage} />}
