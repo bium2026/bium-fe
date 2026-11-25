@@ -1,7 +1,7 @@
 /*
- * 아이디, 비밀번호, 닉네임, 이메일로 가입하는 폼이다.
+ * 이메일, 비밀번호, 닉네임으로 가입하는 폼이다.
  * 입력 칸을 벗어나거나 가입 버튼을 누르면 형식을 검사해 칸 아래에 알려 준다.
- * 가입에 성공하면 onSuccess로 가입한 아이디를 넘겨 로그인 폼으로 보낸다.
+ * 가입에 성공하면 onSuccess로 가입한 이메일을 넘겨 로그인 폼으로 보낸다.
  */
 import { useState } from "react";
 import { signup } from "../../api/auth";
@@ -10,11 +10,10 @@ import AuthField from "./AuthField";
 import AuthForm from "./AuthForm";
 
 type SignupValues = {
-  loginId: string;
+  email: string;
   password: string;
   passwordConfirm: string;
   nickname: string;
-  email: string;
 };
 
 type SignupField = keyof SignupValues;
@@ -22,19 +21,17 @@ type SignupField = keyof SignupValues;
 type SignupErrors = Partial<Record<SignupField, string>>;
 
 type SignupFormProps = {
-  onSuccess: (loginId: string) => void;
+  onSuccess: (email: string) => void;
 };
 
 const initialValues: SignupValues = {
-  loginId: "",
+  email: "",
   password: "",
   passwordConfirm: "",
   nickname: "",
-  email: "",
 };
 
 // 백엔드 SignupRequest의 검증 규칙과 같다. 서버 규칙이 바뀌면 함께 바꾼다.
-const LOGIN_ID_PATTERN = /^[a-z0-9]{4,20}$/;
 const PASSWORD_PATTERN = /^(?=.*[A-Za-z])(?=.*\d)\S{8,20}$/;
 const NICKNAME_MIN_LENGTH = 2;
 // 알림 설정 화면(NotificationSettingsPage)의 이메일 검사와 같다.
@@ -43,8 +40,8 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 function validateSignup(values: SignupValues): SignupErrors {
   const errors: SignupErrors = {};
 
-  if (!LOGIN_ID_PATTERN.test(values.loginId)) {
-    errors.loginId = "아이디는 영문 소문자와 숫자 4~20자로 입력하세요.";
+  if (!EMAIL_PATTERN.test(values.email.trim())) {
+    errors.email = "이메일 형식에 맞게 입력하세요.";
   }
   if (!PASSWORD_PATTERN.test(values.password)) {
     errors.password = "비밀번호는 영문과 숫자를 포함해 공백 없이 8~20자로 입력하세요.";
@@ -54,9 +51,6 @@ function validateSignup(values: SignupValues): SignupErrors {
   }
   if (values.nickname.trim().length < NICKNAME_MIN_LENGTH) {
     errors.nickname = "닉네임은 2~10자로 입력하세요.";
-  }
-  if (!EMAIL_PATTERN.test(values.email.trim())) {
-    errors.email = "이메일 형식에 맞게 입력하세요.";
   }
 
   return errors;
@@ -76,12 +70,14 @@ function SignupForm({ onSuccess }: SignupFormProps) {
   const [submitted, setSubmitted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string>();
-  // 서버가 이미 있다고 알려 준 아이디다. 아이디를 고치면 오류가 사라진다.
-  const [takenLoginId, setTakenLoginId] = useState<string>();
+  // 서버가 이미 가입했다고 알려 준 이메일이다. 이메일을 고치면 오류가 사라진다.
+  const [takenEmail, setTakenEmail] = useState<string>();
 
+  // 서버는 앞뒤 공백을 빼고 소문자로 바꿔 저장하므로 같은 값으로 보내고 비교한다.
+  const email = values.email.trim().toLowerCase();
   const errors = validateSignup(values);
-  if (!errors.loginId && values.loginId === takenLoginId) {
-    errors.loginId = "이미 사용 중인 아이디입니다.";
+  if (!errors.email && email === takenEmail) {
+    errors.email = "이미 가입한 이메일입니다.";
   }
   const canSubmit = Object.values(values).every((value) => value.trim() !== "") && !isSubmitting;
 
@@ -104,16 +100,15 @@ function SignupForm({ onSuccess }: SignupFormProps) {
     setError(undefined);
     try {
       await signup({
-        loginId: values.loginId,
+        email,
         password: values.password,
         // 닉네임 길이는 앞뒤 공백을 뺀 값으로 검사했으므로 같은 값을 보낸다.
         nickname: values.nickname.trim(),
-        email: values.email.trim(),
       });
-      onSuccess(values.loginId);
+      onSuccess(email);
     } catch (err) {
-      if (err instanceof ApiError && err.code === "DUPLICATE_LOGIN_ID") {
-        setTakenLoginId(values.loginId);
+      if (err instanceof ApiError && err.code === "DUPLICATE_EMAIL") {
+        setTakenEmail(email);
       } else {
         setError(getSignupErrorMessage(err));
       }
@@ -130,15 +125,16 @@ function SignupForm({ onSuccess }: SignupFormProps) {
       error={error}
     >
       <AuthField
-        label="아이디"
-        value={values.loginId}
-        onChange={changeField("loginId")}
-        onBlur={touchField("loginId")}
-        autoComplete="username"
-        placeholder="아이디를 입력하세요"
-        maxLength={20}
-        hint="영문 소문자, 숫자 4~20자"
-        error={visibleError("loginId")}
+        label="이메일"
+        type="email"
+        value={values.email}
+        onChange={changeField("email")}
+        onBlur={touchField("email")}
+        autoComplete="email"
+        placeholder="이메일을 입력하세요"
+        maxLength={255}
+        hint="로그인할 때 쓰고, 유통기한 알림도 이 주소로 받아요"
+        error={visibleError("email")}
       />
       <AuthField
         label="비밀번호"
@@ -173,18 +169,6 @@ function SignupForm({ onSuccess }: SignupFormProps) {
         maxLength={10}
         hint="2~10자"
         error={visibleError("nickname")}
-      />
-      <AuthField
-        label="이메일"
-        type="email"
-        value={values.email}
-        onChange={changeField("email")}
-        onBlur={touchField("email")}
-        autoComplete="email"
-        placeholder="이메일을 입력하세요"
-        maxLength={255}
-        hint="유통기한 알림 메일을 받을 주소예요"
-        error={visibleError("email")}
       />
     </AuthForm>
   );

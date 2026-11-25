@@ -52,7 +52,7 @@ function AuthField({
           autoComplete={autoComplete}
           placeholder={placeholder}
           maxLength={maxLength}
-          // 모바일 키보드가 첫 글자를 대문자로 바꾸면 아이디 형식 검사에서 걸린다.
+          // 모바일 키보드가 이메일 첫 글자를 대문자로 바꾸지 않게 한다.
           autoCapitalize="none"
           spellCheck={false}
           aria-invalid={error ? true : undefined}
