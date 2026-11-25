@@ -230,9 +230,10 @@ const Card = styled.button<StyleProps & { $dragging: boolean }>`
         }
       `
       : `
-        grid-template-columns: 24px minmax(0, 1fr) auto;
+        /* 24px 이모지는 글꼴에 따라 30px 넘게 그려지므로 아이콘 칸을 32px로 두고 이름과 8px 띄운다. */
+        grid-template-columns: 32px minmax(0, 1fr) auto;
         align-items: center;
-        gap: 4px;
+        gap: 8px;
         padding: 0 6px;
 
         @media (max-width: 760px) {
