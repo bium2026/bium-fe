@@ -40,8 +40,6 @@ const shoppingDayIndex: Record<DayOfWeek, number> = {
   SATURDAY: 6,
 };
 const weekdayLabels = ["일", "월", "화", "수", "목", "금", "토"];
-// 칸이 좁아 재료는 이만큼만 보이고 나머지는 +N으로 줄인다.
-const MAX_SHOWN_ICONS = 2;
 // 주기의 최소공배수가 이보다 길면 1년 넘게 뒤라 장보기 계획에 쓸모가 없어 피버타임으로 치지 않는다.
 const MAX_FEVER_PERIOD_DAYS = 365;
 
@@ -106,7 +104,7 @@ function getFeverGroupsByDate(items: PurchaseScheduleItem[]) {
 }
 
 function getNamesText(items: PurchaseScheduleItem[]) {
-  return items.length > 1 ? `${items[0].name} 외 ${items.length - 1}개` : items[0].name;
+  return items.map((item) => item.name).join(", ");
 }
 
 function ItemIcon({ item }: { item: PurchaseScheduleItem }) {
@@ -186,6 +184,13 @@ function PurchaseCalendar({ fridgeId }: PurchaseCalendarProps) {
   }
   const feverGroupsByDate = getFeverGroupsByDate(items);
   const nextFeverDate = [...feverGroupsByDate.keys()].sort()[0];
+  // 피버타임 날에는 같이 사는 재료도 그날 살 재료다. 다음 구매일이 같은 날이라 이미 들어 있는 재료는 한 번만 넣는다.
+  for (const [dateKey, groups] of feverGroupsByDate) {
+    const dayItems = itemsByDate.get(dateKey) ?? [];
+    const names = new Set(dayItems.map((item) => item.name));
+    const feverItems = groups.flatMap((group) => group.items).filter((item) => !names.has(item.name));
+    itemsByDate.set(dateKey, [...dayItems, ...feverItems]);
+  }
 
   // 고른 날짜는 보고 있는 달 안에서만 쓴다. 다른 달로 넘기면 그 달 목록을 보여 줘야 해서다.
   // 고른 날이 없으면 빈 목록보다 곧 사야 할 재료가 보이는 게 쓸모 있어, 그 달의 가장 가까운 예정일을 먼저 고른다.
@@ -286,13 +291,12 @@ function PurchaseCalendar({ fridgeId }: PurchaseCalendarProps) {
                 {isFever && <Flame size={12} aria-hidden="true" />}
               </span>
               <span className="items" aria-hidden="true">
-                {dayItems.slice(0, MAX_SHOWN_ICONS).map((item) => (
+                {dayItems.map((item) => (
                   <span key={item.name} className="item">
                     <ItemIcon item={item} />
                     <span className="name">{item.name}</span>
                   </span>
                 ))}
-                {dayItems.length > MAX_SHOWN_ICONS && <em>+{dayItems.length - MAX_SHOWN_ICONS}</em>}
               </span>
             </DayButton>
           );
@@ -504,12 +508,14 @@ const DayButton = styled.button<{ $isToday: boolean; $isShoppingDay: boolean; $i
     font-weight: ${({ $isToday }) => ($isToday ? 700 : 480)};
   }
 
+  /* 재료가 여러 개면 칸이 위아래로 길어지지 않게 옆으로 이어 붙이고, 칸 폭을 넘을 때만 다음 줄로 넘긴다. */
   .items {
     min-height: 18px;
     width: 100%;
-    display: grid;
-    justify-items: start;
-    gap: 3px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 3px 6px;
   }
 
   .item {
@@ -530,18 +536,13 @@ const DayButton = styled.button<{ $isToday: boolean; $isShoppingDay: boolean; $i
     text-overflow: ellipsis;
   }
 
-  em {
-    font-size: 11px;
-    font-style: normal;
-    font-weight: 540;
-  }
-
   @media (max-width: 760px) {
     min-height: 52px;
 
     /* 모바일 칸은 너무 좁아 이름이 한두 글자만 보이므로 아이콘만 남기고, 이름은 아래 목록에서 본다. */
     .items {
-      justify-items: center;
+      justify-content: center;
+      gap: 2px;
     }
 
     .item {
