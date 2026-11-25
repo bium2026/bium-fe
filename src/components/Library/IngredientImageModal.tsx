@@ -15,6 +15,7 @@ import IngredientIcon from "../Common/IngredientIcon";
 import { INGREDIENT_IMAGE_ACCEPT, prepareIngredientImage } from "./ingredientImage";
 import LibraryModal, { ModalError } from "./LibraryModal";
 import { ModalActions, ModalButton } from "./libraryModalStyles";
+import { playSound } from "../../sound/soundEffects";
 
 type IngredientImageModalProps = {
   // null이면 닫힌다.
@@ -97,6 +98,7 @@ function ImageForm({ ingredient, isBusy, onBusyChange, onClose, onChange }: Imag
     const prepared = await prepareIngredientImage(file);
     setIsPreparing(false);
     if (prepared.status === "error") {
+      playSound("error");
       setErrorMessage(prepared.message);
       return;
     }
@@ -109,10 +111,12 @@ function ImageForm({ ingredient, isBusy, onBusyChange, onClose, onChange }: Imag
     setErrorMessage("");
     try {
       const updated = await action();
+      playSound("success");
       onChange(updated);
       onBusyChange(false);
       onClose();
     } catch (error) {
+      playSound("error");
       onBusyChange(false);
       setErrorMessage(getImageErrorMessage(error, fallback));
     }
