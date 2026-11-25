@@ -8,7 +8,7 @@ import { CircleAlert, Eye, EyeOff } from "lucide-react";
 
 type AuthFieldProps = {
   label: string;
-  type?: "text" | "password";
+  type?: "text" | "password" | "email";
   value: string;
   onChange: (value: string) => void;
   onBlur?: () => void;
@@ -45,7 +45,7 @@ function AuthField({
       <InputBox>
         <Input
           id={id}
-          type={isPassword && !isPasswordVisible ? "password" : "text"}
+          type={isPassword ? (isPasswordVisible ? "text" : "password") : type}
           value={value}
           onChange={(event) => onChange(event.target.value)}
           onBlur={onBlur}
