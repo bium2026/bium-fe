@@ -24,6 +24,7 @@ import PurchaseCalendar from "./PurchaseCalendar";
 import ShoppingDayCard from "./ShoppingDayCard";
 import ShoppingAddForm from "./ShoppingAddForm";
 import ShoppingSection from "./ShoppingSection";
+import { playSound } from "../../sound/soundEffects";
 
 type PageState =
   | { status: "loading" }
@@ -170,6 +171,8 @@ function ShoppingListPage() {
     setPending(item.id, true);
     setItemError(item.id, "");
     updateItems((prev) => prev.map((prevItem) => (prevItem.id === item.id ? { ...prevItem, checked } : prevItem)));
+    // 체크는 누르자마자 보여 주므로 소리도 바로 내고, 실패하면 오류 소리를 낸다.
+    playSound(checked ? "toggleOn" : "toggleOff");
     // 체크하면 재료가 다른 묶음으로 옮겨 새로 그려져 포커스를 잃으므로, 옮긴 재료의 체크 상자로 돌려놓는다.
     // 마우스로 여러 재료를 이어서 체크할 때 화면이 산 것 쪽으로 튀지 않게 스크롤은 하지 않는다.
     requestAnimationFrame(() => checkboxRefs.current.get(item.id)?.focus({ preventScroll: true }));
@@ -178,6 +181,7 @@ function ShoppingListPage() {
       updateItems((prev) => prev.map((prevItem) => (prevItem.id === item.id ? updated : prevItem)));
       setAnnouncement(checked ? `${item.name}을(를) 산 것으로 옮겼어요.` : `${item.name}을(를) 살 것으로 되돌렸어요.`);
     } catch (error) {
+      playSound("error");
       if (needsRefresh(error) && (await refreshAfterConflict(item))) return;
       updateItems((prev) =>
         prev.map((prevItem) => (prevItem.id === item.id ? { ...prevItem, checked: item.checked } : prevItem)),
@@ -193,12 +197,14 @@ function ShoppingListPage() {
     setPending(item.id, true);
     setItemError(item.id, "");
     updateItems((prev) => prev.filter((prevItem) => prevItem.id !== item.id));
+    playSound("delete");
     try {
       await removeShoppingListItem(item.id);
       // 기다리는 사이 다른 재료 때문에 목록을 새로 불러왔으면 이 재료가 다시 들어 있을 수 있어 한 번 더 뺀다.
       updateItems((prev) => prev.filter((prevItem) => prevItem.id !== item.id));
       setAnnouncement(`${item.name}을(를) 장보기 목록에서 뺐어요.`);
     } catch (error) {
+      playSound("error");
       if (needsRefresh(error) && (await refreshAfterConflict(item))) return;
       // 순서는 담은 시각으로 정하므로 맨 뒤에 붙여도 원래 자리로 돌아간다. 새로 불러온 목록에 이미 있으면 그대로 둔다.
       updateItems((prev) => (prev.some((prevItem) => prevItem.id === item.id) ? prev : [...prev, item]));

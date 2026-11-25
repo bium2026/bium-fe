@@ -71,6 +71,7 @@ import {
 import type { FridgeContents, FridgeIngredient, SectionId, ZoneId, ZoneIngredients } from "./fridgeTypes";
 import { adjacentZone, isZoneId, zoneMeta, zoneOrder, type ZoneDirection } from "./fridgeZones";
 import { startReceiptScan, type ReceiptScan } from "./receiptScan";
+import { playSound } from "../../sound/soundEffects";
 
 type LoadState = { status: "loading" } | { status: "error"; message: string } | { status: "success"; fridgeId: number };
 type SlideDirection = ZoneDirection;
@@ -390,12 +391,15 @@ function FridgePage() {
     if (sameSection && from.location.index === target.location.index) return;
     const fromSectionInTargetZone = from.zoneId === target.zoneId ? from.location.sectionId : null;
     if (isDoorFull(fridgeContents[target.zoneId], target.location, fromSectionInTargetZone)) {
+      playSound("error");
       setNotice(DOOR_FULL_MESSAGE);
       return;
     }
 
     const ingredient = fridgeContents[from.zoneId][from.location.sectionId][from.location.index];
     setFridgeContents((prev) => moveIngredientTo(prev, from, target));
+    // 재료는 놓자마자 옮겨 보여 주므로 소리도 바로 내고, 실패하면 오류 소리를 낸다.
+    playSound("drop");
     movingRef.current = true;
     setIsMoving(true);
     setNotice("");
@@ -412,6 +416,7 @@ function FridgePage() {
         setNotice(`${ingredient.name}을(를) ${zoneWithParticle[target.zoneId]} 옮겼어요.`);
       }
     } catch (error) {
+      playSound("error");
       // 다시 받은 냉장고가 화면을 덮으므로, 다시 받지 못했을 때만 옮겨 둔 재료를 제자리로 돌린다.
       const reloaded = isStaleItemError(error) && (await refreshContents(targetFridgeId)) !== null;
       if (reloaded) {
@@ -436,6 +441,7 @@ function FridgePage() {
   // 장본 음식은 서버가 냉장고 재료를 만든 뒤에야 id와 버전을 알 수 있어, 응답을 받은 뒤에 화면에 넣는다.
   const putPurchasedItem = async (targetFridgeId: number, item: PurchasedItem, to: ZoneLocation) => {
     if (isDoorFull(fridgeContents[to.zoneId], to.location, null)) {
+      playSound("error");
       setNotice(DOOR_FULL_MESSAGE);
       return;
     }
@@ -454,8 +460,10 @@ function FridgePage() {
         [to.zoneId]: insertIntoZone(prev[to.zoneId], to.location, toIngredient(created)),
       }));
       removePurchasedItem(item.id);
+      playSound("drop");
       setNotice(`${item.name}을(를) ${zoneMeta[to.zoneId].title}에 넣었어요.`);
     } catch (error) {
+      playSound("error");
       if (error instanceof ApiError && error.code === "PURCHASED_ITEM_NOT_FOUND") {
         removePurchasedItem(item.id);
         const reloaded = (await refreshContents(targetFridgeId)) !== null;

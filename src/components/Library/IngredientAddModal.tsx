@@ -19,6 +19,7 @@ import {
   ModalSelect,
 } from "./libraryModalStyles";
 import { getEmojiError } from "./libraryValidation";
+import { playSound } from "../../sound/soundEffects";
 
 type IngredientAddModalProps = {
   open: boolean;
@@ -136,9 +137,11 @@ function IngredientAddForm({
     setErrorMessage("");
     try {
       await onAdd({ name: trimmedName, emoji: trimmedIcon, category, shelfLifeDays: days });
+      playSound("success");
       onBusyChange(false);
       onClose();
     } catch (error) {
+      playSound("error");
       onBusyChange(false);
       if (error instanceof ApiError && error.code === "DUPLICATE_CATALOG_NAME") {
         setTakenName(trimmedName);

@@ -10,6 +10,7 @@ import type { LucideIcon } from "lucide-react";
 import type { Activity, ActivityAction } from "../../api/fridgeShare";
 import { formatActivityTime, getShareErrorMessage } from "./shareFormat";
 import { OutlineButton, Panel, PanelHeader } from "./shareStyles";
+import { playSound } from "../../sound/soundEffects";
 
 type ActivityPanelProps = {
   activities: Activity[];
@@ -99,7 +100,9 @@ function ActivityPanel({ activities, onUndoCooking }: ActivityPanelProps) {
     focusAfterUndoRef.current = cookingLogId;
     try {
       await onUndoCooking(cookingLogId);
+      playSound("delete");
     } catch (error) {
+      playSound("error");
       focusAfterUndoRef.current = null;
       setUndoErrors((prev) => ({
         ...prev,

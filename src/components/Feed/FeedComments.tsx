@@ -12,6 +12,7 @@ import { createFeedComment, deleteFeedComment, getFeedComments, type FeedComment
 import { formatActivityTime } from "../Share/shareFormat";
 import { getFeedErrorMessage } from "./feedFormat";
 import { OutlineButton, ScreenReaderText, Skeleton } from "./feedStyles";
+import { playSound } from "../../sound/soundEffects";
 
 const MAX_CONTENT_LENGTH = 200;
 const MAX_DISH_LENGTH = 50;
@@ -113,10 +114,12 @@ function FeedComments({ fridgeId, canWrite, onCountChange }: FeedCommentsProps) 
         dishName: dishName.trim() || null,
       });
       setList((prev) => (prev.status === "success" ? { ...prev, comments: [created, ...prev.comments] } : prev));
+      playSound("success");
       onCountChange(1);
       setContent("");
       setDishName("");
     } catch (error) {
+      playSound("error");
       setFormError(getFeedErrorMessage(error, "코멘트를 남기지 못했어요. 잠시 후 다시 시도해 주세요."));
     } finally {
       setIsSubmitting(false);
@@ -135,6 +138,7 @@ function FeedComments({ fridgeId, canWrite, onCountChange }: FeedCommentsProps) 
     setDeleteError("");
     try {
       await deleteFeedComment(fridgeId, commentId);
+      playSound("delete");
       removeComment(commentId);
     } catch (error) {
       // 다른 곳에서 먼저 지웠으면 이미 없는 코멘트이므로 목록에서도 뺀다.
@@ -142,6 +146,7 @@ function FeedComments({ fridgeId, canWrite, onCountChange }: FeedCommentsProps) 
         removeComment(commentId);
         return;
       }
+      playSound("error");
       setDeleteError(getFeedErrorMessage(error, "코멘트를 지우지 못했어요. 잠시 후 다시 시도해 주세요."));
     } finally {
       setIsDeleting(false);

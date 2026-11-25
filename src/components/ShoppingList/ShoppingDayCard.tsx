@@ -8,6 +8,7 @@ import { CalendarDays } from "lucide-react";
 import { ApiError, NETWORK_ERROR } from "../../api/client";
 import { changeShoppingDay, type DayOfWeek } from "../../api/fridge";
 import { pickFridge, useFridgeStore } from "../../store/fridgeStore";
+import { playSound } from "../../sound/soundEffects";
 
 // jsDay는 Date.getDay() 값(일요일 0)
 const days: { id: DayOfWeek; label: string; jsDay: number }[] = [
@@ -46,7 +47,9 @@ function ShoppingDayCard() {
     setError("");
     try {
       updateFridge(await changeShoppingDay(fridge.id, days.find((day) => day.id === value)?.id ?? null));
+      playSound("success");
     } catch (changeError) {
+      playSound("error");
       setError(
         changeError instanceof ApiError && changeError.code === NETWORK_ERROR
           ? changeError.message

@@ -12,6 +12,7 @@ import { Link } from "react-router";
 import { ApiError } from "../../api/client";
 import type { RecipeIngredient } from "../../api/recipe";
 import { addRecipeMissingItems } from "../../api/shoppingList";
+import { playSound } from "../../sound/soundEffects";
 
 type MissingIngredientModalProps = {
   recipeId: number;
@@ -40,11 +41,13 @@ function MissingIngredientModal({ recipeId, ingredients, isOpen, onClose, return
     if (!dialog) return;
     if (isOpen && !dialog.open) {
       dialog.showModal();
+      playSound("open");
       // showModal()은 첫 번째 버튼(닫기)에 포커스를 주므로, 담을 재료를 바로 고를 수 있게 첫 체크박스로 옮긴다.
       dialog.querySelector("input")?.focus();
     }
     if (!isOpen && dialog.open) {
       dialog.close();
+      playSound("close");
       returnFocusRef.current?.focus();
     }
   }, [isOpen, returnFocusRef]);
@@ -134,8 +137,10 @@ function MissingIngredientForm({
     setErrorMessage("");
     try {
       const items = await addRecipeMissingItems(recipeId, names);
+      playSound("success");
       setResult({ addedCount: items.length, selectedCount: names.length });
     } catch (error) {
+      playSound("error");
       setErrorMessage(
         error instanceof ApiError ? error.message : "장보기 목록에 담지 못했어요. 잠시 후 다시 시도해 주세요.",
       );

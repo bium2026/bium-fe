@@ -17,6 +17,7 @@ import { ModalActions, ModalButton, ModalSelect } from "../Library/libraryModalS
 import { storageLabel, storageOrder } from "../Library/libraryStorage";
 import { getEmojiError } from "../Library/libraryValidation";
 import { RECEIPT_IMAGE_ACCEPT, type ReceiptScan, type ReceiptScanResult } from "./receiptScan";
+import { playSound } from "../../sound/soundEffects";
 
 // 입력칸에 보여 주는 값이라 비어 있는 유통기한도 빈 문자열로 둔다.
 type ReceiptItemValues = {
@@ -272,9 +273,11 @@ function ReceiptItemsForm({ fridgeId, items, isBusy, onBusyChange, onClose, onAd
             expiresAt: expiresAt || null,
           })),
       );
+      playSound("success");
       onBusyChange(false);
       onClose();
     } catch (error) {
+      playSound("error");
       onBusyChange(false);
       setErrorMessage(getAddErrorMessage(error));
     }

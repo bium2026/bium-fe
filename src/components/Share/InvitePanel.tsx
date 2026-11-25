@@ -8,6 +8,7 @@ import { Copy, RefreshCw } from "lucide-react";
 import type { InviteCode } from "../../api/fridgeShare";
 import { formatExpiresAt, formatInviteCode, getShareErrorMessage } from "./shareFormat";
 import { Feedback, OutlineButton, Panel, PanelHeader, PrimaryButton, ScreenReaderText } from "./shareStyles";
+import { playSound } from "../../sound/soundEffects";
 
 const COPIED_FEEDBACK_MS = 2000;
 
@@ -44,9 +45,11 @@ function InvitePanel({ invite, isRevoked, canInvite, onCreate }: InvitePanelProp
     const isFirstCode = !invite;
     try {
       await onCreate();
+      playSound("success");
       // 첫 코드를 만들면 만들기 버튼이 사라지므로, 바로 쓸 복사 버튼으로 포커스를 옮긴다.
       if (isFirstCode) requestAnimationFrame(() => copyButtonRef.current?.focus());
     } catch (error) {
+      playSound("error");
       setErrorMessage(getShareErrorMessage(error, "초대 코드를 만들지 못했어요. 잠시 후 다시 시도해 주세요."));
     } finally {
       setIsCreating(false);
@@ -60,11 +63,14 @@ function InvitePanel({ invite, isRevoked, canInvite, onCreate }: InvitePanelProp
     try {
       await navigator.clipboard.writeText(code);
       if (currentCodeRef.current !== code) return;
+      playSound("success");
       setCopyState("copied");
       copyTimerRef.current = window.setTimeout(() => setCopyState("idle"), COPIED_FEEDBACK_MS);
     } catch {
       // 브라우저가 클립보드 권한을 막으면 코드를 직접 골라 복사할 수 있게 안내한다.
-      if (currentCodeRef.current === code) setCopyState("failed");
+      if (currentCodeRef.current !== code) return;
+      playSound("error");
+      setCopyState("failed");
     }
   };
 

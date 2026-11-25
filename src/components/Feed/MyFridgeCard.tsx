@@ -15,6 +15,7 @@ import { pickFridge, useFridgeStore } from "../../store/fridgeStore";
 import FridgeShelves from "./FridgeShelves";
 import { getFeedErrorMessage } from "./feedFormat";
 import { Skeleton } from "./feedStyles";
+import { playSound } from "../../sound/soundEffects";
 
 type MyFridgeCardProps = {
   // 공개 여부를 바꾸면 저장한 냉장고 목록이 달라질 수 있어 피드 목록을 다시 불러온다.
@@ -73,12 +74,14 @@ function MyFridgeCard({ onChange }: MyFridgeCardProps) {
     try {
       const updated = await changeFridgeVisibility(fridge.id, !fridge.isPublic);
       updateFridge(updated);
+      playSound(updated.isPublic ? "toggleOn" : "toggleOff");
       setMessage({
         text: updated.isPublic ? "피드에 공개했어요. 이제 다른 사람이 구경할 수 있어요." : "피드에서 숨겼어요. 이제 멤버만 볼 수 있어요.",
         error: false,
       });
       onChange();
     } catch (error) {
+      playSound("error");
       setMessage({
         text: getFeedErrorMessage(error, "공개 여부를 바꾸지 못했어요. 잠시 후 다시 시도해 주세요."),
         error: true,

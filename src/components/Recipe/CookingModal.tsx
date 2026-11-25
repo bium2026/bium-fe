@@ -11,6 +11,7 @@ import type { FridgeItemResponse } from "../../api/fridge";
 import { formatDate } from "../Library/libraryDate";
 import LibraryModal, { ModalError } from "../Library/LibraryModal";
 import { ModalActions, ModalButton, ModalSelect } from "../Library/libraryModalStyles";
+import { playSound } from "../../sound/soundEffects";
 
 type CookingModalProps = {
   recipeId: number;
@@ -134,9 +135,11 @@ function CookingContent({ recipeId, isCooking, onCookingChange, onClose, onCooke
         recipeId,
         selectedItems.map((item) => ({ fridgeItemId: item.id, version: item.version })),
       );
+      playSound("success");
       onCooked(deductedItemIds.length, id);
       onClose();
     } catch (cookError) {
+      playSound("error");
       if (isStaleItemError(cookError)) {
         setError("다른 멤버가 먼저 바꾼 재료가 있어 다시 불러왔어요. 확인하고 다시 눌러 주세요.");
         reload();
