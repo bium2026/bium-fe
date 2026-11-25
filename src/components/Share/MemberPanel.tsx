@@ -9,6 +9,7 @@ import type { MemberRole } from "../../api/fridge";
 import type { FridgeMember } from "../../api/fridgeShare";
 import { formatJoinedDate, getShareErrorMessage } from "./shareFormat";
 import { Feedback, OutlineButton, Panel, PanelHeader, PrimaryButton } from "./shareStyles";
+import { playSound } from "../../sound/soundEffects";
 
 type MemberPanelProps = {
   members: FridgeMember[];
@@ -45,8 +46,10 @@ function MemberPanel({ members, myRole, onRemove, onLeave }: MemberPanelProps) {
         // 내보낸 멤버 줄이 사라져 포커스가 갈 곳을 잃으므로 목록 제목으로 옮긴다.
         requestAnimationFrame(() => titleRef.current?.focus());
       }
+      playSound("delete");
       setConfirmingId(null);
     } catch (error) {
+      playSound("error");
       setErrorMessage(
         getShareErrorMessage(
           error,
