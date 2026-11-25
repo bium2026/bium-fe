@@ -10,6 +10,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { keyframes } from "@emotion/react";
 import styled from "@emotion/styled";
 import IngredientItem from "./IngredientItem";
+import ZoneAmbience from "./ZoneAmbience";
 import { fridgeItemDragId, sectionDropId } from "./fridgeLayout";
 import type { FridgeIngredient, SectionId, ZoneIngredients } from "./fridgeTypes";
 import type { ZoneMeta } from "./fridgeZones";
@@ -58,6 +59,7 @@ function FridgeBoard({
       />
 
       <Cabinet>
+        <ZoneAmbience zoneId={zone.id} />
         <ShelfArea $highlighted={highlightedSection === "shelf"}>
           <SortableContext
             items={contents.shelf.map((ingredient) => fridgeItemDragId(ingredient.id))}
@@ -287,8 +289,10 @@ const Cabinet = styled.div`
   }
 `;
 
+// 구역 배경 장식(ZoneAmbience) 위에 선반과 서랍이 오도록 쌓는 순서를 올린다.
 const ShelfArea = styled.div<{ $highlighted: boolean }>`
   position: relative;
+  z-index: 1;
   border-radius: 10px;
   outline: ${(props) => (props.$highlighted ? "2px dashed var(--text)" : "none")};
   background: ${(props) =>
@@ -365,6 +369,8 @@ const EmptyMessage = styled.p`
 `;
 
 const Bins = styled.div`
+  position: relative;
+  z-index: 1;
   height: 56px;
   display: grid;
   grid-template-columns: 1fr 1fr;
