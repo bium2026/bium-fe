@@ -4,6 +4,7 @@
  * 누르면 재료 수정 모달을 연다. 드래그 앤 드롭으로 옮길 수 있게 끌기 이벤트를 카드에 붙인다.
  */
 import type { DraggableSyntheticListeners } from "@dnd-kit/core";
+import { css, keyframes } from "@emotion/react";
 import styled from "@emotion/styled";
 import { getDaysLeft } from "./fridgeLayout";
 import type { FridgeIngredient } from "./fridgeTypes";
@@ -17,6 +18,8 @@ type IngredientItemProps = {
   dragListeners?: DraggableSyntheticListeners;
   // 끌고 있는 동안 원래 자리는 흐리게 남기고, 손가락·마우스를 따라다니는 카드는 DragOverlay가 그린다.
   isDragging?: boolean;
+  // 손을 따라다니는 DragOverlay 복제 카드처럼 움직임이 어색한 곳에서는 끈다.
+  animated?: boolean;
 };
 
 function getFreshness(daysLeft: number): Freshness {
@@ -47,10 +50,24 @@ function getRemainingRatio(purchasedAt: string | null | undefined, expiresAt: st
   return Math.min(1, daysLeft / total);
 }
 
-function IngredientItem({ ingredient, variant, onSelect, dragListeners, isDragging = false }: IngredientItemProps) {
+// 카드마다 시작 시점을 달리해 한꺼번에 움직이지 않게 한다. 렌더마다 같은 값이어야 해서 id로만 정한다.
+function getAnimationOffset(id: number) {
+  return ((id * 7) % 10) / 10;
+}
+
+function IngredientItem({
+  ingredient,
+  variant,
+  onSelect,
+  dragListeners,
+  isDragging = false,
+  animated = true,
+}: IngredientItemProps) {
   const daysLeft = ingredient.expiresAt ? getDaysLeft(ingredient.expiresAt) : null;
   const freshness = daysLeft === null ? "safe" : getFreshness(daysLeft);
   const remaining = getRemainingRatio(ingredient.purchasedAt, ingredient.expiresAt, daysLeft);
+  const motion = animated && !isDragging;
+  const offset = getAnimationOffset(ingredient.id);
 
   return (
     <Card
@@ -62,12 +79,12 @@ function IngredientItem({ ingredient, variant, onSelect, dragListeners, isDraggi
       $freshness={freshness}
       $dragging={isDragging}
     >
-      <Icon aria-hidden="true" $variant={variant} $freshness={freshness}>
+      <Icon aria-hidden="true" $variant={variant} $freshness={freshness} $motion={motion} $offset={offset}>
         {ingredient.emoji}
       </Icon>
       <Name $variant={variant}>{ingredient.name}</Name>
       {daysLeft !== null && (
-        <Badge $variant={variant} $freshness={freshness}>
+        <Badge $variant={variant} $freshness={freshness} $motion={motion} $offset={offset}>
           <span aria-hidden="true">{getBadgeText(daysLeft)}</span>
           <ScreenReaderText>{getBadgeDescription(daysLeft)}</ScreenReaderText>
         </Badge>
@@ -94,6 +111,59 @@ type StyleProps = {
   $variant: IngredientItemProps["variant"];
   $freshness: Freshness;
 };
+
+type MotionProps = StyleProps & { $motion: boolean; $offset: number };
+
+// 단계마다 주기가 다르다. 음수 delay로 주기 안의 다른 지점에서 시작하게 한다.
+const float = keyframes`
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-1.5px); }
+`;
+
+const bounce = keyframes`
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+`;
+
+// 주기의 앞부분만 흔들고 나머지는 쉰다.
+const shake = keyframes`
+  0%, 40%, 100% { transform: rotate(0); }
+  5%, 15%, 25% { transform: rotate(-9deg); }
+  10%, 20%, 30% { transform: rotate(9deg); }
+`;
+
+const pulse = keyframes`
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.1); opacity: 0.75; }
+`;
+
+const iconAnimation = {
+  safe: { keyframes: float, duration: 4.5 },
+  soon: { keyframes: bounce, duration: 2.2 },
+  urgent: { keyframes: shake, duration: 1.8 },
+};
+
+// reduced-motion이면 움직임을 모두 끈다. expired는 움직이지 않는다.
+function getIconAnimation(props: MotionProps) {
+  if (!props.$motion || props.$freshness === "expired") return "";
+  const { keyframes: name, duration } = iconAnimation[props.$freshness];
+  return css`
+    animation: ${name} ${duration}s ease-in-out ${-props.$offset * duration}s infinite;
+    @media (prefers-reduced-motion: reduce) {
+      animation: none;
+    }
+  `;
+}
+
+function getBadgeAnimation(props: MotionProps) {
+  if (!props.$motion || props.$freshness !== "urgent") return "";
+  return css`
+    animation: ${pulse} 1.8s ease-in-out ${-props.$offset * 1.8}s infinite;
+    @media (prefers-reduced-motion: reduce) {
+      animation: none;
+    }
+  `;
+}
 
 const screenReaderOnly = `
   position: absolute;
@@ -154,10 +224,11 @@ const Card = styled.button<StyleProps & { $dragging: boolean }>`
       `}
 `;
 
-const Icon = styled.span<StyleProps>`
+const Icon = styled.span<MotionProps>`
   font-size: ${(props) => (props.$variant === "shelf" ? "34px" : "24px")};
   line-height: 1;
   filter: ${(props) => (props.$freshness === "expired" ? "grayscale(1)" : "none")};
+  ${getIconAnimation}
 
   @media (max-width: 760px) {
     font-size: ${(props) => (props.$variant === "shelf" ? "24px" : "18px")};
@@ -181,7 +252,7 @@ const Name = styled.strong<{ $variant: IngredientItemProps["variant"] }>`
   }
 `;
 
-const Badge = styled.span<StyleProps>`
+const Badge = styled.span<MotionProps>`
   ${(props) =>
     props.$variant === "shelf"
       ? `
@@ -198,6 +269,7 @@ const Badge = styled.span<StyleProps>`
   font-weight: 700;
   line-height: 1.2;
   white-space: nowrap;
+  ${getBadgeAnimation}
 
   @media (max-width: 760px) {
     padding: 1px 5px;

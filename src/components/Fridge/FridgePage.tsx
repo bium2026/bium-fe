@@ -714,7 +714,7 @@ function FridgePage() {
         <DragOverlay>
           {dragPreview && (
             <OverlayCard aria-hidden="true">
-              <IngredientItem ingredient={dragPreview} variant="shelf" onSelect={() => undefined} />
+              <IngredientItem ingredient={dragPreview} variant="shelf" onSelect={() => undefined} animated={false} />
             </OverlayCard>
           )}
         </DragOverlay>
