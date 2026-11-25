@@ -11,6 +11,7 @@ import { CircleAlert, X } from "lucide-react";
 import { ApiError } from "../../api/client";
 import IngredientNutrition from "./IngredientNutrition";
 import IngredientIcon from "../Common/IngredientIcon";
+import { playSound } from "../../sound/soundEffects";
 
 export type EditableIngredient = {
   id: number;
@@ -77,10 +78,14 @@ function IngredientEditModal({ ingredient, onClose, onSave, onDelete }: Ingredie
 
     if (isOpen && !dialog.open) {
       dialog.showModal();
+      playSound("open");
       // showModal()은 첫 번째 버튼(닫기)에 포커스를 주므로, 바로 고칠 수 있게 이름 칸으로 옮긴다.
       dialog.querySelector("input")?.focus();
     }
-    if (!isOpen && dialog.open) dialog.close();
+    if (!isOpen && dialog.open) {
+      dialog.close();
+      playSound("close");
+    }
   }, [isOpen]);
 
   const requestClose = () => {
@@ -172,9 +177,11 @@ function IngredientEditForm({
     setErrorMessage("");
     try {
       await onSave(ingredient, { name: trimmedName, emoji: trimmedEmoji, expiresAt });
+      playSound("success");
       onStatusChange("idle");
       onClose();
     } catch (error) {
+      playSound("error");
       onStatusChange("idle");
       setErrorMessage(getErrorMessage(error, "저장하지 못했어요. 잠시 후 다시 시도해 주세요."));
     }
@@ -185,9 +192,11 @@ function IngredientEditForm({
     setErrorMessage("");
     try {
       await onDelete(ingredient);
+      playSound("delete");
       onStatusChange("idle");
       onClose();
     } catch (error) {
+      playSound("error");
       onStatusChange("idle");
       setErrorMessage(getErrorMessage(error, "삭제하지 못했어요. 잠시 후 다시 시도해 주세요."));
     }
