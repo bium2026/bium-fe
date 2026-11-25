@@ -255,7 +255,7 @@ const ListRegion = styled.div`
   }
 `;
 
-// 헤더가 두 줄이 되는 폭(1044px 이하)부터는 내 냉장고 카드가 헤더 밑으로 들어가지 않게 한 줄로 쌓는다.
+// 헤더가 두 줄이 되는 폭(1094px 이하)부터는 내 냉장고 카드가 헤더 밑으로 들어가지 않게 한 줄로 쌓는다.
 const Layout = styled.div`
   display: grid;
   grid-template-columns: minmax(0, 1fr) 340px;
@@ -263,7 +263,7 @@ const Layout = styled.div`
   align-items: start;
   gap: 28px;
 
-  @media (max-width: 1044px) {
+  @media (max-width: 1094px) {
     grid-template-columns: minmax(0, 1fr);
     grid-template-areas:
       "mine"
@@ -277,7 +277,7 @@ const MineArea = styled.aside`
   position: sticky;
   top: 80px;
 
-  @media (max-width: 1044px) {
+  @media (max-width: 1094px) {
     position: static;
   }
 `;
