@@ -12,6 +12,7 @@ import { ApiError } from "../../api/client";
 import type { Fridge } from "../../api/fridge";
 import { getInviteCodeError, getShareErrorMessage, normalizeInviteCode } from "./shareFormat";
 import { Feedback, OutlineButton, PrimaryButton } from "./shareStyles";
+import { playSound } from "../../sound/soundEffects";
 
 // 코드 검사 실패(INVALID_INPUT)와 형식이 틀린 요청 본문(BAD_REQUEST)이 모두 400으로 와서 오류 코드 대신 상태로 본다.
 function getJoinErrorMessage(error: unknown) {
@@ -41,11 +42,13 @@ function JoinFridgeModal({ isOpen, onClose, onJoin, onOpenFridge, returnFocusRef
     if (!dialog) return;
     if (isOpen && !dialog.open) {
       dialog.showModal();
+      playSound("open");
       // showModal()은 첫 번째 버튼(닫기)에 포커스를 주므로, 바로 입력할 수 있게 코드 칸으로 옮긴다.
       dialog.querySelector("input")?.focus();
     }
     if (!isOpen && dialog.open) {
       dialog.close();
+      playSound("close");
       returnFocusRef.current?.focus();
     }
   }, [isOpen, returnFocusRef]);
@@ -115,7 +118,9 @@ function JoinForm({ titleId, isJoining, onJoiningChange, onClose, onJoin, onOpen
     setErrorMessage("");
     try {
       setJoinedFridge(await onJoin(code));
+      playSound("success");
     } catch (error) {
+      playSound("error");
       setErrorMessage(getJoinErrorMessage(error));
       // 코드를 고쳐 다시 넣을 수 있게 입력칸으로 돌아간다.
       requestAnimationFrame(() => inputRef.current?.focus());
