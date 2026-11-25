@@ -16,6 +16,7 @@ import RecipeCard from "./RecipeCard";
 import RecipeSkeletonCard from "./RecipeSkeletonCard";
 import TargetRecipeForm from "./TargetRecipeForm";
 import UrgentIngredientList from "./UrgentIngredientList";
+import { playSound } from "../../sound/soundEffects";
 
 type FridgeState =
   | { status: "loading" }
@@ -91,9 +92,11 @@ function RecipePage() {
       const nextRecipes = await recommendRecipes(fridgeId, prioritizeUrgent);
       if (isStale()) return;
       setRecipes(fridgeId, nextRecipes);
+      playSound("success");
       setRecommend({ status: "idle" });
     } catch (error) {
       if (isStale()) return;
+      playSound("error");
       setRecommend({ status: "error", fridgeId, ...getErrorInfo(error) });
     }
   };
