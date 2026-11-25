@@ -10,6 +10,7 @@ import { ShoppingBag, X } from "lucide-react";
 import type { PurchasedItem } from "../../api/purchasedItem";
 import { formatDate } from "../Library/libraryDate";
 import { purchasedDragId } from "./fridgeLayout";
+import IngredientIcon from "../Common/IngredientIcon";
 
 export type PurchasedListState =
   | { status: "loading" }
@@ -100,7 +101,9 @@ function DraggablePurchasedItem({ item, zoneTitle, disabled, moving, onPut }: Dr
 
   return (
     <Item ref={setNodeRef} $faded={isDragging || moving} {...listeners}>
-      <ItemIcon aria-hidden="true">{item.emoji}</ItemIcon>
+      <ItemIcon aria-hidden="true">
+        <IngredientIcon emoji={item.emoji} imageUrl={item.imageUrl} />
+      </ItemIcon>
       <ItemText>
         <strong>{item.name}</strong>
         <span>{moving ? "넣는 중이에요" : `${formatDate(item.expiresAt)}까지`}</span>
