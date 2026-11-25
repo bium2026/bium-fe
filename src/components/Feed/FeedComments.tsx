@@ -6,7 +6,6 @@
  */
 import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import styled from "@emotion/styled";
-import { ChefHat, MessageCircle, Trash2 } from "lucide-react";
 import { ApiError } from "../../api/client";
 import { createFeedComment, deleteFeedComment, getFeedComments, type FeedComment } from "../../api/feed";
 import { formatActivityTime } from "../Share/shareFormat";
@@ -16,9 +15,13 @@ import { playSound } from "../../sound/soundEffects";
 
 const MAX_CONTENT_LENGTH = 200;
 const MAX_DISH_LENGTH = 50;
+// 글자 수는 한도에 가까워졌을 때만 보여 준다.
+const COUNTER_FROM = 150;
 
 type FeedCommentsProps = {
   fridgeId: number;
+  // 제목 옆에 보여 줄 전체 코멘트 수. 목록은 나눠 불러오므로 냉장고 정보의 수를 쓴다.
+  count: number;
   // 공개한 냉장고에만 코멘트를 쓸 수 있다.
   canWrite: boolean;
   // 코멘트를 남기거나 지우면 냉장고 정보의 코멘트 수를 함께 고친다.
@@ -30,7 +33,7 @@ type ListState =
   | { status: "error"; message: string }
   | { status: "success"; comments: FeedComment[]; nextCursor: number | null };
 
-function FeedComments({ fridgeId, canWrite, onCountChange }: FeedCommentsProps) {
+function FeedComments({ fridgeId, count, canWrite, onCountChange }: FeedCommentsProps) {
   const titleId = useId();
   const contentId = useId();
   const dishId = useId();
@@ -169,103 +172,82 @@ function FeedComments({ fridgeId, canWrite, onCountChange }: FeedCommentsProps) 
     if (event.key === "Escape") cancelDelete();
   };
 
-  return (
-    <Panel id="comments" aria-labelledby={titleId}>
-      <Header>
-        <h2 id={titleId} ref={titleRef} tabIndex={-1}>
-          <MessageCircle size={20} aria-hidden="true" />
-          코멘트와 음식 추천
-        </h2>
-        <p>
-          {canWrite
-            ? "냉장고를 구경하고 한마디 남기거나, 이 재료로 만들 만한 음식을 추천해 보세요."
-            : "공개하지 않은 냉장고라 새 코멘트를 남길 수 없어요. 전에 남은 코멘트만 보여요."}
-        </p>
-      </Header>
+  const showCounter = content.length >= COUNTER_FROM;
 
-      {canWrite && (
-        <Form onSubmit={handleSubmit} noValidate>
-          <Field>
-            <label htmlFor={contentId}>코멘트</label>
-            <input
-              id={contentId}
-              value={content}
-              onChange={(event) => setContent(event.target.value)}
-              maxLength={MAX_CONTENT_LENGTH}
-              placeholder="예: 두부가 많네요! 오늘 저녁 메뉴 고민 끝이겠어요"
-              aria-describedby={`${contentId}-count`}
-              autoComplete="off"
-            />
-            <Counter id={`${contentId}-count`}>
-              {content.length}/{MAX_CONTENT_LENGTH}
-            </Counter>
-          </Field>
-          <Field>
-            <label htmlFor={dishId}>
-              추천할 음식 <span>(선택)</span>
-            </label>
-            <input
-              id={dishId}
-              value={dishName}
-              onChange={(event) => setDishName(event.target.value)}
-              maxLength={MAX_DISH_LENGTH}
-              placeholder="예: 마파두부"
-              autoComplete="off"
-            />
-          </Field>
+  return (
+    <Section id="comments" aria-labelledby={titleId}>
+      <Title id={titleId} ref={titleRef} tabIndex={-1}>
+        코멘트 <span>{count}</span>
+      </Title>
+
+      {canWrite ? (
+        <Composer onSubmit={handleSubmit} noValidate>
+          <HiddenLabel htmlFor={contentId}>코멘트</HiddenLabel>
+          <ContentInput
+            id={contentId}
+            value={content}
+            onChange={(event) => setContent(event.target.value)}
+            maxLength={MAX_CONTENT_LENGTH}
+            placeholder="이 냉장고에 한마디 남기기"
+            aria-describedby={showCounter ? `${contentId}-count` : undefined}
+            autoComplete="off"
+          />
+          <HiddenLabel htmlFor={dishId}>추천할 음식 (선택)</HiddenLabel>
+          <DishInput
+            id={dishId}
+            value={dishName}
+            onChange={(event) => setDishName(event.target.value)}
+            maxLength={MAX_DISH_LENGTH}
+            placeholder="추천 음식 (선택)"
+            autoComplete="off"
+          />
           <SubmitButton type="submit" aria-disabled={isSubmitting || !trimmedContent || undefined}>
             {isSubmitting ? "남기는 중..." : "남기기"}
           </SubmitButton>
+          {showCounter && (
+            <Counter id={`${contentId}-count`}>
+              {content.length}/{MAX_CONTENT_LENGTH}
+            </Counter>
+          )}
           {formError && <ErrorText role="alert">{formError}</ErrorText>}
-        </Form>
+        </Composer>
+      ) : (
+        <Note>공개하지 않은 냉장고라 새 코멘트는 남길 수 없어요.</Note>
       )}
 
       {list.status === "loading" && (
         <div aria-busy="true">
           <ScreenReaderText role="status">코멘트를 불러오는 중이에요.</ScreenReaderText>
-          <Skeleton aria-hidden="true" $height={96} />
+          <Skeleton aria-hidden="true" $height={72} />
         </div>
       )}
 
       {list.status === "error" && (
-        <StatusText role="alert">
+        <Note role="alert">
           {list.message}
           <OutlineButton type="button" onClick={handleRetry}>
             다시 시도
           </OutlineButton>
-        </StatusText>
+        </Note>
       )}
 
       {list.status === "success" &&
         (list.comments.length === 0 ? (
-          <StatusText>{canWrite ? "아직 코멘트가 없어요. 첫 코멘트를 남겨 보세요." : "남은 코멘트가 없어요."}</StatusText>
+          <Note>{canWrite ? "아직 코멘트가 없어요." : "남은 코멘트가 없어요."}</Note>
         ) : (
           <List>
             {list.comments.map((comment) => {
               const isConfirming = confirmingId === comment.commentId;
               return (
                 <li key={comment.commentId}>
-                  <Row>
-                    <Author aria-hidden="true">{comment.authorNickname.slice(0, 1)}</Author>
-                    <Body>
-                      <Meta>
-                        <strong>{comment.authorNickname}</strong>
-                        {comment.mine && <MeTag>나</MeTag>}
-                        <time dateTime={comment.createdAt}>{formatActivityTime(comment.createdAt)}</time>
-                      </Meta>
-                      {comment.dishName && (
-                        <Dish>
-                          <ChefHat size={15} aria-hidden="true" />
-                          {comment.dishName} 추천
-                        </Dish>
-                      )}
-                      <p>{comment.content}</p>
-                    </Body>
+                  <Meta>
+                    <strong>{comment.authorNickname}</strong>
+                    {comment.mine && <MineTag>나</MineTag>}
+                    <time dateTime={comment.createdAt}>{formatActivityTime(comment.createdAt)}</time>
                     {comment.deletable && (
-                      <IconButton
+                      <TextButton
                         type="button"
                         aria-label={`${comment.authorNickname} 님 코멘트 지우기`}
-                        title="지우기"
                         onClick={() => {
                           setConfirmingId(comment.commentId);
                           setDeleteError("");
@@ -273,31 +255,31 @@ function FeedComments({ fridgeId, canWrite, onCountChange }: FeedCommentsProps) 
                         // 확인을 띄운 동안에는 다른 코멘트를 눌러 지울 대상이 바뀌지 않게 막는다.
                         disabled={confirmingId !== null}
                       >
-                        <Trash2 size={16} aria-hidden="true" />
-                      </IconButton>
+                        지우기
+                      </TextButton>
                     )}
-                  </Row>
+                  </Meta>
+                  <Content>{comment.content}</Content>
+                  {comment.dishName && (
+                    <Dish>
+                      <span>추천</span>
+                      {comment.dishName}
+                    </Dish>
+                  )}
                   {isConfirming && (
                     <Confirm role="group" aria-label="코멘트 지우기 확인" onKeyDown={handleConfirmKeyDown}>
-                      <p>이 코멘트를 지울까요? 지운 코멘트는 되돌릴 수 없어요.</p>
-                      <ConfirmButtons>
-                        {/* 실수로 지우지 않도록 취소에 먼저 포커스를 둔다. */}
-                        <OutlineButton
-                          type="button"
-                          onClick={cancelDelete}
-                          aria-disabled={isDeleting || undefined}
-                          autoFocus
-                        >
-                          취소
-                        </OutlineButton>
-                        <DangerButton
-                          type="button"
-                          onClick={() => handleDelete(comment.commentId)}
-                          aria-disabled={isDeleting || undefined}
-                        >
-                          {isDeleting ? "지우는 중..." : "지우기"}
-                        </DangerButton>
-                      </ConfirmButtons>
+                      <p>이 코멘트를 지울까요? 되돌릴 수 없어요.</p>
+                      {/* 실수로 지우지 않도록 취소에 먼저 포커스를 둔다. */}
+                      <OutlineButton type="button" onClick={cancelDelete} aria-disabled={isDeleting || undefined} autoFocus>
+                        취소
+                      </OutlineButton>
+                      <DangerButton
+                        type="button"
+                        onClick={() => handleDelete(comment.commentId)}
+                        aria-disabled={isDeleting || undefined}
+                      >
+                        {isDeleting ? "지우는 중..." : "지우기"}
+                      </DangerButton>
                       {deleteError && <ErrorText role="alert">{deleteError}</ErrorText>}
                     </Confirm>
                   )}
@@ -315,101 +297,97 @@ function FeedComments({ fridgeId, canWrite, onCountChange }: FeedCommentsProps) 
           {moreError && <ErrorText role="alert">{moreError}</ErrorText>}
         </MoreArea>
       )}
-    </Panel>
+    </Section>
   );
 }
 
 export default FeedComments;
 
-const Panel = styled.section`
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  background: var(--surface);
-  padding: 24px;
+// 색 블록과 테두리 없이 흰 바탕에 글자 굵기와 가는 줄로만 나눈다(DESIGN.md). 위의 냉장고 그림과 같은 폭으로 둔다.
+const Section = styled.section`
+  width: min(880px, 100%);
+  justify-self: center;
   display: grid;
-  gap: 18px;
-
-  @media (max-width: 760px) {
-    padding: 18px;
-  }
+  gap: 20px;
 `;
 
-const Header = styled.div`
-  display: grid;
-  gap: 6px;
+const Title = styled.h2`
+  width: fit-content;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 24px;
+  font-weight: 540;
+  letter-spacing: -0.26px;
 
-  h2 {
-    width: fit-content;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 20px;
-    font-weight: 540;
+  span {
+    font-weight: 330;
   }
 
-  h2:focus-visible {
+  &:focus-visible {
     outline: 2px solid var(--text);
     outline-offset: 2px;
   }
-
-  p {
-    font-size: 14px;
-    font-weight: 330;
-    line-height: 1.5;
-  }
 `;
 
-const Form = styled.form`
-  border-radius: 16px;
-  background: var(--block-cream);
-  padding: 16px;
+const Composer = styled.form`
   display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) minmax(120px, 200px) auto;
   align-items: end;
-  gap: 12px;
+  column-gap: 16px;
+  row-gap: 8px;
 
   @media (max-width: 760px) {
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) auto;
+
+    > input:first-of-type {
+      grid-column: 1 / -1;
+    }
   }
 `;
 
-const Field = styled.div`
-  position: relative;
-  display: grid;
-  gap: 6px;
-
-  label {
-    font-size: 14px;
-    font-weight: 540;
-  }
-
-  label span {
-    font-weight: 330;
-  }
-
-  input {
-    min-height: 42px;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    background: var(--surface);
-    color: var(--text);
-    padding: 8px 12px;
-    font: inherit;
-    font-size: 15px;
-  }
-
-  input:focus-visible {
-    outline: 2px solid var(--text);
-    outline-offset: 1px;
-  }
-`;
-
-const Counter = styled.span`
+// 자리 표시 글로 무엇을 쓰는 칸인지 보이므로 이름표는 화면 읽기 프로그램에만 읽어 준다.
+const HiddenLabel = styled.label`
   position: absolute;
-  top: 0;
-  right: 0;
-  font-size: 12px;
-  font-weight: 330;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+`;
+
+// 입력 칸은 상자 대신 밑줄 하나로 둔다.
+const inputStyle = `
+  min-width: 0;
+  min-height: 44px;
+  border: 0;
+  border-bottom: 1px solid var(--text);
+  border-radius: 0;
+  background: transparent;
+  color: var(--text);
+  padding: 8px 0;
+  font: inherit;
+  font-size: 16px;
+
+  &::placeholder {
+    color: var(--text);
+    opacity: 0.4;
+  }
+
+  &:focus-visible {
+    outline: none;
+    border-bottom-width: 2px;
+    padding-bottom: 7px;
+  }
+`;
+
+const ContentInput = styled.input`
+  ${inputStyle}
+`;
+
+const DishInput = styled.input`
+  ${inputStyle}
+  font-size: 15px;
 `;
 
 const SubmitButton = styled.button`
@@ -418,7 +396,7 @@ const SubmitButton = styled.button`
   border-radius: 999px;
   background: var(--text);
   color: var(--surface);
-  padding: 8px 20px;
+  padding: 8px 22px;
   font-size: 15px;
   font-weight: 480;
   white-space: nowrap;
@@ -431,91 +409,68 @@ const SubmitButton = styled.button`
 
   &[aria-disabled="true"] {
     cursor: not-allowed;
-    opacity: 0.45;
+    opacity: 0.35;
   }
+`;
+
+const Counter = styled.span`
+  grid-column: 1 / -1;
+  font-size: 12px;
+  font-weight: 480;
 `;
 
 const ErrorText = styled.p`
   grid-column: 1 / -1;
-  border-radius: 8px;
-  background: var(--block-pink);
-  padding: 8px 12px;
-  font-size: 13px;
-  font-weight: 480;
+  flex-basis: 100%;
+  font-size: 14px;
+  font-weight: 540;
   line-height: 1.45;
 `;
 
-const StatusText = styled.div`
-  border-radius: 8px;
-  background: var(--surface-soft);
-  padding: 18px;
-  display: grid;
-  justify-items: start;
-  gap: 10px;
-  font-size: 14px;
+const Note = styled.div`
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 15px;
+  font-weight: 330;
   line-height: 1.5;
 `;
 
 const List = styled.ul`
   display: grid;
   list-style: none;
+  border-top: 1px solid var(--border);
+
+  li {
+    padding: 18px 0;
+    display: grid;
+    justify-items: start;
+    gap: 6px;
+  }
 
   li + li {
-    border-top: 1px solid var(--border-soft);
-  }
-`;
-
-const Row = styled.div`
-  padding: 14px 0;
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-`;
-
-const Author = styled.span`
-  width: 36px;
-  height: 36px;
-  flex: none;
-  border-radius: 999px;
-  background: var(--block-lilac);
-  display: grid;
-  place-items: center;
-  font-size: 15px;
-  font-weight: 700;
-`;
-
-const Body = styled.div`
-  min-width: 0;
-  flex: 1;
-  display: grid;
-  justify-items: start;
-  gap: 6px;
-
-  > p {
-    font-size: 15px;
-    line-height: 1.5;
-    overflow-wrap: anywhere;
+    border-top: 1px solid var(--border);
   }
 `;
 
 const Meta = styled.div`
+  width: 100%;
   display: flex;
-  align-items: center;
+  align-items: baseline;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 8px;
   font-size: 13px;
+  font-weight: 330;
 
   strong {
-    font-size: 14px;
+    font-size: 15px;
     font-weight: 540;
-  }
-
-  time {
-    font-weight: 330;
   }
 `;
 
-const MeTag = styled.span`
+const MineTag = styled.span`
+  align-self: center;
   border-radius: 999px;
   background: var(--text);
   color: var(--surface);
@@ -524,29 +479,19 @@ const MeTag = styled.span`
   font-weight: 540;
 `;
 
-const Dish = styled.span`
-  max-width: 100%;
-  border-radius: 999px;
-  background: var(--block-mint);
-  padding: 3px 10px;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 13px;
-  font-weight: 540;
-  overflow-wrap: anywhere;
-`;
-
-const IconButton = styled.button`
-  width: 36px;
-  height: 36px;
-  flex: none;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--surface);
+// 지우기는 눈에 덜 띄게 줄 끝의 밑줄 글자로 둔다.
+const TextButton = styled.button`
+  margin-left: auto;
+  min-height: 32px;
+  border: 0;
+  background: transparent;
   color: var(--text);
-  display: grid;
-  place-items: center;
+  padding: 0 2px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 480;
+  text-decoration: underline;
+  text-underline-offset: 3px;
   cursor: pointer;
 
   &:focus-visible {
@@ -556,28 +501,51 @@ const IconButton = styled.button`
 
   &:disabled {
     cursor: not-allowed;
-    opacity: 0.45;
+    opacity: 0.35;
+  }
+`;
+
+const Content = styled.p`
+  font-size: 16px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+`;
+
+const Dish = styled.p`
+  max-width: 100%;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 540;
+  overflow-wrap: anywhere;
+
+  span {
+    flex: none;
+    border: 1px solid var(--text);
+    border-radius: 999px;
+    padding: 1px 8px;
+    font-size: 12px;
+    font-weight: 480;
   }
 `;
 
 const Confirm = styled.div`
-  margin-bottom: 14px;
-  border-radius: 8px;
-  background: var(--surface-soft);
-  padding: 12px 14px;
-  display: grid;
-  gap: 10px;
-  font-size: 14px;
-`;
-
-const ConfirmButtons = styled.div`
+  width: 100%;
+  margin-top: 6px;
   display: flex;
+  align-items: center;
   flex-wrap: wrap;
   gap: 8px;
+  font-size: 14px;
+
+  p {
+    margin-right: auto;
+    font-weight: 480;
+  }
 `;
 
 const DangerButton = styled(OutlineButton)`
-  border-color: var(--text);
   background: var(--text);
   color: var(--surface);
 `;

@@ -1,6 +1,6 @@
 /*
  * 피드에서 고른 공개 냉장고를 구경하는 화면이다.
- * 냉장실·냉동실·실온을 칸(선반·왼쪽 문칸·오른쪽 문칸)별로 모두 보여 주고, 재료는 읽기만 한다.
+ * 재료는 내 냉장고 화면처럼 냉장고 모양(FeedFridgeBoard)으로 구역마다 넘겨 보며, 읽기만 한다.
  * 주인이 공개를 멈췄으면 멤버가 아닌 사람에게는 찾을 수 없다고 알려 준다.
  * 멤버는 공개하지 않은 냉장고도 미리 볼 수 있고, 이때는 좋아요·저장을 누르거나 코멘트를 새로 남길 수 없다.
  * 재료 아래에 다른 사람들이 남긴 코멘트와 음식 추천을 보여 준다.
@@ -11,34 +11,18 @@ import { ArrowLeft, Clock3, EyeOff } from "lucide-react";
 import { Link, useParams } from "react-router";
 import { ApiError } from "../../api/client";
 import { getFeedFridge, type FeedFridge, type FeedReaction } from "../../api/feed";
-import type { FridgeContentsResponse, FridgeItemResponse, StorageContents } from "../../api/fridge";
+import type { FridgeContentsResponse } from "../../api/fridge";
 import FeedComments from "./FeedComments";
+import FeedFridgeBoard from "./FeedFridgeBoard";
 import FeedReactions from "./FeedReactions";
-import { feedStorages, getAvatarText, getCardTone, getExpiry, getFeedErrorMessage } from "./feedFormat";
-import {
-  Avatar,
-  freshnessBackground,
-  ItemChip,
-  MineBadge,
-  OutlineButton,
-  ScreenReaderText,
-  Skeleton,
-  StatusBox,
-  Wrapper,
-} from "./feedStyles";
-import IngredientIcon from "../Common/IngredientIcon";
+import { getAvatarText, getCardTone, getFeedErrorMessage } from "./feedFormat";
+import { Avatar, MineBadge, OutlineButton, ScreenReaderText, Skeleton, StatusBox, Wrapper } from "./feedStyles";
 
 type DetailState =
   | { status: "loading" }
   | { status: "notFound" }
   | { status: "error"; message: string }
   | { status: "success"; fridge: FeedFridge; contents: FridgeContentsResponse };
-
-const sections: { key: keyof StorageContents; label: string }[] = [
-  { key: "center", label: "선반" },
-  { key: "leftDoor", label: "왼쪽 문칸" },
-  { key: "rightDoor", label: "오른쪽 문칸" },
-];
 
 function parseFridgeId(value: string | undefined) {
   const id = Number(value);
@@ -188,40 +172,14 @@ function FeedFridgePage() {
         )}
       </DetailHero>
 
-      <Zones>
-        {feedStorages.map(({ key, meta }) => {
-          const storage = contents[key];
-          const filled = sections.filter((section) => storage[section.key].length > 0);
-          const count = sections.reduce((sum, section) => sum + storage[section.key].length, 0);
-          return (
-            <Zone key={key} aria-labelledby={`feed-zone-${key}`} $tone={meta.tone}>
-              <ZoneTitle id={`feed-zone-${key}`}>
-                {meta.title}
-                <span>{count}개</span>
-              </ZoneTitle>
-              {filled.length === 0 ? (
-                <ZoneEmpty>비어 있어요.</ZoneEmpty>
-              ) : (
-                filled.map((section) => (
-                  <Section key={section.key}>
-                    <h3>{section.label}</h3>
-                    <Items>
-                      {storage[section.key].map((item) => (
-                        <ItemView key={item.id} item={item} />
-                      ))}
-                    </Items>
-                  </Section>
-                ))
-              )}
-            </Zone>
-          );
-        })}
-      </Zones>
+      {/* 냉장고가 바뀌면 처음 보여 줄 구역을 다시 고르게 새로 그린다. 옆의 코멘트와 key가 겹치지 않게 앞에 이름을 붙인다. */}
+      <FeedFridgeBoard key={`board-${fridge.fridgeId}`} contents={contents} />
 
       {/* 냉장고가 바뀌면 이전 냉장고의 코멘트와 쓰던 글을 남기지 않게 새로 그린다. */}
       <FeedComments
         key={fridge.fridgeId}
         fridgeId={fridge.fridgeId}
+        count={fridge.commentCount}
         canWrite={fridge.isPublic}
         onCountChange={(delta) => handleCommentCountChange(fridge.fridgeId, delta)}
       />
@@ -230,26 +188,6 @@ function FeedFridgePage() {
 }
 
 export default FeedFridgePage;
-
-function ItemView({ item }: { item: FridgeItemResponse }) {
-  const expiry = item.expiresAt ? getExpiry(item.expiresAt) : null;
-  return (
-    <ItemChip>
-      {(item.emoji || item.imageUrl) && (
-        <i aria-hidden="true">
-          <IngredientIcon emoji={item.emoji} imageUrl={item.imageUrl} />
-        </i>
-      )}
-      <span>{item.name}</span>
-      {expiry && (
-        <Badge $background={freshnessBackground[expiry.freshness]} $dark={expiry.freshness === "expired"}>
-          <b aria-hidden="true">{expiry.label}</b>
-          <ScreenReaderText>{expiry.description}</ScreenReaderText>
-        </Badge>
-      )}
-    </ItemChip>
-  );
-}
 
 const BackLink = styled(Link)`
   width: fit-content;
@@ -332,71 +270,3 @@ const PrivateNote = styled.p`
   font-weight: 480;
 `;
 
-const Zones = styled.div`
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  align-items: start;
-  gap: 16px;
-
-  @media (max-width: 1000px) {
-    grid-template-columns: minmax(0, 1fr);
-  }
-`;
-
-const Zone = styled.section<{ $tone: string }>`
-  border-radius: 16px;
-  background: color-mix(in srgb, ${(props) => props.$tone} 55%, var(--surface));
-  padding: 18px;
-  display: grid;
-  gap: 14px;
-`;
-
-const ZoneTitle = styled.h2`
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  font-size: 20px;
-  font-weight: 540;
-
-  span {
-    font-size: 14px;
-    font-weight: 330;
-  }
-`;
-
-const ZoneEmpty = styled.p`
-  font-size: 14px;
-`;
-
-const Section = styled.div`
-  display: grid;
-  gap: 8px;
-
-  h3 {
-    font-size: 14px;
-    font-weight: 540;
-  }
-`;
-
-const Items = styled.ul`
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  list-style: none;
-
-  i {
-    font-style: normal;
-  }
-`;
-
-const Badge = styled.span<{ $background: string; $dark: boolean }>`
-  border-radius: 999px;
-  background: ${(props) => props.$background};
-  color: ${(props) => (props.$dark ? "var(--surface)" : "var(--text)")};
-  padding: 1px 7px;
-  font-size: 12px;
-
-  b {
-    font-weight: 540;
-  }
-`;
