@@ -10,6 +10,7 @@ import { ModalActions, ModalButton } from "../Library/libraryModalStyles";
 import type { ExpiredIngredient } from "./fridgeLayout";
 import { zoneMeta } from "./fridgeZones";
 import IngredientIcon from "../Common/IngredientIcon";
+import { playSound } from "../../sound/soundEffects";
 
 type ExpiredDeleteModalProps = {
   open: boolean;
@@ -46,8 +47,10 @@ function ExpiredDeleteModal({ open, items, onClose, onDelete }: ExpiredDeleteMod
     setError("");
     try {
       await onDelete();
+      playSound("delete");
       handleClose();
     } catch (deleteError) {
+      playSound("error");
       setError(getDeleteErrorMessage(deleteError));
     } finally {
       setIsDeleting(false);
