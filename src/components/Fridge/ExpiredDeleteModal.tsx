@@ -9,6 +9,7 @@ import LibraryModal, { ModalError } from "../Library/LibraryModal";
 import { ModalActions, ModalButton } from "../Library/libraryModalStyles";
 import type { ExpiredIngredient } from "./fridgeLayout";
 import { zoneMeta } from "./fridgeZones";
+import IngredientIcon from "../Common/IngredientIcon";
 
 type ExpiredDeleteModalProps = {
   open: boolean;
@@ -64,7 +65,9 @@ function ExpiredDeleteModal({ open, items, onClose, onDelete }: ExpiredDeleteMod
             <List>
               {items.map(({ ingredient, zoneId }) => (
                 <Item key={ingredient.id}>
-                  <span aria-hidden="true">{ingredient.emoji}</span>
+                  <span aria-hidden="true">
+                    <IngredientIcon emoji={ingredient.emoji} imageUrl={ingredient.imageUrl} />
+                  </span>
                   <strong>{ingredient.name}</strong>
                   <ZoneName>{zoneMeta[zoneId].title}</ZoneName>
                 </Item>
