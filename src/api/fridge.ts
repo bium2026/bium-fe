@@ -30,6 +30,8 @@ export type FridgeItemResponse = {
   id: number;
   name: string;
   emoji: string | null;
+  // 이 재료를 넣은 도감 재료에 올린 사진 주소. 없으면 null이고 emoji를 보여 준다.
+  imageUrl: string | null;
   // "YYYY-MM-DD", 유통기한이 없는 재료는 null
   expiresAt: string | null;
   // 냉장고에 넣은(산) 날 "YYYY-MM-DD", 모르면 null
