@@ -45,7 +45,8 @@ function FeedComments({ fridgeId, count, canWrite, onCountChange }: FeedComments
   const [content, setContent] = useState("");
   const [dishName, setDishName] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [formError, setFormError] = useState("");
+  // 입력을 고치면 사라질 입력 오류와, 다시 보내야 하는 요청 실패를 나눠 둔다.
+  const [formError, setFormError] = useState<{ message: string; isInputError: boolean } | null>(null);
 
   const [confirmingId, setConfirmingId] = useState<number | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -106,11 +107,11 @@ function FeedComments({ fridgeId, count, canWrite, onCountChange }: FeedComments
     event.preventDefault();
     if (isSubmitting) return;
     if (!trimmedContent) {
-      setFormError("코멘트를 입력해 주세요.");
+      setFormError({ message: "코멘트를 입력해 주세요.", isInputError: true });
       return;
     }
     setIsSubmitting(true);
-    setFormError("");
+    setFormError(null);
     try {
       const created = await createFeedComment(fridgeId, {
         content: trimmedContent,
@@ -123,7 +124,11 @@ function FeedComments({ fridgeId, count, canWrite, onCountChange }: FeedComments
       setDishName("");
     } catch (error) {
       playSound("error");
-      setFormError(getFeedErrorMessage(error, "코멘트를 남기지 못했어요. 잠시 후 다시 시도해 주세요."));
+      setFormError({
+        message: getFeedErrorMessage(error, "코멘트를 남기지 못했어요. 잠시 후 다시 시도해 주세요."),
+        // 400은 서버가 알려 준 입력 오류라 칸을 고치면 맞지 않게 된다.
+        isInputError: error instanceof ApiError && error.status === 400,
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -174,6 +179,10 @@ function FeedComments({ fridgeId, count, canWrite, onCountChange }: FeedComments
 
   const showCounter = content.length >= COUNTER_FROM;
 
+  const clearInputError = () => {
+    if (formError?.isInputError) setFormError(null);
+  };
+
   return (
     <Section id="comments" aria-labelledby={titleId}>
       <Title id={titleId} ref={titleRef} tabIndex={-1}>
@@ -186,7 +195,10 @@ function FeedComments({ fridgeId, count, canWrite, onCountChange }: FeedComments
           <ContentInput
             id={contentId}
             value={content}
-            onChange={(event) => setContent(event.target.value)}
+            onChange={(event) => {
+              setContent(event.target.value);
+              clearInputError();
+            }}
             maxLength={MAX_CONTENT_LENGTH}
             placeholder="이 냉장고에 한마디 남기기"
             aria-describedby={showCounter ? `${contentId}-count` : undefined}
@@ -196,7 +208,10 @@ function FeedComments({ fridgeId, count, canWrite, onCountChange }: FeedComments
           <DishInput
             id={dishId}
             value={dishName}
-            onChange={(event) => setDishName(event.target.value)}
+            onChange={(event) => {
+              setDishName(event.target.value);
+              clearInputError();
+            }}
             maxLength={MAX_DISH_LENGTH}
             placeholder="추천 음식 (선택)"
             autoComplete="off"
@@ -209,7 +224,7 @@ function FeedComments({ fridgeId, count, canWrite, onCountChange }: FeedComments
               {content.length}/{MAX_CONTENT_LENGTH}
             </Counter>
           )}
-          {formError && <ErrorText role="alert">{formError}</ErrorText>}
+          {formError && <ErrorText role="alert">{formError.message}</ErrorText>}
         </Composer>
       ) : (
         <Note>공개하지 않은 냉장고라 새 코멘트는 남길 수 없어요.</Note>
