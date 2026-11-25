@@ -179,6 +179,7 @@ function FeedFridgePage() {
       <FeedComments
         key={fridge.fridgeId}
         fridgeId={fridge.fridgeId}
+        count={fridge.commentCount}
         canWrite={fridge.isPublic}
         onCountChange={(delta) => handleCommentCountChange(fridge.fridgeId, delta)}
       />
