@@ -22,6 +22,7 @@ import {
 } from "./libraryModalStyles";
 import { storageLabel, storageOrder } from "./libraryStorage";
 import { getEmojiError } from "./libraryValidation";
+import { playSound } from "../../sound/soundEffects";
 
 export type FridgeAddValues = {
   name: string;
@@ -100,9 +101,11 @@ function FridgeAddForm({ ingredient, isBusy, onBusyChange, onClose, onAdd }: Fri
     setErrorMessage("");
     try {
       await onAdd(ingredient, { name: trimmedName, emoji: trimmedIcon, storage });
+      playSound("success");
       onBusyChange(false);
       onClose();
     } catch (error) {
+      playSound("error");
       onBusyChange(false);
       setErrorMessage(getAddErrorMessage(error));
     }
