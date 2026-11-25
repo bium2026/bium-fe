@@ -9,6 +9,7 @@ import { ShoppingBag, X } from "lucide-react";
 import type { PurchasedItem } from "../../api/purchasedItem";
 import { formatDate } from "./libraryDate";
 import IngredientIcon from "../Common/IngredientIcon";
+import { playSound } from "../../sound/soundEffects";
 
 type GroceryBagProps = {
   items: PurchasedItem[];
@@ -30,7 +31,9 @@ function GroceryBag({ items, status, onRemove }: GroceryBagProps) {
     try {
       // 성공하면 재료가 목록에서 빠지므로 따로 알리지 않는다.
       await onRemove(item);
+      playSound("delete");
     } catch {
+      playSound("error");
       setFailedIds((prev) => [...prev, item.id]);
     } finally {
       setRemovingIds((prev) => prev.filter((id) => id !== item.id));
