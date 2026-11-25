@@ -1,11 +1,11 @@
 /*
  * 로그인 뒤 화면들이 함께 쓰는 상단 헤더다.
  * 브랜드와 냉장고·식재료 도감·AI 레시피·장보기 목록·냉장고 공유·냉장고 피드 메뉴를 보여 주고, 지금 보고 있는 화면의 메뉴에 밑줄을 긋는다.
- * 오른쪽에서는 지금 보고 있는 냉장고를 다른 냉장고로 바꾸거나, 효과음을 켜고 끄거나, 로그아웃할 수 있다.
+ * 오른쪽에서는 지금 보고 있는 냉장고를 다른 냉장고로 바꾸거나, 효과음을 켜고 끄거나, 유통기한 알림 설정으로 가거나, 로그아웃할 수 있다.
  */
 import { useEffect, useRef } from "react";
 import styled from "@emotion/styled";
-import { BookOpen, Bot, LogOut, Newspaper, Refrigerator, ShoppingCart, Users } from "lucide-react";
+import { BellRing, BookOpen, Bot, LogOut, Newspaper, Refrigerator, ShoppingCart, Users } from "lucide-react";
 import { Link, NavLink, useLocation } from "react-router";
 import { useAuthStore } from "../../store/authStore";
 import FridgeSwitcher from "./FridgeSwitcher";
@@ -58,6 +58,9 @@ function AppHeader() {
       <Actions>
         <FridgeSwitcher />
         <SoundToggle />
+        <NotificationLink to="/notifications" aria-label="유통기한 알림" title="유통기한 알림">
+          <BellRing size={16} aria-hidden="true" />
+        </NotificationLink>
         {/* 토큰을 지우면 RequireAuth가 로그인 화면으로 보내므로 여기서 따로 이동하지 않는다. 냉장고·추천 목록은 각 스토어가 토큰 변화를 보고 비운다. */}
         <LogoutButton type="button" aria-label="로그아웃" title="로그아웃" onClick={clearAuth}>
           <LogOut size={16} aria-hidden="true" />
@@ -78,36 +81,36 @@ const Header = styled.header`
   background: var(--surface);
   padding: 0 max(32px, calc((100vw - 1280px) / 2));
   display: grid;
-  /* 오른쪽 칸은 냉장고 이름이 잘리지 않게 효과음·로그아웃 버튼 자리를 포함해 258px로 두고, 왼쪽 칸(브랜드는 86px)은 메뉴가 한 줄에 들어갈 만큼만 남겨 둔다.
+  /* 오른쪽 칸은 냉장고 이름이 잘리지 않게 효과음·알림·로그아웃 버튼 자리를 포함해 302px로 두고, 왼쪽 칸(브랜드는 86px)은 메뉴가 한 줄에 들어갈 만큼만 남겨 둔다.
      폭이 넉넉하면 양쪽이 같아져 메뉴가 가운데에 오고, 빠듯하면 왼쪽이 줄어 메뉴가 조금 왼쪽으로 치우친다. */
-  grid-template-columns: clamp(88px, calc(100% - 1057px), 258px) minmax(0, 1fr) 258px;
+  grid-template-columns: clamp(88px, calc(100% - 1101px), 302px) minmax(0, 1fr) 302px;
   align-items: center;
   gap: 16px;
 
   /* 좁아질수록 메뉴 자리를 더 확보한다. 메뉴가 가운데에서 벗어나는 정도는 (왼쪽 칸 - 오른쪽 칸) / 2라서 왼쪽 칸을 되도록 줄이지 않는다.
-     오른쪽 칸 250px = 이름 94px + 냉장고 버튼의 나머지 68px(테두리·여백·아이콘 둘·간격) + (간격 8px + 버튼 36px) × 2(효과음·로그아웃).
-     왼쪽 칸이 남는 폭은 100% - (오른쪽 칸 250 + 칸 사이 간격 둘 + 메뉴 폭 + 왼쪽 칸)이고,
+     오른쪽 칸 300px = 이름 100px + 냉장고 버튼의 나머지 68px(테두리·여백·아이콘 둘·간격) + (간격 8px + 버튼 36px) × 3(효과음·알림·로그아웃).
+     왼쪽 칸이 남는 폭은 100% - (오른쪽 칸 300 + 칸 사이 간격 둘 + 메뉴 폭 + 왼쪽 칸)이고,
      메뉴 폭은 글자 폭 621px + 항목 좌우 여백 24px + 항목 사이 간격 5개다. */
-  @media (max-width: 1294px) {
-    grid-template-columns: clamp(86px, calc(100% - 991px), 250px) minmax(0, 1fr) 250px;
+  @media (max-width: 1344px) {
+    grid-template-columns: clamp(86px, calc(100% - 1041px), 300px) minmax(0, 1fr) 300px;
     column-gap: 8px;
   }
 
   /* 메뉴 폭 705px(항목 사이 간격 12px). 헤더 좌우 여백을 줄여 본문 끝선보다 16px 바깥에 둔다. */
-  @media (max-width: 1220px) {
+  @media (max-width: 1270px) {
     padding: 0 16px;
-    grid-template-columns: clamp(86px, calc(100% - 971px), 250px) minmax(0, 1fr) 250px;
+    grid-template-columns: clamp(86px, calc(100% - 1021px), 300px) minmax(0, 1fr) 300px;
   }
 
-  /* 메뉴 폭 671px(항목 사이 간격 10px, 항목 좌우 여백 없음). 1045px에서 브랜드 86px, 오른쪽 칸 250px, 칸 사이 간격 둘 12px이 들어간다. */
-  @media (max-width: 1168px) {
+  /* 메뉴 폭 671px(항목 사이 간격 10px, 항목 좌우 여백 없음). 1095px에서 브랜드 86px, 오른쪽 칸 300px, 칸 사이 간격 둘 12px이 들어간다. */
+  @media (max-width: 1218px) {
     padding: 0 12px;
-    grid-template-columns: clamp(86px, calc(100% - 933px), 250px) minmax(0, 1fr) 250px;
+    grid-template-columns: clamp(86px, calc(100% - 983px), 300px) minmax(0, 1fr) 300px;
     column-gap: 6px;
   }
 
   /* 메뉴 여섯 개가 한 줄에 들어가지 않는 폭부터는 첫 줄에 브랜드와 냉장고 바꾸기, 둘째 줄에 메뉴를 둔다. */
-  @media (max-width: 1044px) {
+  @media (max-width: 1094px) {
     height: auto;
     padding: 8px 14px 0;
     grid-template-columns: minmax(0, 1fr) auto;
@@ -146,6 +149,11 @@ const BrandName = styled.span`
   font-size: 24px;
   font-weight: 700;
   letter-spacing: -0.26px;
+
+  /* 첫 줄에 브랜드 86px과 오른쪽 칸 300px이 헤더 좌우 여백 28px, 간격 12px과 함께 들어가지 않는 폭에서는 냉장고 이름을 지키려고 글자를 숨기고 로고만 남긴다. */
+  @media (max-width: 425px) {
+    display: none;
+  }
 `;
 
 const Menu = styled.nav`
@@ -156,19 +164,19 @@ const Menu = styled.nav`
   gap: 24px;
   min-width: 0;
 
-  @media (max-width: 1294px) {
+  @media (max-width: 1344px) {
     gap: 16px;
   }
 
-  @media (max-width: 1220px) {
+  @media (max-width: 1270px) {
     gap: 12px;
   }
 
-  @media (max-width: 1168px) {
+  @media (max-width: 1218px) {
     gap: 10px;
   }
 
-  @media (max-width: 1044px) {
+  @media (max-width: 1094px) {
     grid-column: 1 / -1;
     grid-row: 2;
     justify-content: flex-start;
@@ -202,11 +210,11 @@ const MenuLink = styled(NavLink)`
     outline-offset: -2px;
   }
 
-  @media (min-width: 1045px) and (max-width: 1168px) {
+  @media (min-width: 1095px) and (max-width: 1218px) {
     padding: 0;
   }
 
-  @media (max-width: 1044px) {
+  @media (max-width: 1094px) {
     height: 42px;
   }
 `;
@@ -218,6 +226,33 @@ const Actions = styled.div`
   display: flex;
   align-items: center;
   gap: 8px;
+`;
+
+// 유통기한 알림 설정 화면으로 가는 링크. 옆의 효과음·로그아웃 버튼과 같은 모양이고, 알림 화면에 있으면 NavLink가 aria-current="page"를 붙인다.
+const NotificationLink = styled(NavLink)`
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  display: grid;
+  place-items: center;
+
+  &:hover {
+    background: var(--surface-soft);
+  }
+
+  &.active {
+    border-color: var(--text);
+    background: var(--surface-soft);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--text);
+    outline-offset: 2px;
+  }
 `;
 
 // 냉장고 선택 버튼과 같은 높이·테두리로 맞추고, 실수로 누르지 않게 냉장고 선택 버튼 옆에 작게 둔다.
