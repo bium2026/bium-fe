@@ -9,6 +9,7 @@ import { keyframes } from "@emotion/react";
 import styled from "@emotion/styled";
 import { CircleAlert, X } from "lucide-react";
 import { ModalFieldWrapper, ModalLabel } from "./libraryModalStyles";
+import { playSound } from "../../sound/soundEffects";
 
 type LibraryModalProps = {
   open: boolean;
@@ -32,10 +33,14 @@ function LibraryModal({ open, title, busy, wide = false, placement = "center", o
 
     if (open && !dialog.open) {
       dialog.showModal();
+      playSound("open");
       // showModal()은 첫 번째 버튼(닫기)에 포커스를 주므로, 바로 입력할 수 있게 첫 입력 칸으로 옮긴다.
       dialog.querySelector("input")?.focus();
     }
-    if (!open && dialog.open) dialog.close();
+    if (!open && dialog.open) {
+      dialog.close();
+      playSound("close");
+    }
   }, [open]);
 
   const requestClose = () => {
