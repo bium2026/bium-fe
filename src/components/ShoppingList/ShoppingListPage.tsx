@@ -227,11 +227,11 @@ function ShoppingListPage() {
   const renderContent = () => {
     if (page.status === "loading") {
       return (
-        <Grid aria-busy="true">
+        <Board aria-busy="true">
           <ScreenReaderOnly role="status">장보기 목록을 불러오는 중이에요.</ScreenReaderOnly>
           <Skeleton aria-hidden="true" />
           <Skeleton aria-hidden="true" />
-        </Grid>
+        </Board>
       );
     }
 
@@ -251,41 +251,42 @@ function ShoppingListPage() {
       return (
         <StatusBox>
           <strong>아직 속한 냉장고가 없어요.</strong>
-          <p>장보기 목록은 냉장고마다 있어요. 헤더 오른쪽 냉장고 버튼에서 받은 초대 코드로 참여할 수 있어요.</p>
+          <p>헤더 오른쪽 냉장고 버튼에서 초대 코드로 참여할 수 있어요.</p>
         </StatusBox>
       );
     }
 
+    // 살 것 목록이 이 화면의 본업이라 먼저 두고, 달력은 옆(좁은 화면에서는 아래)에 둔다.
     return (
-      <Grid>
-        <ShoppingSection
-          title="살 것"
-          items={toBuy}
-          emptyText={
-            items.length === 0
-              ? "아직 담은 재료가 없어요. 사야 할 재료 이름을 넣어 담아 보세요."
-              : "살 재료를 모두 샀어요."
-          }
-          pendingIds={pendingIds}
-          itemErrors={itemErrors}
-          checkboxRefs={checkboxRefs}
-          onToggle={handleToggle}
-          onRemove={handleRemove}
-        >
-          <ShoppingAddForm onAdd={handleAdd} />
-        </ShoppingSection>
-        <ShoppingSection
-          title="산 것"
-          items={bought}
-          emptyText="아직 산 재료가 없어요. 장을 보며 산 재료를 체크하면 여기로 옮겨져요."
-          pendingIds={pendingIds}
-          itemErrors={itemErrors}
-          checkboxRefs={checkboxRefs}
-          muted
-          onToggle={handleToggle}
-          onRemove={handleRemove}
-        />
-      </Grid>
+      <Board>
+        <Memo>
+          <ShoppingSection
+            title="살 것"
+            items={toBuy}
+            emptyText={items.length === 0 ? "아직 담은 재료가 없어요" : "살 재료를 모두 샀어요"}
+            pendingIds={pendingIds}
+            itemErrors={itemErrors}
+            checkboxRefs={checkboxRefs}
+            onToggle={handleToggle}
+            onRemove={handleRemove}
+          >
+            <ShoppingAddForm onAdd={handleAdd} />
+          </ShoppingSection>
+          <ShoppingSection
+            title="산 것"
+            items={bought}
+            emptyText="체크한 재료가 여기로 옮겨져요"
+            pendingIds={pendingIds}
+            itemErrors={itemErrors}
+            checkboxRefs={checkboxRefs}
+            muted
+            onToggle={handleToggle}
+            onRemove={handleRemove}
+          />
+        </Memo>
+        {/* 냉장고가 바뀌면 key로 새로 그려, 이전 냉장고의 일정과 늦게 온 응답이 남지 않게 한다. */}
+        <PurchaseCalendar key={page.fridge.id} fridgeId={page.fridge.id} />
+      </Board>
     );
   };
 
@@ -295,20 +296,17 @@ function ShoppingListPage() {
   return (
     <Wrapper>
       <Hero>
-        <h1>장보기 목록</h1>
-        {page.status === "success" && (
-          <FridgeLine>
-            <Refrigerator size={16} aria-hidden="true" />
-            <strong>{page.fridge.name}</strong>
-          </FridgeLine>
-        )}
-        <p>냉장고를 함께 쓰는 사람과 같은 목록을 봐요. 장을 보며 산 재료를 체크해 두세요.</p>
+        <HeroTitle>
+          <h1>장보기 목록</h1>
+          {page.status === "success" && (
+            <FridgeLine>
+              <Refrigerator size={16} aria-hidden="true" />
+              <strong>{page.fridge.name}</strong>
+            </FridgeLine>
+          )}
+        </HeroTitle>
+        {page.status === "success" && <ShoppingDayCard />}
       </Hero>
-
-      {page.status === "success" && <ShoppingDayCard />}
-
-      {/* 냉장고가 바뀌면 key로 새로 그려, 이전 냉장고의 일정과 늦게 온 응답이 남지 않게 한다. */}
-      {page.status === "success" && <PurchaseCalendar key={page.fridge.id} fridgeId={page.fridge.id} />}
 
       {notice && (
         <Notice role="status">
@@ -340,10 +338,26 @@ const Wrapper = styled.section`
   gap: 24px;
 `;
 
+// 페이지에서 파스텔 블록은 이 머리 하나만 쓴다. 장보는 날도 여기에 함께 둬 색 상자가 겹겹이 쌓이지 않게 한다.
 const Hero = styled.header`
   border-radius: 16px;
   background: var(--block-lime);
   padding: 24px 28px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px 32px;
+
+  @media (max-width: 760px) {
+    border-radius: 0;
+    margin-inline: -12px;
+    padding: 20px;
+  }
+`;
+
+const HeroTitle = styled.div`
+  min-width: 0;
   display: grid;
   justify-items: start;
   gap: 10px;
@@ -354,30 +368,13 @@ const Hero = styled.header`
     font-weight: 480;
     letter-spacing: -0.26px;
   }
-
-  p {
-    font-size: 15px;
-    font-weight: 330;
-    line-height: 1.5;
-    word-break: keep-all;
-  }
-
-  @media (max-width: 760px) {
-    border-radius: 0;
-    margin-inline: -12px;
-    padding: 22px 20px;
-  }
 `;
 
 const FridgeLine = styled.div`
   max-width: 100%;
-  min-height: 40px;
-  border-radius: 999px;
-  background: var(--surface);
-  padding: 6px 16px 6px 14px;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 
   svg {
     flex-shrink: 0;
@@ -388,14 +385,15 @@ const FridgeLine = styled.div`
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    font-size: 16px;
-    font-weight: 540;
+    font-size: 15px;
+    font-weight: 480;
   }
 `;
 
 const Notice = styled.div`
+  border: 1px solid var(--border);
   border-radius: 8px;
-  background: var(--block-cream);
+  background: var(--surface-soft);
   padding: 8px 8px 8px 16px;
   display: flex;
   align-items: center;
@@ -423,15 +421,32 @@ const NoticeClose = styled.button`
   }
 `;
 
-const Grid = styled.div`
+// 달력 칸에 재료 이름이 보여야 해서 달력 쪽을 더 넓게 준다. 둘이 나란히 서기 좁으면 목록 먼저 위아래로 쌓는다.
+const Board = styled.div`
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 4fr) minmax(0, 8fr);
   align-items: start;
   gap: 24px;
 
-  @media (max-width: 900px) {
+  @media (max-width: 1100px) {
     grid-template-columns: minmax(0, 1fr);
     gap: 16px;
+  }
+`;
+
+// 살 것과 산 것을 한 장의 메모처럼 묶는다.
+const Memo = styled.div`
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface);
+  padding: 24px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 28px;
+
+  @media (max-width: 760px) {
+    padding: 20px 16px;
   }
 `;
 

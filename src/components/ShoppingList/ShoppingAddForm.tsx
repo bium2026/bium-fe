@@ -145,9 +145,7 @@ const AddButton = styled.button`
 `;
 
 const ErrorMessage = styled.p`
-  border-radius: 8px;
-  background: var(--block-pink);
-  padding: 10px 14px;
+  padding-inline: 4px;
   font-size: 14px;
   font-weight: 480;
   line-height: 1.5;
