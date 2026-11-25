@@ -7,6 +7,7 @@ import type { FormEvent } from "react";
 import styled from "@emotion/styled";
 import { Plus } from "lucide-react";
 import { ApiError, NETWORK_ERROR } from "../../api/client";
+import { playSound } from "../../sound/soundEffects";
 
 // 백엔드 검사(1~50자)와 같은 기준이다.
 const NAME_MAX_LENGTH = 50;
@@ -43,10 +44,12 @@ function ShoppingAddForm({ onAdd }: ShoppingAddFormProps) {
     setErrorMessage("");
     try {
       await onAdd(name);
+      playSound("success");
       setValue("");
       // 담기 버튼으로 담았으면 칸이 비면서 버튼이 잠겨 포커스를 잃으므로, 이어서 담을 수 있게 입력칸으로 옮긴다.
       inputRef.current?.focus();
     } catch (error) {
+      playSound("error");
       setErrorMessage(getAddErrorMessage(error));
     } finally {
       setIsAdding(false);
