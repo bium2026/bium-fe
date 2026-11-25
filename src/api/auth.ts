@@ -8,6 +8,8 @@ export type SignupRequest = {
   loginId: string;
   password: string;
   nickname: string;
+  // 유통기한 알림 메일을 받을 주소. 알림 설정 화면에서 바꿀 수 있다.
+  email: string;
 };
 
 export type SignupResponse = {

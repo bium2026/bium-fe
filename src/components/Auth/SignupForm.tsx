@@ -1,5 +1,5 @@
 /*
- * 아이디, 비밀번호, 닉네임으로 가입하는 폼이다.
+ * 아이디, 비밀번호, 닉네임, 이메일로 가입하는 폼이다.
  * 입력 칸을 벗어나거나 가입 버튼을 누르면 형식을 검사해 칸 아래에 알려 준다.
  * 가입에 성공하면 onSuccess로 가입한 아이디를 넘겨 로그인 폼으로 보낸다.
  */
@@ -14,6 +14,7 @@ type SignupValues = {
   password: string;
   passwordConfirm: string;
   nickname: string;
+  email: string;
 };
 
 type SignupField = keyof SignupValues;
@@ -29,12 +30,15 @@ const initialValues: SignupValues = {
   password: "",
   passwordConfirm: "",
   nickname: "",
+  email: "",
 };
 
 // 백엔드 SignupRequest의 검증 규칙과 같다. 서버 규칙이 바뀌면 함께 바꾼다.
 const LOGIN_ID_PATTERN = /^[a-z0-9]{4,20}$/;
 const PASSWORD_PATTERN = /^(?=.*[A-Za-z])(?=.*\d)\S{8,20}$/;
 const NICKNAME_MIN_LENGTH = 2;
+// 알림 설정 화면(NotificationSettingsPage)의 이메일 검사와 같다.
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function validateSignup(values: SignupValues): SignupErrors {
   const errors: SignupErrors = {};
@@ -50,6 +54,9 @@ function validateSignup(values: SignupValues): SignupErrors {
   }
   if (values.nickname.trim().length < NICKNAME_MIN_LENGTH) {
     errors.nickname = "닉네임은 2~10자로 입력하세요.";
+  }
+  if (!EMAIL_PATTERN.test(values.email.trim())) {
+    errors.email = "이메일 형식에 맞게 입력하세요.";
   }
 
   return errors;
@@ -101,6 +108,7 @@ function SignupForm({ onSuccess }: SignupFormProps) {
         password: values.password,
         // 닉네임 길이는 앞뒤 공백을 뺀 값으로 검사했으므로 같은 값을 보낸다.
         nickname: values.nickname.trim(),
+        email: values.email.trim(),
       });
       onSuccess(values.loginId);
     } catch (err) {
@@ -165,6 +173,18 @@ function SignupForm({ onSuccess }: SignupFormProps) {
         maxLength={10}
         hint="2~10자"
         error={visibleError("nickname")}
+      />
+      <AuthField
+        label="이메일"
+        type="email"
+        value={values.email}
+        onChange={changeField("email")}
+        onBlur={touchField("email")}
+        autoComplete="email"
+        placeholder="이메일을 입력하세요"
+        maxLength={255}
+        hint="유통기한 알림 메일을 받을 주소예요"
+        error={visibleError("email")}
       />
     </AuthForm>
   );
