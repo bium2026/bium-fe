@@ -8,6 +8,7 @@ import { css, keyframes } from "@emotion/react";
 import styled from "@emotion/styled";
 import { getDaysLeft } from "./fridgeLayout";
 import type { FridgeIngredient } from "./fridgeTypes";
+import IngredientIcon from "../Common/IngredientIcon";
 
 type Freshness = "expired" | "urgent" | "soon" | "safe";
 
@@ -80,7 +81,7 @@ function IngredientItem({
       $dragging={isDragging}
     >
       <Icon aria-hidden="true" $variant={variant} $freshness={freshness} $motion={motion} $offset={offset}>
-        {ingredient.emoji}
+        <IngredientIcon emoji={ingredient.emoji} imageUrl={ingredient.imageUrl} />
       </Icon>
       <Name $variant={variant}>{ingredient.name}</Name>
       {daysLeft !== null && (

@@ -12,6 +12,8 @@ export type CatalogIngredient = {
   id: number;
   name: string;
   emoji: string;
+  // 이모지 대신 올린 사진 주소("/api/ingredient-images/..."). 없으면 null이고 emoji를 보여 준다.
+  imageUrl: string | null;
   category: IngredientCategory;
   // 기본 유통기한(일)
   shelfLifeDays: number;
@@ -21,7 +23,7 @@ export type CatalogIngredient = {
   favorite: boolean;
 };
 
-export type CatalogIngredientCreateRequest = Omit<CatalogIngredient, "id" | "basic" | "favorite">;
+export type CatalogIngredientCreateRequest = Omit<CatalogIngredient, "id" | "imageUrl" | "basic" | "favorite">;
 
 type CatalogListResponse = {
   ingredients: CatalogIngredient[];
@@ -56,4 +58,18 @@ export function addCatalogFavorite(catalogId: number) {
 // 실패: CATALOG_NOT_FOUND(404)
 export function removeCatalogFavorite(catalogId: number) {
   return request<CatalogIngredient>(`/api/ingredient-catalogs/${catalogId}/favorite`, { method: "DELETE" });
+}
+
+// 내가 추가한 재료에만 올릴 수 있다. 서버가 JPG·PNG인지 내용으로 확인하고 긴 변 256px PNG로 다시 만든다.
+// 바꿀 때마다 주소가 바뀐다. 바뀐 재료를 돌려준다.
+// 실패: INVALID_INGREDIENT_IMAGE(400), CATALOG_NOT_FOUND(404, 기본 재료 포함), INGREDIENT_IMAGE_TOO_LARGE(413)
+export function changeCatalogImage(catalogId: number, image: File) {
+  const body = new FormData();
+  body.append("image", image);
+  return request<CatalogIngredient>(`/api/ingredient-catalogs/${catalogId}/image`, { method: "PUT", body });
+}
+
+// 사진을 지우고 이모지로 되돌린다. 사진이 없어도 성공한다. 실패: CATALOG_NOT_FOUND(404)
+export function removeCatalogImage(catalogId: number) {
+  return request<CatalogIngredient>(`/api/ingredient-catalogs/${catalogId}/image`, { method: "DELETE" });
 }

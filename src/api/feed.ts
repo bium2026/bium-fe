@@ -9,6 +9,8 @@ import { request, requestNoContent } from "./client";
 export type FeedItemPreview = {
   name: string;
   emoji: string | null;
+  // 도감 재료에 올린 사진 주소. 없으면 null이다.
+  imageUrl: string | null;
 };
 
 // 보관 구역 하나의 재료 수와 앞에서부터 6개까지의 재료 (선반 → 왼쪽 문칸 → 오른쪽 문칸, 칸 안 순서)

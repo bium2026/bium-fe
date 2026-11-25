@@ -7,6 +7,7 @@ import styled from "@emotion/styled";
 import type { FeedStorages } from "../../api/feed";
 import { feedStorages } from "./feedFormat";
 import { ScreenReaderText } from "./feedStyles";
+import IngredientIcon from "../Common/IngredientIcon";
 
 type FridgeShelvesProps = {
   storages: FeedStorages;
@@ -37,7 +38,9 @@ function FridgeShelves({ storages, compact = false }: FridgeShelvesProps) {
               <Tiles aria-label={`${meta.title} 재료`} $compact={compact}>
                 {shown.map((item, index) => (
                   <Tile key={`${index}-${item.name}`} title={item.name} $compact={compact}>
-                    <span aria-hidden="true">{item.emoji || item.name.slice(0, 1)}</span>
+                    <span aria-hidden="true">
+                      <IngredientIcon emoji={item.emoji} imageUrl={item.imageUrl} fallback={item.name.slice(0, 1)} />
+                    </span>
                     <ScreenReaderText>{item.name}</ScreenReaderText>
                   </Tile>
                 ))}

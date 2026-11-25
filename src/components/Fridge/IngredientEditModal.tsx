@@ -10,11 +10,14 @@ import styled from "@emotion/styled";
 import { CircleAlert, X } from "lucide-react";
 import { ApiError } from "../../api/client";
 import IngredientNutrition from "./IngredientNutrition";
+import IngredientIcon from "../Common/IngredientIcon";
 
 export type EditableIngredient = {
   id: number;
   name: string;
   emoji: string;
+  // 도감 재료에 올린 사진 주소. 있으면 이모지 대신 보여 준다.
+  imageUrl?: string | null;
   expiresAt: string;
   // 냉장고에 넣은 날. 카드가 넣은 날부터 유통기한까지 얼마나 지났는지 막대로 보여 줄 때 쓴다.
   purchasedAt?: string | null;
@@ -194,7 +197,9 @@ function IngredientEditForm({
     <Card>
       <Header>
         <Heading id={titleId}>
-          <HeadingIcon aria-hidden="true">{ingredient.emoji}</HeadingIcon>
+          <HeadingIcon aria-hidden="true">
+            <IngredientIcon emoji={ingredient.emoji} imageUrl={ingredient.imageUrl} />
+          </HeadingIcon>
           식재료 수정
         </Heading>
         <CloseButton type="button" onClick={onClose} disabled={isBusy} aria-label="닫기">
