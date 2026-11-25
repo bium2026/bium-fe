@@ -2,13 +2,14 @@
  * 장보기 목록의 다음 구매 날짜 달력이다.
  * 재료마다 산 날과 구매 주기로 서버가 계산한 다음 구매 날짜를 월 달력에 보여 주고, 날짜를 누르면 그날 살 재료를 보여 준다.
  * 다음 구매일이 이미 지난 재료는 달력에 놓을 수 없어 달력 위에 따로 모은다.
+ * 같은 날 산 재료들의 구매 주기가 다시 겹치는 날은 피버타임으로 표시한다.
  * 날짜는 모두 지역 날짜 "yyyy-MM-dd" 문자열로 다뤄 시간대 때문에 하루씩 어긋나지 않게 한다.
  * 부르는 쪽이 냉장고마다 key를 바꿔 새로 그리므로, 냉장고를 바꿔도 이전 냉장고 응답이 남지 않는다.
  */
 import { useEffect, useState } from "react";
 import { keyframes } from "@emotion/react";
 import styled from "@emotion/styled";
-import { ChevronLeft, ChevronRight, ShoppingBasket } from "lucide-react";
+import { ChevronLeft, ChevronRight, Flame, ShoppingBasket } from "lucide-react";
 import { ApiError, NETWORK_ERROR } from "../../api/client";
 import type { DayOfWeek } from "../../api/fridge";
 import { getPurchaseSchedule } from "../../api/purchaseSchedule";
@@ -41,6 +42,13 @@ const shoppingDayIndex: Record<DayOfWeek, number> = {
 const weekdayLabels = ["일", "월", "화", "수", "목", "금", "토"];
 // 칸이 좁아 재료는 이만큼만 보이고 나머지는 +N으로 줄인다.
 const MAX_SHOWN_ICONS = 2;
+// 주기의 최소공배수가 이보다 길면 1년 넘게 뒤라 장보기 계획에 쓸모가 없어 피버타임으로 치지 않는다.
+const MAX_FEVER_PERIOD_DAYS = 365;
+
+type FeverGroup = {
+  purchasedAt: string;
+  items: PurchaseScheduleItem[];
+};
 
 function toDateKey({ year, month }: Month, day: number) {
   return `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
@@ -59,6 +67,42 @@ function getErrorMessage(error: unknown) {
   return error instanceof ApiError && error.code === NETWORK_ERROR
     ? error.message
     : "잠시 후 다시 시도해 주세요. 문제가 계속되면 새로고침해 주세요.";
+}
+
+function addDays(dateKey: string, days: number) {
+  const [year, month, day] = dateKey.split("-").map(Number);
+  const date = new Date(year, month - 1, day + days);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function getGcd(a: number, b: number): number {
+  return b === 0 ? a : getGcd(b, a % b);
+}
+
+// 같은 날 산 재료가 둘 이상이면 산 날 + 그 재료들 구매 주기의 최소공배수가 다시 같이 사는 날(피버타임)이다.
+// 그날이 이미 지났으면 같은 간격으로 오늘 이후 처음 겹치는 날을 쓴다. 한 날에 여러 묶음이 겹칠 수 있어 날짜마다 묶음 목록으로 모은다.
+function getFeverGroupsByDate(items: PurchaseScheduleItem[]) {
+  const itemsByPurchase = new Map<string, PurchaseScheduleItem[]>();
+  for (const item of items) {
+    if (item.cycleDays <= 0) continue;
+    itemsByPurchase.set(item.lastPurchasedAt, [...(itemsByPurchase.get(item.lastPurchasedAt) ?? []), item]);
+  }
+
+  const groupsByDate = new Map<string, FeverGroup[]>();
+  for (const [purchasedAt, group] of itemsByPurchase) {
+    if (group.length < 2) continue;
+    let period = 1;
+    for (const item of group) {
+      period = (period / getGcd(period, item.cycleDays)) * item.cycleDays;
+      if (period > MAX_FEVER_PERIOD_DAYS) break;
+    }
+    if (period > MAX_FEVER_PERIOD_DAYS) continue;
+    const daysSincePurchase = -getDaysLeft(purchasedAt);
+    const repeat = Math.max(1, Math.ceil(daysSincePurchase / period));
+    const feverDate = addDays(purchasedAt, repeat * period);
+    groupsByDate.set(feverDate, [...(groupsByDate.get(feverDate) ?? []), { purchasedAt, items: group }]);
+  }
+  return groupsByDate;
 }
 
 function getNamesText(items: PurchaseScheduleItem[]) {
@@ -140,6 +184,8 @@ function PurchaseCalendar({ fridgeId }: PurchaseCalendarProps) {
     if (item.nextPurchaseDate < todayKey) continue;
     itemsByDate.set(item.nextPurchaseDate, [...(itemsByDate.get(item.nextPurchaseDate) ?? []), item]);
   }
+  const feverGroupsByDate = getFeverGroupsByDate(items);
+  const nextFeverDate = [...feverGroupsByDate.keys()].sort()[0];
 
   // 고른 날짜는 보고 있는 달 안에서만 쓴다. 다른 달로 넘기면 그 달 목록을 보여 줘야 해서다.
   // 고른 날이 없으면 빈 목록보다 곧 사야 할 재료가 보이는 게 쓸모 있어, 그 달의 가장 가까운 예정일을 먼저 고른다.
@@ -149,6 +195,7 @@ function PurchaseCalendar({ fridgeId }: PurchaseCalendarProps) {
   const fallbackDate = todayKey.startsWith(viewPrefix) ? todayKey : toDateKey(viewMonth, 1);
   const selectedDate = pickedDate?.startsWith(viewPrefix) ? pickedDate : (nearestDate ?? fallbackDate);
   const selectedItems = itemsByDate.get(selectedDate) ?? [];
+  const selectedFeverGroups = feverGroupsByDate.get(selectedDate) ?? [];
 
   const firstWeekday = new Date(viewMonth.year, viewMonth.month, 1).getDay();
   const dayCount = new Date(viewMonth.year, viewMonth.month + 1, 0).getDate();
@@ -157,6 +204,11 @@ function PurchaseCalendar({ fridgeId }: PurchaseCalendarProps) {
   const moveMonth = (offset: number) => {
     const moved = new Date(viewMonth.year, viewMonth.month + offset, 1);
     setViewMonth({ year: moved.getFullYear(), month: moved.getMonth() });
+  };
+
+  const showFeverDate = (dateKey: string) => {
+    setViewMonth(getMonthOf(dateKey));
+    setPickedDate(dateKey);
   };
 
   const cells = [
@@ -182,6 +234,15 @@ function PurchaseCalendar({ fridgeId }: PurchaseCalendarProps) {
         </Overdue>
       )}
 
+      {nextFeverDate && (
+        <FeverNote type="button" onClick={() => showFeverDate(nextFeverDate)}>
+          <Flame size={18} aria-hidden="true" />
+          <span>
+            다음 피버타임은 <b>{formatDate(nextFeverDate)}</b>이에요. 같은 날 산 재료를 다시 같이 사는 날이에요.
+          </span>
+        </FeverNote>
+      )}
+
       <MonthBar>
         <NavButton type="button" aria-label="이전 달" onClick={() => moveMonth(-1)}>
           <ChevronLeft size={20} aria-hidden="true" />
@@ -204,10 +265,11 @@ function PurchaseCalendar({ fridgeId }: PurchaseCalendarProps) {
           if (day === null) return <span key={key} />;
           const dateKey = toDateKey(viewMonth, day);
           const dayItems = itemsByDate.get(dateKey) ?? [];
+          const isFever = feverGroupsByDate.has(dateKey);
           const weekday = (firstWeekday + day - 1) % 7;
           const label = `${viewMonth.month + 1}월 ${day}일${dateKey === todayKey ? ", 오늘" : ""}${
-            dayItems.length > 0 ? `, ${getNamesText(dayItems)} 구매 예정` : ""
-          }`;
+            isFever ? ", 피버타임" : ""
+          }${dayItems.length > 0 ? `, ${getNamesText(dayItems)} 구매 예정` : ""}`;
           return (
             <DayButton
               key={key}
@@ -216,9 +278,13 @@ function PurchaseCalendar({ fridgeId }: PurchaseCalendarProps) {
               aria-pressed={dateKey === selectedDate}
               $isToday={dateKey === todayKey}
               $isShoppingDay={weekday === shoppingWeekday}
+              $isFever={isFever}
               onClick={() => setPickedDate(dateKey)}
             >
-              <span className="date">{day}</span>
+              <span className="date">
+                {day}
+                {isFever && <Flame size={12} aria-hidden="true" />}
+              </span>
               <span className="items" aria-hidden="true">
                 {dayItems.slice(0, MAX_SHOWN_ICONS).map((item) => (
                   <span key={item.name} className="item">
@@ -235,8 +301,17 @@ function PurchaseCalendar({ fridgeId }: PurchaseCalendarProps) {
 
       <Selected aria-live="polite">
         <strong>{formatDate(selectedDate)}에 살 재료</strong>
+        {selectedFeverGroups.map((group) => (
+          <FeverBox key={group.purchasedAt}>
+            <Flame size={16} aria-hidden="true" />
+            <span>
+              <b>피버타임</b> · {formatDate(group.purchasedAt)}에 같이 산 재료(
+              {group.items.map((item) => item.name).join(", ")})를 이날 다시 같이 사요
+            </span>
+          </FeverBox>
+        ))}
         {selectedItems.length === 0 ? (
-          <p>이 날 살 재료는 없어요.</p>
+          selectedFeverGroups.length === 0 && <p>이 날 살 재료는 없어요.</p>
         ) : (
           <ul>
             {selectedItems.map((item) => (
@@ -318,6 +393,51 @@ const Overdue = styled.section`
   }
 `;
 
+const FeverNote = styled.button`
+  width: 100%;
+  border: 0;
+  border-radius: 8px;
+  background: var(--block-coral);
+  color: var(--text);
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 480;
+  line-height: 1.4;
+  text-align: left;
+  word-break: keep-all;
+  cursor: pointer;
+
+  svg {
+    flex: none;
+  }
+
+  b {
+    font-weight: 700;
+  }
+`;
+
+const FeverBox = styled.p`
+  border-radius: 8px;
+  background: var(--block-coral);
+  padding: 8px 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  word-break: keep-all;
+
+  svg {
+    flex: none;
+  }
+
+  b {
+    font-weight: 700;
+  }
+`;
+
 const MonthBar = styled.div`
   display: flex;
   align-items: center;
@@ -355,12 +475,14 @@ const Days = styled.div`
   gap: 4px;
 `;
 
-const DayButton = styled.button<{ $isToday: boolean; $isShoppingDay: boolean }>`
+const DayButton = styled.button<{ $isToday: boolean; $isShoppingDay: boolean; $isFever: boolean }>`
   min-width: 0;
   min-height: 64px;
   border: 1px solid ${({ $isToday }) => ($isToday ? "var(--text)" : "var(--border-soft)")};
   border-radius: 8px;
-  background: ${({ $isShoppingDay }) => ($isShoppingDay ? "var(--block-lime)" : "var(--surface)")};
+  /* 피버타임은 냉장고 화면 피버타임 배너와 같은 코랄로, 장보는 요일 색보다 먼저 보이게 한다. */
+  background: ${({ $isShoppingDay, $isFever }) =>
+    $isFever ? "var(--block-coral)" : $isShoppingDay ? "var(--block-lime)" : "var(--surface)"};
   color: var(--text);
   padding: 6px 4px;
   display: grid;
@@ -375,6 +497,9 @@ const DayButton = styled.button<{ $isToday: boolean; $isShoppingDay: boolean }>`
   }
 
   .date {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
     font-size: 13px;
     font-weight: ${({ $isToday }) => ($isToday ? 700 : 480)};
   }
