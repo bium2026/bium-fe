@@ -2,6 +2,7 @@
  * 냉장고 선반과 문칸에 놓이는 재료 카드다.
  * 남은 유통기한에 따라 배지 문구와 색을 바꾸고, 지난 재료는 흐리게 보여 준다. 유통기한이 없으면 배지를 보여 주지 않는다.
  * 누르면 재료 수정 모달을 연다. 드래그 앤 드롭으로 옮길 수 있게 끌기 이벤트를 카드에 붙인다.
+ * onSelect가 없으면 누를 수 없는 읽기 전용 카드로 그린다(피드에서 남의 냉장고를 구경할 때).
  */
 import type { DraggableSyntheticListeners } from "@dnd-kit/core";
 import { css, keyframes } from "@emotion/react";
@@ -15,7 +16,7 @@ type Freshness = "expired" | "urgent" | "soon" | "safe";
 type IngredientItemProps = {
   ingredient: FridgeIngredient;
   variant: "shelf" | "door";
-  onSelect: (ingredient: FridgeIngredient) => void;
+  onSelect?: (ingredient: FridgeIngredient) => void;
   dragListeners?: DraggableSyntheticListeners;
   // 끌고 있는 동안 원래 자리는 흐리게 남기고, 손가락·마우스를 따라다니는 카드는 DragOverlay가 그린다.
   isDragging?: boolean;
@@ -72,10 +73,12 @@ function IngredientItem({
 
   return (
     <Card
-      type="button"
-      aria-haspopup="dialog"
-      onClick={() => onSelect(ingredient)}
+      as={onSelect ? "button" : "div"}
+      type={onSelect ? "button" : undefined}
+      aria-haspopup={onSelect ? "dialog" : undefined}
+      onClick={onSelect ? () => onSelect(ingredient) : undefined}
       {...dragListeners}
+      $interactive={Boolean(onSelect)}
       $variant={variant}
       $freshness={freshness}
       $dragging={isDragging}
@@ -195,7 +198,7 @@ const screenReaderOnly = `
   white-space: nowrap;
 `;
 
-const Card = styled.button<StyleProps & { $dragging: boolean }>`
+const Card = styled.button<StyleProps & { $dragging: boolean; $interactive: boolean }>`
   position: relative;
   width: 100%;
   height: 100%;
@@ -207,7 +210,7 @@ const Card = styled.button<StyleProps & { $dragging: boolean }>`
   min-width: 0;
   color: var(--text);
   font: inherit;
-  cursor: pointer;
+  cursor: ${(props) => (props.$interactive ? "pointer" : "default")};
   opacity: ${(props) => (props.$dragging ? 0.35 : 1)};
   /* 터치는 길게 눌러야 끌기가 시작되므로 그 전에는 화면을 스크롤할 수 있게 둔다. */
   touch-action: manipulation;
