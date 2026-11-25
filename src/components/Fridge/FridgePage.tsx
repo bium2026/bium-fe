@@ -27,8 +27,8 @@ import {
 } from "@dnd-kit/core";
 import { keyframes } from "@emotion/react";
 import styled from "@emotion/styled";
-import { BellRing, ChartPie, ChevronLeft, ChevronRight, ReceiptText, ShoppingBag, Trash2 } from "lucide-react";
-import { Link, useSearchParams } from "react-router";
+import { ChartPie, ChevronLeft, ChevronRight, ReceiptText, ShoppingBag, Trash2 } from "lucide-react";
+import { useSearchParams } from "react-router";
 import { ApiError, NETWORK_ERROR } from "../../api/client";
 import {
   addFridgeItems,
@@ -643,10 +643,6 @@ function FridgePage() {
               {expiredItems.length > 0 && <Count aria-hidden="true">{expiredItems.length}</Count>}
             </ToolbarButton>
           )}
-          <ToolbarLink to="/notifications">
-            <BellRing size={18} aria-hidden="true" />
-            유통기한 알림
-          </ToolbarLink>
           <ToolbarButton type="button" onClick={() => receiptInputRef.current?.click()}>
             <ReceiptText size={18} aria-hidden="true" />
             영수증으로 추가
@@ -816,31 +812,6 @@ const Notice = styled.p`
   font-size: 14px;
   font-weight: 480;
   word-break: keep-all;
-`;
-
-// 유통기한 알림 설정 화면으로 가는 링크. 도구 막대의 버튼과 같은 모양이다.
-const ToolbarLink = styled(Link)`
-  min-height: 44px;
-  border: 1px solid var(--text);
-  border-radius: 50px;
-  background: var(--surface);
-  color: var(--text);
-  padding: 10px 18px;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 15px;
-  font-weight: 480;
-  text-decoration: none;
-
-  &:hover {
-    background: var(--surface-soft);
-  }
-
-  &:focus-visible {
-    outline: 2px solid var(--text);
-    outline-offset: 2px;
-  }
 `;
 
 const ToolbarButton = styled.button`
