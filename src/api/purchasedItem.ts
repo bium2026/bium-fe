@@ -11,6 +11,8 @@ export type PurchasedItem = {
   id: number;
   name: string;
   emoji: string;
+  // 담은 도감 재료에 올린 사진 주소. 없으면 null이고 emoji를 보여 준다.
+  imageUrl: string | null;
   // "YYYY-MM-DD", 담은 날부터 도감의 기본 유통기한을 더한 날
   expiresAt: string;
 };

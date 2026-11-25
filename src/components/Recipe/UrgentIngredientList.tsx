@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import styled from "@emotion/styled";
 import { ApiError } from "../../api/client";
 import { getFridgeItems, type FridgeContentsResponse } from "../../api/fridge";
+import IngredientIcon from "../Common/IngredientIcon";
 
 const URGENT_DAYS = 5;
 const MAX_URGENT_ITEMS = 5;
@@ -88,7 +89,9 @@ function UrgentIngredientList({ fridgeId, onFridgeRetry }: UrgentIngredientListP
     <List>
       {urgentItems.map((item) => (
         <li key={item.id}>
-          <span aria-hidden="true">{item.emoji}</span>
+          <span aria-hidden="true">
+            <IngredientIcon emoji={item.emoji} imageUrl={item.imageUrl} />
+          </span>
           <strong>{item.name}</strong>
           <em>{item.daysLeft === 0 ? "오늘" : `D-${item.daysLeft}`}</em>
         </li>

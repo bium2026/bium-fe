@@ -10,6 +10,11 @@ import { markFridgeListStale } from "../store/fridgeStore";
 
 const API_URL = import.meta.env.VITE_API_URL;
 
+// 재료 사진처럼 서버가 "/api/..." 경로로 준 주소를 <img src>에 쓸 수 있게 서버 주소를 붙인다.
+export function toServerUrl(path: string) {
+  return `${API_URL}${path}`;
+}
+
 // 서버에 닿지 못해 응답 자체가 없을 때 쓰는 코드다. 서버의 ErrorCode와 겹치지 않는다.
 export const NETWORK_ERROR = "NETWORK_ERROR";
 

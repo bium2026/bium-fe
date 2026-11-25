@@ -28,6 +28,7 @@ import type { FridgeAddValues } from "./FridgeAddModal";
 import GroceryBag from "./GroceryBag";
 import IngredientAddModal from "./IngredientAddModal";
 import IngredientCard from "./IngredientCard";
+import IngredientImageModal from "./IngredientImageModal";
 import { categoryLabel, categoryOrder, isCategoryFilter } from "./libraryCategories";
 import type { CategoryFilter } from "./libraryCategories";
 import { storageLabel } from "./libraryStorage";
@@ -68,6 +69,8 @@ function LibraryPage() {
   const [isAddOpen, setIsAddOpen] = useState(false);
   // 냉장고에 넣기 모달로 연 도감 재료. null이면 모달이 닫힌다.
   const [fridgeTarget, setFridgeTarget] = useState<CatalogIngredient | null>(null);
+  // 아이콘을 사진으로 바꿀 재료. null이면 모달이 닫힌다.
+  const [imageTarget, setImageTarget] = useState<CatalogIngredient | null>(null);
   // 방금 냉장고에 넣은 도감 재료. 카드가 잠깐 "넣었어요"를 보여 준다.
   const [fridgeAddedId, setFridgeAddedId] = useState<number | null>(null);
   const fridgeAddedTimerRef = useRef<number | undefined>(undefined);
@@ -158,6 +161,14 @@ function LibraryPage() {
   };
 
   // 실패하면 모달이 오류를 보여 주도록 그대로 던진다.
+  // 장본 음식 패널은 옛 사진 주소를 갖고 있어, 바뀐 사진을 받지 못하면 IngredientIcon이 이모지로 보여 준다.
+  const handleImageChange = (updated: CatalogIngredient) => {
+    updateIngredients((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
+    setAnnouncement(
+      updated.imageUrl ? `${updated.name} 아이콘을 사진으로 바꿨어요.` : `${updated.name} 아이콘을 이모지로 되돌렸어요.`,
+    );
+  };
+
   const handleAddToFridge = async (ingredient: CatalogIngredient, values: FridgeAddValues) => {
     if (fridgeId === null) return;
     await addFridgeItem(fridgeId, { catalogId: ingredient.id, ...values });
@@ -289,6 +300,7 @@ function LibraryPage() {
                   isFridgeAdded={fridgeAddedId === ingredient.id}
                   onAddToGroceries={handleAddToGroceries}
                   onOpenFridgeAdd={setFridgeTarget}
+                  onOpenImage={setImageTarget}
                   onDelete={handleDelete}
                   onToggleFavorite={handleToggleFavorite}
                 />
@@ -370,6 +382,12 @@ function LibraryPage() {
       />
 
       <FridgeAddModal ingredient={fridgeTarget} onClose={() => setFridgeTarget(null)} onAdd={handleAddToFridge} />
+
+      <IngredientImageModal
+        ingredient={imageTarget}
+        onClose={() => setImageTarget(null)}
+        onChange={handleImageChange}
+      />
     </Wrapper>
   );
 }

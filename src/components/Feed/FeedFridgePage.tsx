@@ -26,6 +26,7 @@ import {
   StatusBox,
   Wrapper,
 } from "./feedStyles";
+import IngredientIcon from "../Common/IngredientIcon";
 
 type DetailState =
   | { status: "loading" }
@@ -234,7 +235,11 @@ function ItemView({ item }: { item: FridgeItemResponse }) {
   const expiry = item.expiresAt ? getExpiry(item.expiresAt) : null;
   return (
     <ItemChip>
-      {item.emoji && <i aria-hidden="true">{item.emoji}</i>}
+      {(item.emoji || item.imageUrl) && (
+        <i aria-hidden="true">
+          <IngredientIcon emoji={item.emoji} imageUrl={item.imageUrl} />
+        </i>
+      )}
       <span>{item.name}</span>
       {expiry && (
         <Badge $background={freshnessBackground[expiry.freshness]} $dark={expiry.freshness === "expired"}>
