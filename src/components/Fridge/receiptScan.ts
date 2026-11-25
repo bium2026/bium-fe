@@ -29,6 +29,7 @@ export type ReceiptScan = {
 
 const serverMessageCodes = [
   "INVALID_RECEIPT_IMAGE",
+  "RECEIPT_NOT_RECOGNIZED",
   "IMAGE_TOO_LARGE",
   "FRIDGE_NOT_FOUND",
   "TOO_MANY_REQUESTS",
