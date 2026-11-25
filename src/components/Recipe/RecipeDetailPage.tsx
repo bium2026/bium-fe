@@ -10,7 +10,7 @@ import styled from "@emotion/styled";
 import { ArrowLeft, CheckCircle2, ChefHat, Clock3, Flame, ShoppingCart, Sparkles, Users } from "lucide-react";
 import { Link, useParams } from "react-router";
 import { ApiError } from "../../api/client";
-import { undoCooking } from "../../api/cooking";
+import { getCookingCandidates, undoCooking } from "../../api/cooking";
 import { getRecipe, type IngredientSource, type Recipe, type RecipeIngredient } from "../../api/recipe";
 import { useRecipeStore } from "../../store/recipeStore";
 import {
@@ -45,6 +45,14 @@ type CookedState = {
   error: string;
 };
 
+// 재료 이름별로 지금 냉장고에 맞는 재료가 있는지. 기본 양념처럼 응답에 없는 재료는 들어 있지 않다.
+type Holdings = { recipeId: number; owned: Map<string, boolean> };
+
+async function getHoldings(recipeId: number): Promise<Holdings> {
+  const ingredients = await getCookingCandidates(recipeId);
+  return { recipeId, owned: new Map(ingredients.map((item) => [item.name, item.candidates.length > 0])) };
+}
+
 // AI가 같은 재료를 두 번 줄 수 있어 이름이 같으면 하나로 합친다. 한 번이라도 필수로 나오면 필수로 본다.
 function getMissingIngredients(ingredients: RecipeIngredient[]) {
   const missing = ingredients.filter((item) => item.source === "MISSING");
@@ -75,11 +83,25 @@ function RecipeDetailPage() {
   const shoppingButtonRef = useRef<HTMLButtonElement>(null);
   // 되돌리면 버튼이 사라져 키보드 초점을 잃으므로 바뀐 안내로 옮긴다.
   const cookedNoticeRef = useRef<HTMLParagraphElement>(null);
+  // 레시피의 source·fridgeMatches는 만든 시점 값이라 요리 완료·되돌리기 뒤에도 바뀌지 않는다.
+  // 그래서 지금 냉장고를 읽는 요리 재료 후보로 "냉장고 보유" 표시를 맞춘다.
+  const [holdings, setHoldings] = useState<Holdings | null>(null);
+  const holdingsRequestRef = useRef(0);
   const requestKey = `${recipeId}-${attempt}`;
 
   useEffect(() => {
     if (recipeId === null) return;
     let ignore = false;
+    const holdingsRequestId = ++holdingsRequestRef.current;
+    getHoldings(recipeId).then(
+      (next) => {
+        if (!ignore && holdingsRequestId === holdingsRequestRef.current) setHoldings(next);
+      },
+      () => {
+        // 후보를 못 받으면 레시피의 source 표시를 그대로 쓴다.
+        if (!ignore && holdingsRequestId === holdingsRequestRef.current) setHoldings(null);
+      },
+    );
     getRecipe(recipeId).then(
       (recipe) => {
         if (ignore) return;
@@ -106,6 +128,19 @@ function RecipeDetailPage() {
     };
   }, [recipeId, requestKey]);
 
+  // 기존 표시는 그대로 두고 응답이 오면 바꿔 끼워 화면이 깜빡이지 않게 한다.
+  const refreshHoldings = async (id: number) => {
+    const requestId = ++holdingsRequestRef.current;
+    try {
+      const next = await getHoldings(id);
+      // 요리 완료와 되돌리기를 잇달아 하면 늦게 온 이전 응답이 새 상태를 덮지 않게 마지막 요청만 반영한다.
+      if (requestId === holdingsRequestRef.current) setHoldings(next);
+    } catch {
+      // 지금 냉장고를 알 수 없으면 레시피의 source 표시로 돌아간다. 요리 완료·되돌리기 결과 안내는 그대로 둔다.
+      if (requestId === holdingsRequestRef.current) setHoldings(null);
+    }
+  };
+
   // 활동 기록은 최근 줄만 보여 줘서 밀려나면 되돌릴 수 없으므로, 요리를 마친 자리에서 바로 되돌리게 한다.
   const handleUndoCooking = async () => {
     if (!cooked || cooked.undo !== "idle") return;
@@ -128,6 +163,7 @@ function RecipeDetailPage() {
     playSound("delete");
     updateIfSame((prev) => ({ ...prev, undo: "undone", error: "" }));
     cookedNoticeRef.current?.focus();
+    if (recipeId !== null) refreshHoldings(recipeId);
   };
 
   const backLink = (
@@ -183,8 +219,15 @@ function RecipeDetailPage() {
   }
 
   const { recipe } = view;
-  const requiredIngredients = recipe.ingredients.filter((item) => item.required);
-  const optionalIngredients = recipe.ingredients.filter((item) => !item.required);
+  const owned = holdings?.recipeId === recipe.id ? holdings.owned : null;
+  // 지금 냉장고에 없는 재료만 "냉장고 보유" 표시를 내린다. 후보 응답에 없는 재료는 레시피의 source를 그대로 쓴다.
+  const isGone = (name: string) => owned?.get(name) === false;
+  const shownIngredients = recipe.ingredients.map((item) =>
+    item.source === "FRIDGE" && isGone(item.name) ? { ...item, source: null } : item,
+  );
+  const fridgeMatches = recipe.fridgeMatches.filter((name) => !isGone(name));
+  const requiredIngredients = shownIngredients.filter((item) => item.required);
+  const optionalIngredients = shownIngredients.filter((item) => !item.required);
   const missingIngredients = getMissingIngredients(recipe.ingredients);
 
   return (
@@ -241,7 +284,10 @@ function RecipeDetailPage() {
             recipeId={recipe.id}
             open={isCookingOpen}
             onClose={() => setIsCookingOpen(false)}
-            onCooked={(count, cookingLogId) => setCooked({ count, cookingLogId, undo: "idle", error: "" })}
+            onCooked={(count, cookingLogId) => {
+              setCooked({ count, cookingLogId, undo: "idle", error: "" });
+              refreshHoldings(recipe.id);
+            }}
           />
         </HeroCopy>
         <HeroVisual $tone={getRecipeTone(recipe.id)}>
@@ -310,11 +356,11 @@ function RecipeDetailPage() {
             <IngredientPanel title="있으면 좋은 재료" ingredients={optionalIngredients} />
           )}
 
-          {recipe.fridgeMatches.length > 0 && (
+          {fridgeMatches.length > 0 && (
             <Panel>
               <SectionTitle>냉장고 매칭</SectionTitle>
               <MatchList>
-                {recipe.fridgeMatches.map((item, index) => (
+                {fridgeMatches.map((item, index) => (
                   <li key={`${index}-${item}`}>{item}</li>
                 ))}
               </MatchList>
