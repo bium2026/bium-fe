@@ -13,6 +13,7 @@ import styled from "@emotion/styled";
 import { Check, ImagePlus, Plus, Refrigerator, Star, Trash2 } from "lucide-react";
 import type { CatalogIngredient } from "../../api/ingredientCatalog";
 import IngredientIcon from "../Common/IngredientIcon";
+import { playSound } from "../../sound/soundEffects";
 
 type IngredientCardProps = {
   ingredient: CatalogIngredient;
@@ -61,9 +62,11 @@ function IngredientCard({
     setAddStatus("adding");
     try {
       await onAddToGroceries(ingredient);
+      playSound("success");
       setAddStatus("added");
       timerRef.current = window.setTimeout(() => setAddStatus("idle"), ADDED_FEEDBACK_MS);
     } catch {
+      playSound("error");
       setAddStatus("error");
     }
   };
@@ -76,8 +79,10 @@ function IngredientCard({
     setFavoriteStatus("saving");
     try {
       await onToggleFavorite(ingredient);
+      playSound(ingredient.favorite ? "toggleOff" : "toggleOn");
       setFavoriteStatus("idle");
     } catch {
+      playSound("error");
       setFavoriteStatus("error");
     }
   };
@@ -90,7 +95,9 @@ function IngredientCard({
     try {
       // 성공하면 카드가 목록에서 빠지므로 상태를 되돌리지 않는다.
       await onDelete(ingredient);
+      playSound("delete");
     } catch {
+      playSound("error");
       setDeleteStatus("error");
     }
   };
