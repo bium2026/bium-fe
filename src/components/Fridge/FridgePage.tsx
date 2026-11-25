@@ -819,7 +819,11 @@ const Toolbar = styled.div`
   gap: 8px 16px;
 `;
 
+// 안내는 버튼 줄 아래 한 줄을 따로 써서, 문구가 뜨고 사라져도 버튼이 다음 줄로 밀리지 않게 한다.
 const Notice = styled.p`
+  order: 1;
+  flex-basis: 100%;
+  text-align: right;
   font-size: 14px;
   font-weight: 480;
   word-break: keep-all;
