@@ -81,31 +81,24 @@ const Header = styled.header`
   background: var(--surface);
   padding: 0 max(32px, calc((100vw - 1280px) / 2));
   display: grid;
-  /* 오른쪽 칸은 냉장고 이름이 잘리지 않게 효과음·알림·로그아웃 버튼 자리를 포함해 302px로 두고, 왼쪽 칸(브랜드는 86px)은 메뉴가 한 줄에 들어갈 만큼만 남겨 둔다.
-     폭이 넉넉하면 양쪽이 같아져 메뉴가 가운데에 오고, 빠듯하면 왼쪽이 줄어 메뉴가 조금 왼쪽으로 치우친다. */
-  grid-template-columns: clamp(88px, calc(100% - 1101px), 302px) minmax(0, 1fr) 302px;
+  /* 메뉴가 가운데에서 벗어나는 정도는 (왼쪽 칸 - 오른쪽 칸) / 2라서, 왼쪽 칸을 오른쪽 칸에 되도록 가깝게 둔다.
+     오른쪽 칸 294px = 이름 100px + 냉장고 버튼의 나머지 68px(테두리·여백·아이콘 둘·간격) + (간격 6px + 버튼 36px) × 3(효과음·알림·로그아웃).
+     왼쪽 칸(브랜드는 86px)은 100% - (오른쪽 칸 294 + 칸 사이 간격 둘 + 메뉴 폭)만큼 남겨 둔다.
+     메뉴 폭은 글자 폭 621px + 항목 좌우 여백 24px + 항목 사이 간격 5개라서, 여기서는 621 + 24 + 10 × 5 = 695px이다.
+     헤더 본문 폭이 1265px(세로 스크롤바 15px을 뺀 폭)이면 왼쪽 칸 260px로 메뉴가 17px, 1280px이면 275px로 9.5px 왼쪽에 온다. */
+  grid-template-columns: clamp(86px, calc(100% - 1005px), 294px) minmax(0, 1fr) 294px;
   align-items: center;
-  gap: 16px;
+  column-gap: 8px;
 
-  /* 좁아질수록 메뉴 자리를 더 확보한다. 메뉴가 가운데에서 벗어나는 정도는 (왼쪽 칸 - 오른쪽 칸) / 2라서 왼쪽 칸을 되도록 줄이지 않는다.
-     오른쪽 칸 300px = 이름 100px + 냉장고 버튼의 나머지 68px(테두리·여백·아이콘 둘·간격) + (간격 8px + 버튼 36px) × 3(효과음·알림·로그아웃).
-     왼쪽 칸이 남는 폭은 100% - (오른쪽 칸 300 + 칸 사이 간격 둘 + 메뉴 폭 + 왼쪽 칸)이고,
-     메뉴 폭은 글자 폭 621px + 항목 좌우 여백 24px + 항목 사이 간격 5개다. */
-  @media (max-width: 1344px) {
-    grid-template-columns: clamp(86px, calc(100% - 1041px), 300px) minmax(0, 1fr) 300px;
-    column-gap: 8px;
-  }
-
-  /* 메뉴 폭 705px(항목 사이 간격 12px). 헤더 좌우 여백을 줄여 본문 끝선보다 16px 바깥에 둔다. */
+  /* 헤더 좌우 여백을 줄여 본문 끝선보다 16px 바깥에 둔다. 메뉴 폭은 그대로 695px이다. */
   @media (max-width: 1270px) {
     padding: 0 16px;
-    grid-template-columns: clamp(86px, calc(100% - 1021px), 300px) minmax(0, 1fr) 300px;
   }
 
-  /* 메뉴 폭 671px(항목 사이 간격 10px, 항목 좌우 여백 없음). 1095px에서 브랜드 86px, 오른쪽 칸 300px, 칸 사이 간격 둘 12px이 들어간다. */
+  /* 메뉴 폭 671px(항목 사이 간격 10px, 항목 좌우 여백 없음). 1095px에서 브랜드 86px, 오른쪽 칸 294px, 칸 사이 간격 둘 12px이 들어간다. */
   @media (max-width: 1218px) {
     padding: 0 12px;
-    grid-template-columns: clamp(86px, calc(100% - 983px), 300px) minmax(0, 1fr) 300px;
+    grid-template-columns: clamp(86px, calc(100% - 977px), 294px) minmax(0, 1fr) 294px;
     column-gap: 6px;
   }
 
@@ -150,7 +143,7 @@ const BrandName = styled.span`
   font-weight: 700;
   letter-spacing: -0.26px;
 
-  /* 첫 줄에 브랜드 86px과 오른쪽 칸 300px이 헤더 좌우 여백 28px, 간격 12px과 함께 들어가지 않는 폭에서는 냉장고 이름을 지키려고 글자를 숨기고 로고만 남긴다. */
+  /* 첫 줄에 브랜드 86px, 오른쪽 칸 294px, 헤더 좌우 여백 28px, 간격 12px(합 420px)이 들어가지 않는 폭에서는 냉장고 이름을 지키려고 글자를 숨기고 로고만 남긴다. 5px은 여유로 둔다. */
   @media (max-width: 425px) {
     display: none;
   }
@@ -161,20 +154,8 @@ const Menu = styled.nav`
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 24px;
+  gap: 10px;
   min-width: 0;
-
-  @media (max-width: 1344px) {
-    gap: 16px;
-  }
-
-  @media (max-width: 1270px) {
-    gap: 12px;
-  }
-
-  @media (max-width: 1218px) {
-    gap: 10px;
-  }
 
   @media (max-width: 1094px) {
     grid-column: 1 / -1;
@@ -225,7 +206,7 @@ const Actions = styled.div`
   max-width: 100%;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 `;
 
 // 유통기한 알림 설정 화면으로 가는 링크. 옆의 효과음·로그아웃 버튼과 같은 모양이고, 알림 화면에 있으면 NavLink가 aria-current="page"를 붙인다.
