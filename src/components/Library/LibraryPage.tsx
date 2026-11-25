@@ -579,9 +579,10 @@ const GroupTitle = styled.h2<{ $hidden: boolean }>`
   ${(props) => (props.$hidden ? screenReaderOnly : "")}
 `;
 
+// 카드 윗줄에 아이콘·즐겨찾기·사진·기본 표시가 한 줄로 들어가고 좌우 여유가 남도록 카드 최소 폭을 둔다.
 const Grid = styled.div`
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(156px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
   gap: 16px;
 
   @media (max-width: 760px) {
