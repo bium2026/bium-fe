@@ -79,9 +79,20 @@ function IngredientItem({
       $freshness={freshness}
       $dragging={isDragging}
     >
-      <Icon aria-hidden="true" $variant={variant} $freshness={freshness} $motion={motion} $offset={offset}>
-        {ingredient.emoji}
-      </Icon>
+      <IconWrap aria-hidden="true">
+        <Icon $variant={variant} $freshness={freshness} $motion={motion} $offset={offset}>
+          {ingredient.emoji}
+        </Icon>
+        {motion && freshness === "urgent" && (
+          <Smell $variant={variant}>
+            {[0, 1, 2].map((wisp) => (
+              <Wisp key={wisp} $index={wisp} $offset={offset} viewBox="0 0 8 18">
+                <path d="M4 17C1 14 7 12 4 9C1 6 7 4 4 1" />
+              </Wisp>
+            ))}
+          </Smell>
+        )}
+      </IconWrap>
       <Name $variant={variant}>{ingredient.name}</Name>
       {daysLeft !== null && (
         <Badge $variant={variant} $freshness={freshness} $motion={motion} $offset={offset}>
@@ -165,6 +176,15 @@ function getBadgeAnimation(props: MotionProps) {
   `;
 }
 
+// 냄새 줄 하나가 아래에서 피어올라 흔들리며 사라진다. 세 줄이 시간차를 두고 번갈아 오른다.
+const rise = keyframes`
+  0% { transform: translateY(4px) scaleY(0.6); opacity: 0; }
+  30% { opacity: 0.85; }
+  100% { transform: translateY(-6px) scaleY(1); opacity: 0; }
+`;
+
+const smellDuration = 2.4;
+
 const screenReaderOnly = `
   position: absolute;
   width: 1px;
@@ -222,6 +242,52 @@ const Card = styled.button<StyleProps & { $dragging: boolean }>`
           padding: 3px 2px;
         }
       `}
+`;
+
+// 아이콘이 흔들려도 냄새 줄은 제자리에 있도록 아이콘과 따로 둔다.
+const IconWrap = styled.span`
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  line-height: 1;
+`;
+
+// 아이콘 위쪽에 냄새 줄 세 개를 겹치지 않게 벌려 놓는다. 카드 밖으로 조금 나가도 되도록 클릭은 막지 않는다.
+const Smell = styled.span<{ $variant: IngredientItemProps["variant"] }>`
+  position: absolute;
+  left: 50%;
+  bottom: 78%;
+  display: flex;
+  align-items: flex-end;
+  gap: ${(props) => (props.$variant === "shelf" ? "5px" : "2px")};
+  height: ${(props) => (props.$variant === "shelf" ? "18px" : "12px")};
+  transform: translateX(-50%);
+  pointer-events: none;
+
+  @media (max-width: 760px) {
+    gap: 2px;
+    height: 12px;
+  }
+`;
+
+const Wisp = styled.svg<{ $index: number; $offset: number }>`
+  width: auto;
+  height: 100%;
+  fill: none;
+  stroke: var(--success);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  opacity: 0;
+  /* 가운데 줄을 조금 더 높이 띄워 부채꼴로 퍼지게 한다. */
+  margin-bottom: ${(props) => (props.$index === 1 ? "3px" : "0")};
+  animation: ${rise} ${smellDuration}s ease-out
+    ${(props) => -((props.$offset + props.$index / 3) % 1) * smellDuration}s infinite;
+
+  /* 움직임을 줄인 환경에서는 냄새 줄을 멈춘 채로 흐리게 보여 준다. */
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+    opacity: 0.6;
+  }
 `;
 
 const Icon = styled.span<MotionProps>`
