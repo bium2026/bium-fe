@@ -227,12 +227,13 @@ function PurchaseCalendar({ fridgeId }: PurchaseCalendarProps) {
 
       {overdueItems.length > 0 && (
         <Overdue aria-label="지난 구매 예정">
-          <strong>지난 구매 예정</strong>
+          <strong>지난 예정</strong>
           <ul>
             {overdueItems.map((item) => (
               <li key={item.name}>
                 <ItemIcon item={item} />
-                {item.name} · {-getDaysLeft(item.nextPurchaseDate)}일 지났어요
+                {item.name}
+                <span>{-getDaysLeft(item.nextPurchaseDate)}일 지났어요</span>
               </li>
             ))}
           </ul>
@@ -243,8 +244,10 @@ function PurchaseCalendar({ fridgeId }: PurchaseCalendarProps) {
         <FeverNote type="button" onClick={() => showFeverDate(nextFeverDate)}>
           <Flame size={18} aria-hidden="true" />
           <span>
-            다음 피버타임은 <b>{formatDate(nextFeverDate)}</b>이에요. 같은 날 산 재료를 다시 같이 사는 날이에요.
+            다음 피버타임 <b>{formatDate(nextFeverDate)}</b>
+            <small>같은 날 산 재료를 다시 같이 사는 날</small>
           </span>
+          <ChevronRight size={18} aria-hidden="true" />
         </FeverNote>
       )}
 
@@ -261,8 +264,10 @@ function PurchaseCalendar({ fridgeId }: PurchaseCalendarProps) {
       </MonthBar>
 
       <Weekdays aria-hidden="true">
-        {weekdayLabels.map((label) => (
-          <span key={label}>{label}</span>
+        {weekdayLabels.map((label, index) => (
+          <span key={label} className={index === shoppingWeekday ? "shopping-day" : undefined}>
+            {label}
+          </span>
         ))}
       </Weekdays>
       <Days>
@@ -346,33 +351,34 @@ const Card = styled.section`
   border: 1px solid var(--border);
   border-radius: 16px;
   background: var(--surface);
-  box-shadow: var(--shadow-sm);
-  padding: 20px;
+  padding: 24px;
   display: grid;
-  gap: 14px;
+  gap: 16px;
 
   @media (max-width: 760px) {
-    padding: 16px 12px;
+    padding: 20px 12px;
   }
 `;
 
 const Title = styled.h2`
-  font-size: 20px;
+  font-size: 22px;
   font-weight: 540;
+  letter-spacing: -0.26px;
 `;
 
 const EmptyText = styled.p`
-  font-size: 15px;
+  font-size: 14px;
+  font-weight: 330;
   line-height: 1.5;
   word-break: keep-all;
 `;
 
+// 지난 예정은 따로 색 상자를 두지 않고 한 줄 목록으로 둔다.
 const Overdue = styled.section`
-  border-radius: 8px;
-  background: var(--block-cream);
-  padding: 12px 16px;
-  display: grid;
-  gap: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 12px;
 
   strong {
     font-size: 14px;
@@ -385,25 +391,30 @@ const Overdue = styled.section`
     list-style: none;
     display: flex;
     flex-wrap: wrap;
-    gap: 6px 16px;
+    gap: 6px 14px;
   }
 
   li {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
+    gap: 4px;
     font-size: 14px;
     font-weight: 480;
   }
+
+  li span:last-child {
+    font-weight: 330;
+  }
 `;
 
+// 피버타임은 냉장고 화면 피버타임 배너와 같은 코랄을 쓴다. 이 화면에서 색으로 강조하는 곳은 여기뿐이다.
 const FeverNote = styled.button`
   width: 100%;
   border: 0;
   border-radius: 8px;
   background: var(--block-coral);
   color: var(--text);
-  padding: 10px 14px;
+  padding: 10px 12px 10px 14px;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -419,8 +430,22 @@ const FeverNote = styled.button`
     flex: none;
   }
 
+  span {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0 8px;
+  }
+
   b {
     font-weight: 700;
+  }
+
+  small {
+    font-size: 13px;
+    font-weight: 330;
   }
 `;
 
@@ -454,15 +479,19 @@ const MonthBar = styled.div`
 `;
 
 const NavButton = styled.button`
-  width: 44px;
-  height: 44px;
-  border: 1px solid var(--text);
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--border);
   border-radius: 999px;
   background: var(--surface);
   color: var(--text);
   display: grid;
   place-items: center;
   cursor: pointer;
+
+  &:hover {
+    border-color: var(--text);
+  }
 `;
 
 const Weekdays = styled.div`
@@ -470,7 +499,12 @@ const Weekdays = styled.div`
   grid-template-columns: repeat(7, minmax(0, 1fr));
   text-align: center;
   font-size: 13px;
-  font-weight: 540;
+  font-weight: 480;
+
+  /* 장보는 요일은 칸 바탕과 함께 요일 이름도 굵게 해 어느 줄인지 알 수 있게 한다. */
+  .shopping-day {
+    font-weight: 700;
+  }
 `;
 
 const Days = styled.div`
@@ -484,9 +518,9 @@ const DayButton = styled.button<{ $isToday: boolean; $isShoppingDay: boolean; $i
   min-height: 64px;
   border: 1px solid ${({ $isToday }) => ($isToday ? "var(--text)" : "var(--border-soft)")};
   border-radius: 8px;
-  /* 피버타임은 냉장고 화면 피버타임 배너와 같은 코랄로, 장보는 요일 색보다 먼저 보이게 한다. */
+  /* 피버타임은 냉장고 화면 피버타임 배너와 같은 코랄로, 장보는 요일의 옅은 바탕보다 먼저 보이게 한다. */
   background: ${({ $isShoppingDay, $isFever }) =>
-    $isFever ? "var(--block-coral)" : $isShoppingDay ? "var(--block-lime)" : "var(--surface)"};
+    $isFever ? "var(--block-coral)" : $isShoppingDay ? "var(--surface-soft)" : "var(--surface)"};
   color: var(--text);
   padding: 6px 4px;
   display: grid;
@@ -555,10 +589,10 @@ const DayButton = styled.button<{ $isToday: boolean; $isShoppingDay: boolean; $i
   }
 `;
 
+// 고른 날의 재료는 상자 대신 달력 아래 구분선으로 나눈다.
 const Selected = styled.div`
-  border-radius: 8px;
-  background: var(--surface-soft);
-  padding: 14px 16px;
+  border-top: 1px solid var(--border);
+  padding: 16px 4px 0;
   display: grid;
   gap: 8px;
 
