@@ -1,9 +1,8 @@
 /*
- * 냉장고 피드 화면들이 함께 쓰는 구역 순서·이름과 유통기한 표시, 오류 안내 문구다.
+ * 냉장고 피드 화면들이 함께 쓰는 구역 순서·이름과 오류 안내 문구다.
  */
 import { ApiError, NETWORK_ERROR } from "../../api/client";
 import type { FeedStorages } from "../../api/feed";
-import { getDaysLeft } from "../Fridge/fridgeLayout";
 import { zoneMeta, type ZoneMeta } from "../Fridge/fridgeZones";
 
 // 서버의 room(실온)은 냉장고 화면의 실온(pantry) 이름과 색으로 보여 준다.
@@ -30,18 +29,6 @@ export function getCardTone(fridgeId: number) {
 // 아바타에는 주인 닉네임의 첫 글자를 쓴다. 주인이 없으면(나간 경우) 냉장고 이름의 첫 글자를 쓴다.
 export function getAvatarText(ownerNickname: string | null, fridgeName: string) {
   return (ownerNickname ?? fridgeName).slice(0, 1);
-}
-
-export type Freshness = "expired" | "urgent" | "soon" | "safe";
-
-// 냉장고 화면의 재료 카드와 같은 기준으로 유통기한 배지 문구와 색을 정한다.
-export function getExpiry(expiresAt: string) {
-  const daysLeft = getDaysLeft(expiresAt);
-  const freshness: Freshness = daysLeft < 0 ? "expired" : daysLeft <= 3 ? "urgent" : daysLeft <= 6 ? "soon" : "safe";
-  const label = daysLeft < 0 ? `만료 ${Math.abs(daysLeft)}일` : daysLeft === 0 ? "오늘" : `D-${daysLeft}`;
-  const description =
-    daysLeft < 0 ? `유통기한 ${Math.abs(daysLeft)}일 지남` : daysLeft === 0 ? "오늘까지" : `유통기한 ${daysLeft}일 남음`;
-  return { freshness, label, description };
 }
 
 // 서버 문구 대신 화면 말투로, 무엇이 문제고 어떻게 하면 되는지 알려 준다.

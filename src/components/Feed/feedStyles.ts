@@ -3,7 +3,6 @@
  */
 import { keyframes } from "@emotion/react";
 import styled from "@emotion/styled";
-import type { Freshness } from "./feedFormat";
 
 export const Wrapper = styled.section`
   display: grid;
@@ -115,33 +114,6 @@ export const MineBadge = styled.span`
   font-weight: 540;
   white-space: nowrap;
 `;
-
-// 재료 하나를 아이콘과 이름으로 보여 주는 칩
-export const ItemChip = styled.li`
-  min-height: 32px;
-  border-radius: 999px;
-  background: var(--surface);
-  padding: 5px 12px;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 14px;
-  font-weight: 480;
-  max-width: 100%;
-
-  span {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-`;
-
-export const freshnessBackground: Record<Freshness, string> = {
-  expired: "var(--text)",
-  urgent: "var(--block-coral)",
-  soon: "var(--block-cream)",
-  safe: "var(--block-mint)",
-};
 
 export const ScreenReaderText = styled.span`
   position: absolute;
