@@ -1,11 +1,12 @@
 /*
  * 이메일과 비밀번호로 로그인하는 폼이다.
  * 두 칸이 모두 채워져야 로그인 버튼이 활성화되고, 로그인하면 토큰을 저장한 뒤 냉장고 화면으로 이동한다.
+ * 초대 링크처럼 열려던 주소에서 왔으면(RequireAuth가 넘긴 from) 그 주소로 돌아간다.
  * 회원가입 직후에는 가입한 이메일을 채워 두고 가입 완료 안내를 보여 준다.
  * 로그인이 만료돼 이 화면에 왔으면 만료 안내를 보여 준다.
  */
 import { useState } from "react";
-import { useNavigate } from "react-router";
+import { useLocation, useNavigate } from "react-router";
 import { login } from "../../api/auth";
 import { ApiError, NETWORK_ERROR } from "../../api/client";
 import { useAuthStore } from "../../store/authStore";
@@ -24,8 +25,16 @@ function getLoginErrorMessage(error: unknown) {
   return "로그인하지 못했어요. 잠시 후 다시 시도해 주세요.";
 }
 
+// 다른 사이트로 나가지 않게 이 앱 안의 주소(/로 시작하고 //로 시작하지 않는 값)만 받는다.
+function getReturnPath(state: unknown) {
+  if (typeof state !== "object" || state === null || !("from" in state)) return "/fridge";
+  const { from } = state;
+  return typeof from === "string" && from.startsWith("/") && !from.startsWith("//") ? from : "/fridge";
+}
+
 function LoginForm({ signedUpEmail }: LoginFormProps) {
   const navigate = useNavigate();
+  const returnPath = getReturnPath(useLocation().state);
   const setAuth = useAuthStore((state) => state.setAuth);
   const isExpired = useAuthStore((state) => state.isExpired);
   const [email, setEmail] = useState(signedUpEmail ?? "");
@@ -42,7 +51,7 @@ function LoginForm({ signedUpEmail }: LoginFormProps) {
       const { accessToken, expiresIn } = await login({ email: email.trim(), password });
       setAuth(accessToken, expiresIn);
       // 성공하면 화면을 떠나므로 버튼은 다시 켜지 않는다.
-      navigate("/fridge", { replace: true });
+      navigate(returnPath, { replace: true });
     } catch (err) {
       setError(getLoginErrorMessage(err));
       setIsSubmitting(false);
