@@ -72,6 +72,12 @@ export function removeShoppingListItem(itemId: number) {
   return requestNoContent(`/api/shopping-list-items/${itemId}`, { method: "DELETE" });
 }
 
+// 지우는 순간 체크돼 있는(산 것) 항목을 모두 지운다. 안 산 항목은 남는다.
+// 실패: FRIDGE_NOT_FOUND(404)
+export function clearCheckedShoppingListItems(fridgeId: number) {
+  return requestNoContent(`/api/fridges/${fridgeId}/shopping-list-items/checked`, { method: "DELETE" });
+}
+
 // 레시피의 부족 재료(MISSING) 중 고른 이름을 담고, 새로 담은 것만 돌려준다.
 // 안 산 상태로 같은 재료가 이미 있으면 건너뛴다. 이름이 하나라도 틀리면 아무것도 담지 않는다.
 // 실패: INVALID_INPUT(400), RECIPE_NOT_FOUND(404)
