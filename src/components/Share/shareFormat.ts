@@ -30,6 +30,11 @@ export function formatJoinedDate(value: string) {
   return `${date.getFullYear()}.${pad(date.getMonth() + 1)}.${pad(date.getDate())} 참여`;
 }
 
+// 서버는 시간대 없는 한국 시각을 주므로, 다른 표시 함수처럼 new Date로 기기 시각에 맞춰 읽어 비교한다.
+export function isExpired(expiresAt: string, now: number) {
+  return new Date(expiresAt).getTime() <= now;
+}
+
 export function formatExpiresAt(value: string) {
   const date = new Date(value);
   return `${date.getMonth() + 1}월 ${date.getDate()}일 ${pad(date.getHours())}:${pad(date.getMinutes())}까지`;

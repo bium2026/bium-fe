@@ -1,12 +1,13 @@
 /*
  * 다른 사람을 내 냉장고에 부르는 초대 코드 영역이다.
  * 냉장고 주인만 코드를 만들 수 있고, 새 코드를 만들면 이전 코드는 더 이상 쓸 수 없다.
+ * 화면을 연 채로 만료 시각이 지나면 코드를 숨기고 새로 만들게 안내한다.
  */
 import { useEffect, useRef, useState } from "react";
 import styled from "@emotion/styled";
 import { Copy, RefreshCw } from "lucide-react";
 import type { InviteCode } from "../../api/fridgeShare";
-import { formatExpiresAt, formatInviteCode, getShareErrorMessage } from "./shareFormat";
+import { formatExpiresAt, formatInviteCode, getShareErrorMessage, isExpired } from "./shareFormat";
 import { Feedback, OutlineButton, Panel, PanelHeader, PrimaryButton, ScreenReaderText } from "./shareStyles";
 import { playSound } from "../../sound/soundEffects";
 
@@ -30,8 +31,19 @@ function InvitePanel({ invite, isRevoked, canInvite, onCreate }: InvitePanelProp
   const copyButtonRef = useRef<HTMLButtonElement>(null);
   // 복사가 끝나기 전에 새 코드로 바뀌었는지 확인하려고 지금 코드를 따로 들고 있는다.
   const currentCodeRef = useRef(invite?.code);
+  // 만료 시각이 지났는지 다시 보려고, 만료 시각에 맞춰 바꾸는 지금 시각이다.
+  const [now, setNow] = useState(() => Date.now());
+  const expiresAt = invite?.expiresAt;
+  const activeInvite = invite && !isExpired(invite.expiresAt, now) ? invite : null;
+  const isInviteExpired = invite !== null && activeInvite === null;
 
   useEffect(() => () => window.clearTimeout(copyTimerRef.current), []);
+
+  useEffect(() => {
+    if (!expiresAt || isInviteExpired) return;
+    const timer = window.setTimeout(() => setNow(Date.now()), new Date(expiresAt).getTime() - Date.now());
+    return () => window.clearTimeout(timer);
+  }, [expiresAt, isInviteExpired]);
 
   useEffect(() => {
     currentCodeRef.current = invite?.code;
@@ -42,11 +54,11 @@ function InvitePanel({ invite, isRevoked, canInvite, onCreate }: InvitePanelProp
     setIsCreating(true);
     setErrorMessage("");
     setCopyState("idle");
-    const isFirstCode = !invite;
+    const isFirstCode = !activeInvite;
     try {
       await onCreate();
       playSound("success");
-      // 첫 코드를 만들면 만들기 버튼이 사라지므로, 바로 쓸 복사 버튼으로 포커스를 옮긴다.
+      // 첫 코드(만료 뒤 새 코드 포함)를 만들면 만들기 버튼이 사라지므로, 바로 쓸 복사 버튼으로 포커스를 옮긴다.
       if (isFirstCode) requestAnimationFrame(() => copyButtonRef.current?.focus());
     } catch (error) {
       playSound("error");
@@ -57,8 +69,8 @@ function InvitePanel({ invite, isRevoked, canInvite, onCreate }: InvitePanelProp
   };
 
   const handleCopy = async () => {
-    if (!invite || isCreating) return;
-    const { code } = invite;
+    if (!activeInvite || isCreating) return;
+    const { code } = activeInvite;
     window.clearTimeout(copyTimerRef.current);
     try {
       await navigator.clipboard.writeText(code);
@@ -92,13 +104,13 @@ function InvitePanel({ invite, isRevoked, canInvite, onCreate }: InvitePanelProp
         <p>코드를 받은 사람은 '코드로 참여'에 입력해 이 냉장고를 함께 관리할 수 있어요.</p>
       </PanelHeader>
 
-      {invite ? (
+      {activeInvite ? (
         <>
           <CodeBox>
-            <Code aria-hidden="true">{formatInviteCode(invite.code)}</Code>
+            <Code aria-hidden="true">{formatInviteCode(activeInvite.code)}</Code>
             {/* 화면 읽기 프로그램이 코드를 한 글자씩 읽도록 띄어 쓴 값을 따로 둔다. */}
-            <ScreenReaderText>초대 코드 {invite.code.split("").join(" ")}</ScreenReaderText>
-            <Expires>{formatExpiresAt(invite.expiresAt)}</Expires>
+            <ScreenReaderText>초대 코드 {activeInvite.code.split("").join(" ")}</ScreenReaderText>
+            <Expires>{formatExpiresAt(activeInvite.expiresAt)}</Expires>
           </CodeBox>
           <Actions>
             <PrimaryButton
@@ -121,6 +133,9 @@ function InvitePanel({ invite, isRevoked, canInvite, onCreate }: InvitePanelProp
         <>
           {isRevoked && (
             <Feedback role="status">멤버를 내보내서 이전 초대 코드는 더 이상 쓸 수 없어요. 새 코드를 만들어 주세요.</Feedback>
+          )}
+          {isInviteExpired && (
+            <Feedback role="status">초대 코드가 만료돼서 더 이상 쓸 수 없어요. 새 코드를 만들어 주세요.</Feedback>
           )}
           <Actions>
             <PrimaryButton type="button" onClick={handleCreate} aria-disabled={isCreating || undefined}>
