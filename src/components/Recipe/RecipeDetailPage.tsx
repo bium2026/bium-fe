@@ -10,7 +10,7 @@ import styled from "@emotion/styled";
 import { ArrowLeft, CheckCircle2, ChefHat, Clock3, Flame, ShoppingCart, Sparkles, Users } from "lucide-react";
 import { Link, useParams } from "react-router";
 import { ApiError } from "../../api/client";
-import { getCookingCandidates, undoCooking } from "../../api/cooking";
+import { undoCooking } from "../../api/cooking";
 import { getRecipe, type IngredientSource, type Recipe, type RecipeIngredient } from "../../api/recipe";
 import { useRecipeStore } from "../../store/recipeStore";
 import {
@@ -26,6 +26,7 @@ import { getShareErrorMessage } from "../Share/shareFormat";
 import { OutlineButton } from "../Share/shareStyles";
 import CookingModal from "./CookingModal";
 import MissingIngredientModal from "./MissingIngredientModal";
+import { getHoldings, type Holdings } from "./recipeHoldings";
 import { getRecipeTone } from "./recipeTone";
 import { playSound } from "../../sound/soundEffects";
 
@@ -44,14 +45,6 @@ type CookedState = {
   undo: "idle" | "undoing" | "undone";
   error: string;
 };
-
-// 재료 이름별로 지금 냉장고에 맞는 재료가 있는지. 기본 양념처럼 응답에 없는 재료는 들어 있지 않다.
-type Holdings = { recipeId: number; owned: Map<string, boolean> };
-
-async function getHoldings(recipeId: number): Promise<Holdings> {
-  const ingredients = await getCookingCandidates(recipeId);
-  return { recipeId, owned: new Map(ingredients.map((item) => [item.name, item.candidates.length > 0])) };
-}
 
 // AI가 같은 재료를 두 번 줄 수 있어 이름이 같으면 하나로 합친다. 한 번이라도 필수로 나오면 필수로 본다.
 function getMissingIngredients(ingredients: RecipeIngredient[]) {
