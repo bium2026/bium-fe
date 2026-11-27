@@ -101,7 +101,7 @@ function InvitePanel({ invite, isRevoked, canInvite, onCreate }: InvitePanelProp
     <Panel aria-labelledby="share-invite-title" aria-busy={isCreating}>
       <PanelHeader>
         <h2 id="share-invite-title">초대 코드</h2>
-        <p>코드를 받은 사람은 '코드로 참여'에 입력해 이 냉장고를 함께 관리할 수 있어요.</p>
+        <p>코드를 받은 사람은 헤더의 냉장고 메뉴에서 '초대 코드로 참여'를 눌러 코드를 입력하면 이 냉장고를 함께 관리할 수 있어요.</p>
       </PanelHeader>
 
       {activeInvite ? (
