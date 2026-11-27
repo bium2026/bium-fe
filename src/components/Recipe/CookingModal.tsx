@@ -5,7 +5,7 @@
  */
 import { useEffect, useState } from "react";
 import styled from "@emotion/styled";
-import { ApiError, NETWORK_ERROR } from "../../api/client";
+import { ApiError } from "../../api/client";
 import { cook, getCookingCandidates, type CookingIngredient } from "../../api/cooking";
 import type { FridgeItemResponse } from "../../api/fridge";
 import { formatDate } from "../Library/libraryDate";
@@ -31,9 +31,9 @@ type Selection = (number | null)[];
 
 const NOT_USED = "";
 
+// 레시피가 지워졌거나(404) 고른 재료가 잘못됐을 때(400)도 서버 문구로 무엇이 문제인지 알려 준다.
 function getErrorMessage(error: unknown, fallback: string) {
-  if (error instanceof ApiError && error.code === NETWORK_ERROR) return error.message;
-  return fallback;
+  return error instanceof ApiError ? error.message : fallback;
 }
 
 function isStaleItemError(error: unknown) {

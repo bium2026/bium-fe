@@ -34,13 +34,14 @@ const serverMessageCodes = [
   "FRIDGE_NOT_FOUND",
   "TOO_MANY_REQUESTS",
   "RECEIPT_SCAN_FAILED",
+  "AI_QUOTA_EXCEEDED",
   NETWORK_ERROR,
 ];
 
 let nextScanId = 1;
 
 function getScanErrorMessage(error: unknown) {
-  // 서버가 보낸 문구로 무엇이 문제인지(사진 형식·크기, 요청 한도, 읽기 실패) 알려 준다.
+  // 서버가 보낸 문구로 무엇이 문제인지(사진 형식·크기, 요청·AI 사용 한도, 읽기 실패) 알려 준다.
   if (error instanceof ApiError && serverMessageCodes.includes(error.code)) return error.message;
   return "영수증을 읽지 못했어요. 잠시 후 다시 시도해 주세요.";
 }
