@@ -3,11 +3,18 @@
  * 공개한 냉장고에는 누구나 코멘트를 남기고 냉장고 재료로 만들 만한 음식을 함께 추천할 수 있다.
  * 멤버가 공개하지 않은 내 냉장고를 미리 볼 때는 남은 코멘트만 보여 주고 새로 쓰지 못하게 한다.
  * 코멘트는 쓴 사람과 냉장고 주인만 지울 수 있다(서버가 deletable로 알려 준다).
+ * 내가 쓴 코멘트(mine)는 그 자리에서 내용과 추천 음식을 고칠 수 있다. 저장이 끝나기 전에는 목록을 바꾸지 않는다.
  */
 import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import styled from "@emotion/styled";
 import { ApiError } from "../../api/client";
-import { createFeedComment, deleteFeedComment, getFeedComments, type FeedComment } from "../../api/feed";
+import {
+  createFeedComment,
+  deleteFeedComment,
+  getFeedComments,
+  updateFeedComment,
+  type FeedComment,
+} from "../../api/feed";
 import { formatActivityTime } from "../Share/shareFormat";
 import { getFeedErrorMessage } from "./feedFormat";
 import { OutlineButton, ScreenReaderText, Skeleton } from "./feedStyles";
@@ -52,6 +59,14 @@ function FeedComments({ fridgeId, count, canWrite, onCountChange }: FeedComments
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState("");
   const titleRef = useRef<HTMLHeadingElement>(null);
+
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editContent, setEditContent] = useState("");
+  const [editDishName, setEditDishName] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+  const [editError, setEditError] = useState("");
+  const editContentId = useId();
+  const editDishId = useId();
 
   useEffect(() => {
     let ignore = false;
@@ -177,6 +192,68 @@ function FeedComments({ fridgeId, count, canWrite, onCountChange }: FeedComments
     if (event.key === "Escape") cancelDelete();
   };
 
+  const startEdit = (comment: FeedComment) => {
+    setEditingId(comment.commentId);
+    setEditContent(comment.content);
+    setEditDishName(comment.dishName ?? "");
+    setEditError("");
+  };
+
+  // 고치기 칸이 닫히면 포커스가 갈 곳을 잃으므로 그 코멘트의 고치기 버튼으로 돌려놓는다.
+  const closeEdit = (commentId: number) => {
+    setEditingId(null);
+    setEditError("");
+    requestAnimationFrame(() => document.getElementById(`${editContentId}-button-${commentId}`)?.focus());
+  };
+
+  const cancelEdit = () => {
+    if (isSaving || editingId === null) return;
+    closeEdit(editingId);
+  };
+
+  const handleEditSubmit = async (event: FormEvent<HTMLFormElement>, commentId: number) => {
+    event.preventDefault();
+    if (isSaving) return;
+    const nextContent = editContent.trim();
+    if (!nextContent) {
+      setEditError("코멘트를 입력해 주세요.");
+      return;
+    }
+    setIsSaving(true);
+    setEditError("");
+    try {
+      const updated = await updateFeedComment(fridgeId, commentId, {
+        content: nextContent,
+        dishName: editDishName.trim() || null,
+      });
+      setList((prev) =>
+        prev.status === "success"
+          ? {
+              ...prev,
+              comments: prev.comments.map((comment) => (comment.commentId === commentId ? updated : comment)),
+            }
+          : prev,
+      );
+      playSound("success");
+      closeEdit(commentId);
+    } catch (error) {
+      // 다른 곳에서 먼저 지웠으면 고칠 코멘트가 없으므로 목록에서도 뺀다.
+      if (error instanceof ApiError && error.code === "FEED_COMMENT_NOT_FOUND") {
+        setEditingId(null);
+        removeComment(commentId);
+        return;
+      }
+      playSound("error");
+      setEditError(getFeedErrorMessage(error, "코멘트를 고치지 못했어요. 잠시 후 다시 시도해 주세요."));
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleEditKeyDown = (event: KeyboardEvent<HTMLFormElement>) => {
+    if (event.key === "Escape") cancelEdit();
+  };
+
   const showCounter = content.length >= COUNTER_FROM;
 
   const clearInputError = () => {
@@ -253,33 +330,88 @@ function FeedComments({ fridgeId, count, canWrite, onCountChange }: FeedComments
           <List>
             {list.comments.map((comment) => {
               const isConfirming = confirmingId === comment.commentId;
+              const isEditing = editingId === comment.commentId;
+              // 지우기 확인이나 고치기를 하는 동안에는 다른 코멘트를 눌러 대상이 바뀌지 않게 막는다.
+              const isBusy = confirmingId !== null || editingId !== null;
               return (
                 <li key={comment.commentId}>
                   <Meta>
                     <strong>{comment.authorNickname}</strong>
                     {comment.mine && <MineTag>나</MineTag>}
                     <time dateTime={comment.createdAt}>{formatActivityTime(comment.createdAt)}</time>
-                    {comment.deletable && (
-                      <TextButton
-                        type="button"
-                        aria-label={`${comment.authorNickname} 님 코멘트 지우기`}
-                        onClick={() => {
-                          setConfirmingId(comment.commentId);
-                          setDeleteError("");
-                        }}
-                        // 확인을 띄운 동안에는 다른 코멘트를 눌러 지울 대상이 바뀌지 않게 막는다.
-                        disabled={confirmingId !== null}
-                      >
-                        지우기
-                      </TextButton>
-                    )}
+                    <CommentActions>
+                      {comment.mine && (
+                        <TextButton
+                          id={`${editContentId}-button-${comment.commentId}`}
+                          type="button"
+                          aria-label="내 코멘트 고치기"
+                          onClick={() => startEdit(comment)}
+                          disabled={isBusy}
+                        >
+                          고치기
+                        </TextButton>
+                      )}
+                      {comment.deletable && (
+                        <TextButton
+                          type="button"
+                          aria-label={`${comment.authorNickname} 님 코멘트 지우기`}
+                          onClick={() => {
+                            setConfirmingId(comment.commentId);
+                            setDeleteError("");
+                          }}
+                          disabled={isBusy}
+                        >
+                          지우기
+                        </TextButton>
+                      )}
+                    </CommentActions>
                   </Meta>
-                  <Content>{comment.content}</Content>
-                  {comment.dishName && (
-                    <Dish>
-                      <span>추천</span>
-                      {comment.dishName}
-                    </Dish>
+                  {isEditing ? (
+                    <EditForm
+                      aria-label="코멘트 고치기"
+                      onSubmit={(event) => handleEditSubmit(event, comment.commentId)}
+                      onKeyDown={handleEditKeyDown}
+                      noValidate
+                    >
+                      <HiddenLabel htmlFor={editContentId}>코멘트</HiddenLabel>
+                      <ContentInput
+                        id={editContentId}
+                        value={editContent}
+                        onChange={(event) => setEditContent(event.target.value)}
+                        maxLength={MAX_CONTENT_LENGTH}
+                        placeholder="이 냉장고에 한마디 남기기"
+                        autoComplete="off"
+                        autoFocus
+                      />
+                      <HiddenLabel htmlFor={editDishId}>추천할 음식 (선택)</HiddenLabel>
+                      <DishInput
+                        id={editDishId}
+                        value={editDishName}
+                        onChange={(event) => setEditDishName(event.target.value)}
+                        maxLength={MAX_DISH_LENGTH}
+                        placeholder="추천 음식 (선택)"
+                        autoComplete="off"
+                      />
+                      <EditButtons>
+                        <OutlineButton type="button" onClick={cancelEdit} aria-disabled={isSaving || undefined}>
+                          취소
+                        </OutlineButton>
+                        <SubmitButton type="submit" aria-disabled={isSaving || !editContent.trim() || undefined}>
+                          {isSaving ? "저장하는 중..." : "저장"}
+                        </SubmitButton>
+                      </EditButtons>
+                      {editError && <ErrorText role="alert">{editError}</ErrorText>}
+                    </EditForm>
+                  ) : (
+                    <>
+                      <Content>{comment.content}</Content>
+                      {comment.dishName && (
+                        <Dish>
+                          <span>추천</span>
+                          {comment.dishName}
+                        </Dish>
+                      )}
+                    </>
                   )}
                   {isConfirming && (
                     <Confirm role="group" aria-label="코멘트 지우기 확인" onKeyDown={handleConfirmKeyDown}>
@@ -494,9 +626,14 @@ const MineTag = styled.span`
   font-weight: 540;
 `;
 
-// 지우기는 눈에 덜 띄게 줄 끝의 밑줄 글자로 둔다.
-const TextButton = styled.button`
+// 고치기·지우기는 눈에 덜 띄게 줄 끝의 밑줄 글자로 둔다.
+const CommentActions = styled.span`
   margin-left: auto;
+  display: inline-flex;
+  gap: 12px;
+`;
+
+const TextButton = styled.button`
   min-height: 32px;
   border: 0;
   background: transparent;
@@ -558,6 +695,27 @@ const Confirm = styled.div`
     margin-right: auto;
     font-weight: 480;
   }
+`;
+
+const EditForm = styled.form`
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(120px, 200px);
+  align-items: end;
+  column-gap: 16px;
+  row-gap: 8px;
+
+  @media (max-width: 760px) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+`;
+
+const EditButtons = styled.div`
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
 `;
 
 const DangerButton = styled(OutlineButton)`

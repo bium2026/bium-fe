@@ -118,6 +118,17 @@ export function createFeedComment(fridgeId: number, body: { content: string; dis
   return request<FeedComment>(`/api/feed/fridges/${fridgeId}/comments`, { method: "POST", body });
 }
 
+// 쓴 사람만 고칠 수 있고, 쓸 때와 같은 조건으로 검사한다. dishName을 null로 보내면 추천하지 않은 코멘트가 된다.
+// 공개하지 않은 냉장고는 멤버만 고칠 수 있다.
+// 실패: INVALID_INPUT(400), FEED_COMMENT_EDIT_FORBIDDEN(403), FEED_COMMENT_NOT_FOUND(404), FRIDGE_NOT_FOUND(404)
+export function updateFeedComment(
+  fridgeId: number,
+  commentId: number,
+  body: { content: string; dishName: string | null },
+) {
+  return request<FeedComment>(`/api/feed/fridges/${fridgeId}/comments/${commentId}`, { method: "PUT", body });
+}
+
 // 쓴 사람이나 냉장고 주인만 지울 수 있다.
 // 실패: FEED_COMMENT_DELETE_FORBIDDEN(403), FEED_COMMENT_NOT_FOUND(404), FRIDGE_NOT_FOUND(404)
 export function deleteFeedComment(fridgeId: number, commentId: number) {
