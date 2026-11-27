@@ -8,7 +8,14 @@
 import { useAuthStore } from "../store/authStore";
 import { markFridgeListStale } from "../store/fridgeStore";
 
-const API_URL = import.meta.env.VITE_API_URL;
+// 끝에 "/"를 붙여 적어도 "//api/..."가 되지 않게 뗀다. 서버(Spring Security)는 "//"가 든 주소를 400으로 막는다.
+const API_URL = import.meta.env.VITE_API_URL.replace(/\/+$/, "");
+
+// 백엔드를 ngrok 무료 주소로 열면 ngrok이 브라우저의 GET 요청에 CORS 헤더 없는 경고 페이지를 대신 돌려준다.
+// 이 헤더가 있으면 경고 페이지 없이 서버로 넘겨 준다. 서버 CORS는 모든 요청 헤더를 허용한다.
+const ngrokHeaders: Record<string, string> = /\.ngrok(-free)?\.(app|dev|io)(:\d+)?$/.test(API_URL)
+  ? { "ngrok-skip-browser-warning": "true" }
+  : {};
 
 // 재료 사진처럼 서버가 "/api/..." 경로로 준 주소를 <img src>에 쓸 수 있게 서버 주소를 붙인다.
 export function toServerUrl(path: string) {
@@ -45,7 +52,7 @@ async function send(path: string, { method = "GET", body, auth = true }: Request
   const token = auth ? useAuthStore.getState().accessToken : null;
   // 사진처럼 FormData로 보내는 요청은 브라우저가 경계값(boundary)이 든 Content-Type을 직접 붙이므로 그대로 넘긴다.
   const isFormData = body instanceof FormData;
-  const headers: Record<string, string> = {};
+  const headers: Record<string, string> = { ...ngrokHeaders };
   if (body !== undefined && !isFormData) headers["Content-Type"] = "application/json";
   if (token) headers.Authorization = `Bearer ${token}`;
 
