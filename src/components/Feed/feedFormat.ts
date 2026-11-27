@@ -37,6 +37,7 @@ const feedErrorMessages: Partial<Record<string, string>> = {
   FRIDGE_OWNER_ONLY: "냉장고 주인만 공개 여부를 바꿀 수 있어요.",
   FEED_COMMENT_NOT_FOUND: "이미 지워진 코멘트예요. 코멘트를 새로 불러와 주세요.",
   FEED_COMMENT_DELETE_FORBIDDEN: "코멘트를 쓴 사람이나 냉장고 주인만 지울 수 있어요.",
+  FEED_COMMENT_EDIT_FORBIDDEN: "코멘트는 쓴 사람만 고칠 수 있어요.",
 };
 
 // 모르는 오류는 화면마다 정한 문구로 다시 시도를 안내한다.
