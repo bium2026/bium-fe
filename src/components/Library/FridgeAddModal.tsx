@@ -82,7 +82,8 @@ function FridgeAddForm({ ingredient, isBusy, onBusyChange, onClose, onAdd }: Fri
   const id = useId();
   const [name, setName] = useState(ingredient.name);
   const [icon, setIcon] = useState(ingredient.emoji);
-  const [storage, setStorage] = useState<StorageType>("FRIDGE");
+  // 도감에 기본 보관 위치가 없으면 냉장실로 시작한다.
+  const [storage, setStorage] = useState<StorageType>(ingredient.defaultStorage ?? "FRIDGE");
   const [errorMessage, setErrorMessage] = useState("");
 
   const trimmedName = name.trim();
