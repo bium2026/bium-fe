@@ -3,6 +3,7 @@
  * 서버가 레시피 재료마다 이름이 맞는 냉장고 재료를 유통기한이 지나지 않은 재료부터 빠른 순으로 주고, 지나지 않은 첫 재료를 미리 골라 둔다.
  * 유통기한이 지난 재료만 있으면 미리 고르지 않는다. 목록에는 남겨 두어 사용자가 직접 고를 수 있다.
  * 사용자가 고른 재료는 수량과 상관없이 모두 냉장고에서 빠진다. 다른 멤버가 그사이 재료를 바꿨으면 후보를 다시 불러온다.
+ * 뺄 재료를 하나도 고르지 않아도 요리한 기록은 남길 수 있다.
  */
 import { useEffect, useState } from "react";
 import styled from "@emotion/styled";
@@ -47,6 +48,11 @@ function getCandidateLabel(item: CookingCandidate) {
   return item.expired
     ? `${item.name} (${formatDate(item.expiresAt)}, 유통기한 지남)`
     : `${item.name} (${formatDate(item.expiresAt)}까지)`;
+}
+
+function getCookButtonLabel(isCooking: boolean, count: number) {
+  if (count === 0) return isCooking ? "기록하는 중" : "빼지 않고 요리 완료";
+  return isCooking ? "빼는 중" : `재료 ${count}개 빼기`;
 }
 
 // 레시피 재료 두 개가 같은 냉장고 재료를 고를 수 있다(예: 대파·파). 서버도 한 번만 빼므로 한 번만 세고 보낸다.
@@ -130,7 +136,7 @@ function CookingContent({ recipeId, isCooking, onCookingChange, onClose, onCooke
   };
 
   const handleCook = async () => {
-    if (isCooking || selectedItems.length === 0) return;
+    if (isCooking) return;
     onCookingChange(true);
     setError("");
     try {
@@ -206,8 +212,8 @@ function CookingContent({ recipeId, isCooking, onCookingChange, onClose, onCooke
             <ModalButton type="button" disabled={isCooking} onClick={onClose}>
               취소
             </ModalButton>
-            <ModalButton type="button" $primary disabled={isCooking || selectedItems.length === 0} onClick={handleCook}>
-              {isCooking ? "빼는 중" : `재료 ${selectedItems.length}개 빼기`}
+            <ModalButton type="button" $primary disabled={isCooking} onClick={handleCook}>
+              {getCookButtonLabel(isCooking, selectedItems.length)}
             </ModalButton>
           </ModalActions>
         </>
