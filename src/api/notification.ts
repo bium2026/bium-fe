@@ -31,7 +31,8 @@ export function getNotificationSetting() {
   return request<NotificationSetting>("/api/notification-settings");
 }
 
-// email을 비우면(null) 받을 주소를 지운다. 실패: NOTIFICATION_EMAIL_REQUIRED·INVALID_INPUT(400)
+// email을 비우면(null) 받을 주소를 지운다. 알림을 켜면 notifyD3·notifyDday 중 하나는 true여야 한다.
+// 실패: NOTIFICATION_EMAIL_REQUIRED·NOTIFICATION_TIMING_REQUIRED·INVALID_INPUT(400)
 export function saveNotificationSetting(body: NotificationSettingRequest) {
   return request<NotificationSetting>("/api/notification-settings", { method: "PUT", body });
 }

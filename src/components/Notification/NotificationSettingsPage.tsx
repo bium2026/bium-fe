@@ -31,7 +31,7 @@ const notifyTimes = Array.from({ length: 33 }, (_, index) => {
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 // 서버 문구가 무엇이 문제인지 알려 주는 오류는 그대로 보여 준다.
-const serverMessageCodes = ["INVALID_INPUT", "NOTIFICATION_EMAIL_REQUIRED", "NOTIFICATION_MAIL_FAILED", NETWORK_ERROR];
+const serverMessageCodes = ["INVALID_INPUT", "NOTIFICATION_EMAIL_REQUIRED", "NOTIFICATION_TIMING_REQUIRED", "NOTIFICATION_MAIL_FAILED", NETWORK_ERROR];
 
 function getErrorMessage(error: unknown, fallback: string) {
   if (error instanceof ApiError && serverMessageCodes.includes(error.code)) return error.message;
@@ -130,6 +130,8 @@ function SettingsForm({ saved, onSaved }: SettingsFormProps) {
     : EMAIL_PATTERN.test(email)
       ? ""
       : "이메일 형식이 올바르지 않아요.";
+  // 알림을 켜고 알릴 재료를 하나도 고르지 않으면 보낼 메일이 없다.
+  const timingError = form.enabled && !form.notifyD3 && !form.notifyDday ? "알릴 재료를 하나 이상 골라 주세요." : "";
   const isDirty = JSON.stringify({ ...form, email }) !== JSON.stringify({ ...toForm(saved), email: saved.email ?? "" });
 
   const change = (patch: Partial<NotificationSettingRequest>) => {
@@ -143,6 +145,10 @@ function SettingsForm({ saved, onSaved }: SettingsFormProps) {
     if (emailError) {
       setShowErrors(true);
       document.getElementById(`${id}-email`)?.focus();
+      return;
+    }
+    if (timingError) {
+      document.getElementById(`${id}-dday`)?.focus();
       return;
     }
     setIsSaving(true);
@@ -237,9 +243,9 @@ function SettingsForm({ saved, onSaved }: SettingsFormProps) {
           </select>
         </Field>
 
-        <Checks role="group" aria-label="알릴 재료">
+        <Checks role="group" aria-label="알릴 재료" aria-describedby={timingError ? `${id}-timing-hint` : undefined}>
           <CheckLabel $on={form.notifyDday}>
-            <input type="checkbox" checked={form.notifyDday} onChange={(event) => change({ notifyDday: event.target.checked })} />
+            <input id={`${id}-dday`} type="checkbox" checked={form.notifyDday} onChange={(event) => change({ notifyDday: event.target.checked })} />
             오늘까지인 재료 (D-day)
           </CheckLabel>
           <CheckLabel $on={form.notifyD3}>
@@ -247,6 +253,11 @@ function SettingsForm({ saved, onSaved }: SettingsFormProps) {
             3일 남은 재료 (D-3)
           </CheckLabel>
         </Checks>
+        {timingError && (
+          <Hint id={`${id}-timing-hint`} $error>
+            {timingError}
+          </Hint>
+        )}
       </Fieldset>
 
       {saved.lastSentDate && <LastSent>마지막으로 보낸 날: {formatDate(saved.lastSentDate)}</LastSent>}
