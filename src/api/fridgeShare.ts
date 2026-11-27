@@ -24,7 +24,18 @@ export type FridgeMember = {
 
 // MOVE는 재료를 다른 칸으로 옮긴 기록이다. 같은 칸 안에서 순서만 바꾸면 남지 않는다.
 // REMOVE는 주인이 멤버를 내보낸 기록이다. 스스로 나간 기록은 LEAVE다.
-export type ActivityAction = "ADD" | "UPDATE" | "MOVE" | "DELETE" | "DEDUCT" | "RESTORE" | "JOIN" | "LEAVE" | "REMOVE";
+// TRANSFER_OWNER는 주인이 다른 멤버에게 주인을 넘긴 기록이다.
+export type ActivityAction =
+  | "ADD"
+  | "UPDATE"
+  | "MOVE"
+  | "DELETE"
+  | "DEDUCT"
+  | "RESTORE"
+  | "JOIN"
+  | "LEAVE"
+  | "REMOVE"
+  | "TRANSFER_OWNER";
 
 export type Activity = {
   id: number;
@@ -36,7 +47,8 @@ export type Activity = {
   cookingLogId: number | null;
   // 이미 되돌린 요리면 true
   undone: boolean;
-  // 내보내진 멤버의 닉네임. 내보낸 기록(REMOVE)에만 값이 있고 nickname은 내보낸 주인이다.
+  // 내보낸 기록(REMOVE)이면 내보내진 멤버, 주인을 넘긴 기록(TRANSFER_OWNER)이면 새 주인의 닉네임이다. nickname은 그 일을 한 주인이다.
+  // 나머지 기록은 null이다.
   targetNickname: string | null;
   createdAt: string;
 };
@@ -69,6 +81,12 @@ export function getFridgeMembers(fridgeId: number) {
 // 실패: FRIDGE_OWNER_ONLY(403), FRIDGE_NOT_FOUND·FRIDGE_MEMBER_NOT_FOUND(404), OWNER_CANNOT_LEAVE(409)
 export function removeFridgeMember(fridgeId: number, userId: number) {
   return requestNoContent(`/api/fridges/${fridgeId}/members/${userId}`, { method: "DELETE" });
+}
+
+// 주인만 지금 멤버에게 넘길 수 있다. 넘기면 나는 멤버가 되고, 넘긴 뒤의 멤버 목록(새 주인이 맨 앞)을 준다.
+// 실패: FRIDGE_OWNER_ONLY(403), FRIDGE_NOT_FOUND·FRIDGE_MEMBER_NOT_FOUND(404), ALREADY_FRIDGE_OWNER(409)
+export function transferFridgeOwner(fridgeId: number, userId: number) {
+  return request<FridgeMember[]>(`/api/fridges/${fridgeId}/members/${userId}/owner`, { method: "PUT" });
 }
 
 // 실패: FRIDGE_NOT_FOUND(404), OWNER_CANNOT_LEAVE(409)
