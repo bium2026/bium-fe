@@ -1,12 +1,17 @@
 /*
- * 식재료 도감에 새 재료를 추가하는 모달이다.
- * 이름, 아이콘, 카테고리, 기본 유통기한을 받고, 칸을 벗어나거나 추가를 누르면 형식을 검사해 알려 준다.
- * 추가가 끝날 때까지 버튼을 막고, 실패하면 모달을 연 채로 오류를 보여 준다.
+ * 식재료 도감에 새 재료를 추가하거나, 내가 추가한 재료를 고치는 모달이다.
+ * 이름, 아이콘, 카테고리, 기본 유통기한을 받고, 칸을 벗어나거나 추가·저장을 누르면 형식을 검사해 알려 준다.
+ * 고칠 때는 그 재료의 값으로 채워 두고 시작한다.
+ * 요청이 끝날 때까지 버튼을 막고, 실패하면 모달을 연 채로 오류를 보여 준다.
  */
 import { useId, useState } from "react";
 import type { FormEvent } from "react";
 import { ApiError, NETWORK_ERROR } from "../../api/client";
-import type { CatalogIngredientCreateRequest, IngredientCategory } from "../../api/ingredientCatalog";
+import type {
+  CatalogIngredient,
+  CatalogIngredientCreateRequest,
+  IngredientCategory,
+} from "../../api/ingredientCatalog";
 import { categoryLabel, categoryOrder } from "./libraryCategories";
 import LibraryModal, { ModalError, ModalField } from "./LibraryModal";
 import {
@@ -23,10 +28,13 @@ import { playSound } from "../../sound/soundEffects";
 
 type IngredientAddModalProps = {
   open: boolean;
+  // 고칠 재료. 없으면 새 재료를 추가한다.
+  ingredient?: CatalogIngredient | null;
   defaultCategory: IngredientCategory;
+  // 이미 도감에 있는 이름. 고칠 때는 그 재료의 이름을 빼고 넘긴다.
   existingNames: string[];
   onClose: () => void;
-  onAdd: (values: CatalogIngredientCreateRequest) => Promise<void>;
+  onSubmit: (values: CatalogIngredientCreateRequest) => Promise<void>;
 };
 
 type AddField = "name" | "icon" | "shelfLifeDays";
@@ -43,26 +51,36 @@ const defaultIcon: Record<IngredientCategory, string> = {
   ETC: "🍽️",
 };
 
-function getAddErrorMessage(error: unknown) {
-  // INVALID_INPUT은 서버가 검증에 실패한 첫 번째 항목의 안내 문구를 보낸다.
-  if (error instanceof ApiError && (error.code === "INVALID_INPUT" || error.code === NETWORK_ERROR)) {
-    return error.message;
-  }
-  return "추가하지 못했어요. 잠시 후 다시 시도해 주세요.";
+// INVALID_INPUT은 서버가 검증에 실패한 첫 번째 항목의 안내 문구를, CATALOG_NOT_FOUND는 다른 기기에서 지운 재료라고 알려 준다.
+const serverMessageCodes = ["INVALID_INPUT", "CATALOG_NOT_FOUND", NETWORK_ERROR];
+
+function getSubmitErrorMessage(error: unknown, isEdit: boolean) {
+  if (error instanceof ApiError && serverMessageCodes.includes(error.code)) return error.message;
+  return isEdit ? "저장하지 못했어요. 잠시 후 다시 시도해 주세요." : "추가하지 못했어요. 잠시 후 다시 시도해 주세요.";
 }
 
-function IngredientAddModal({ open, defaultCategory, existingNames, onClose, onAdd }: IngredientAddModalProps) {
+function IngredientAddModal({
+  open,
+  ingredient = null,
+  defaultCategory,
+  existingNames,
+  onClose,
+  onSubmit,
+}: IngredientAddModalProps) {
   const [isBusy, setIsBusy] = useState(false);
 
   return (
-    <LibraryModal open={open} title="새 재료 추가" busy={isBusy} onClose={onClose}>
+    <LibraryModal open={open} title={ingredient ? "재료 수정" : "새 재료 추가"} busy={isBusy} onClose={onClose}>
       <IngredientAddForm
+        // 다른 재료를 열면 입력값을 그 재료 기준으로 처음부터 다시 채운다.
+        key={ingredient?.id ?? "new"}
+        ingredient={ingredient}
         defaultCategory={defaultCategory}
         existingNames={existingNames}
         isBusy={isBusy}
         onBusyChange={setIsBusy}
         onClose={onClose}
-        onAdd={onAdd}
+        onSubmit={onSubmit}
       />
     </LibraryModal>
   );
@@ -71,27 +89,30 @@ function IngredientAddModal({ open, defaultCategory, existingNames, onClose, onA
 export default IngredientAddModal;
 
 type IngredientAddFormProps = {
+  ingredient: CatalogIngredient | null;
   defaultCategory: IngredientCategory;
   existingNames: string[];
   isBusy: boolean;
   onBusyChange: (isBusy: boolean) => void;
   onClose: () => void;
-  onAdd: (values: CatalogIngredientCreateRequest) => Promise<void>;
+  onSubmit: (values: CatalogIngredientCreateRequest) => Promise<void>;
 };
 
 function IngredientAddForm({
+  ingredient,
   defaultCategory,
   existingNames,
   isBusy,
   onBusyChange,
   onClose,
-  onAdd,
+  onSubmit,
 }: IngredientAddFormProps) {
   const id = useId();
-  const [name, setName] = useState("");
-  const [icon, setIcon] = useState(defaultIcon[defaultCategory]);
-  const [category, setCategory] = useState(defaultCategory);
-  const [shelfLifeDays, setShelfLifeDays] = useState("7");
+  const isEdit = ingredient !== null;
+  const [name, setName] = useState(ingredient?.name ?? "");
+  const [icon, setIcon] = useState(ingredient?.emoji ?? defaultIcon[defaultCategory]);
+  const [category, setCategory] = useState(ingredient?.category ?? defaultCategory);
+  const [shelfLifeDays, setShelfLifeDays] = useState(String(ingredient?.shelfLifeDays ?? 7));
   const [touched, setTouched] = useState<Partial<Record<AddField, boolean>>>({});
   const [submitted, setSubmitted] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
@@ -136,7 +157,7 @@ function IngredientAddForm({
     onBusyChange(true);
     setErrorMessage("");
     try {
-      await onAdd({ name: trimmedName, emoji: trimmedIcon, category, shelfLifeDays: days });
+      await onSubmit({ name: trimmedName, emoji: trimmedIcon, category, shelfLifeDays: days });
       playSound("success");
       onBusyChange(false);
       onClose();
@@ -146,7 +167,7 @@ function IngredientAddForm({
       if (error instanceof ApiError && error.code === "DUPLICATE_CATALOG_NAME") {
         setTakenName(trimmedName);
       } else {
-        setErrorMessage(getAddErrorMessage(error));
+        setErrorMessage(getSubmitErrorMessage(error, isEdit));
       }
     }
   };
@@ -219,7 +240,7 @@ function IngredientAddForm({
           닫기
         </ModalButton>
         <ModalButton type="submit" $primary disabled={!canSubmit}>
-          {isBusy ? "추가하는 중..." : "추가"}
+          {isEdit ? (isBusy ? "저장하는 중..." : "저장") : isBusy ? "추가하는 중..." : "추가"}
         </ModalButton>
       </ModalActions>
     </ModalForm>

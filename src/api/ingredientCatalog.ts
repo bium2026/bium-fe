@@ -48,6 +48,13 @@ export function createCatalogIngredient(body: CatalogIngredientCreateRequest) {
   return request<CatalogIngredient>("/api/ingredient-catalogs", { method: "POST", body });
 }
 
+// 내가 추가한 재료만 고칠 수 있다. 검사 규칙은 추가할 때와 같고, 고친 재료를 돌려준다.
+// 이 재료로 넣은 냉장고 재료·장본 음식의 이름과 아이콘은 그대로다.
+// 실패: INVALID_INPUT(400), CATALOG_NOT_FOUND(404, 기본 재료 포함), DUPLICATE_CATALOG_NAME(409)
+export function updateCatalogIngredient(catalogId: number, body: CatalogIngredientCreateRequest) {
+  return request<CatalogIngredient>(`/api/ingredient-catalogs/${catalogId}`, { method: "PUT", body });
+}
+
 // 기본 재료는 지울 수 없어서 CATALOG_NOT_FOUND가 온다.
 // 실패: CATALOG_NOT_FOUND(404)
 export function deleteCatalogIngredient(catalogId: number) {

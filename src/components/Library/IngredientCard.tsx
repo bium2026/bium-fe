@@ -3,14 +3,15 @@
  * 장본 음식에 담기는 서버에 담길 때까지 버튼을 막고, 담기면 잠깐 "담았어요"로 바꾼다. 실패하면 버튼 아래에 알린다.
  * 냉장고에 넣기는 화면의 모달을 열고, 넣고 나면 화면이 isFridgeAdded로 잠깐 "넣었어요"를 보여 주게 한다.
  * 삭제는 카드 위에서 한 번 더 확인하고, 실패하면 확인 영역에 오류를 보여 다시 시도하게 한다.
- * 공용 도감의 기본 재료는 지울 수 없어서 삭제 버튼 대신 "기본" 표시를 둔다.
+ * 공용 도감의 기본 재료는 고치거나 지울 수 없어서 수정·삭제 버튼 대신 "기본" 표시를 둔다.
+ * 내가 추가한 재료는 연필 버튼으로 수정 모달을 연다.
  * 사진 버튼으로 아이콘을 이모지 대신 사진으로 바꾸는 모달을 연다. 기본 재료의 사진은 나에게만 보인다.
  * 별 버튼으로 즐겨찾기를 켜고 끈다. 서버에 반영될 때까지 버튼을 막고, 실패하면 버튼 아래에 알린다.
  */
 import { useEffect, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
 import styled from "@emotion/styled";
-import { Check, ImagePlus, Plus, Refrigerator, Star, Trash2 } from "lucide-react";
+import { Check, ImagePlus, Pencil, Plus, Refrigerator, Star, Trash2 } from "lucide-react";
 import type { CatalogIngredient } from "../../api/ingredientCatalog";
 import IngredientIcon from "../Common/IngredientIcon";
 import { playSound } from "../../sound/soundEffects";
@@ -23,6 +24,7 @@ type IngredientCardProps = {
   onAddToGroceries: (ingredient: CatalogIngredient) => Promise<void>;
   onOpenFridgeAdd: (ingredient: CatalogIngredient) => void;
   onOpenImage: (ingredient: CatalogIngredient) => void;
+  onOpenEdit: (ingredient: CatalogIngredient) => void;
   onDelete: (ingredient: CatalogIngredient) => Promise<void>;
   onToggleFavorite: (ingredient: CatalogIngredient) => Promise<void>;
 };
@@ -42,6 +44,7 @@ function IngredientCard({
   onAddToGroceries,
   onOpenFridgeAdd,
   onOpenImage,
+  onOpenEdit,
   onDelete,
   onToggleFavorite,
 }: IngredientCardProps) {
@@ -145,16 +148,27 @@ function IngredientCard({
           {ingredient.basic ? (
             <BasicBadge>기본</BasicBadge>
           ) : (
-            <DeleteButton
-              ref={deleteButtonRef}
-              type="button"
-              aria-label={`${ingredient.name} 도감에서 삭제`}
-              onClick={() => setIsConfirmingDelete(true)}
-              // 확인 영역은 화면만 덮으므로, 가려진 버튼에 키보드로 닿지 않게 확인하는 동안 막는다.
-              disabled={isConfirmingDelete}
-            >
-              <Trash2 size={16} aria-hidden="true" />
-            </DeleteButton>
+            <>
+              <EditButton
+                type="button"
+                aria-label={`${ingredient.name} 수정`}
+                title="수정"
+                onClick={() => onOpenEdit(ingredient)}
+                disabled={isConfirmingDelete}
+              >
+                <Pencil size={16} aria-hidden="true" />
+              </EditButton>
+              <DeleteButton
+                ref={deleteButtonRef}
+                type="button"
+                aria-label={`${ingredient.name} 도감에서 삭제`}
+                onClick={() => setIsConfirmingDelete(true)}
+                // 확인 영역은 화면만 덮으므로, 가려진 버튼에 키보드로 닿지 않게 확인하는 동안 막는다.
+                disabled={isConfirmingDelete}
+              >
+                <Trash2 size={16} aria-hidden="true" />
+              </DeleteButton>
+            </>
           )}
         </TopActions>
       </CardTop>
@@ -251,10 +265,13 @@ const Card = styled.article`
   }
 `;
 
+// 수정 버튼까지 놓이면 모바일의 두 줄 카드에서 버튼 줄이 넘치므로, 좁으면 버튼 줄을 아이콘 아래로 내린다.
 const CardTop = styled.div`
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-start;
   justify-content: space-between;
+  gap: 4px;
   margin-bottom: 4px;
 `;
 
@@ -330,6 +347,8 @@ const PhotoButton = styled.button`
     opacity: 0.3;
   }
 `;
+
+const EditButton = styled(PhotoButton)``;
 
 // 사진 버튼이 생겨 윗줄이 좁아져도 "기본"이 한 글자씩 꺾이지 않게 줄바꿈과 줄어듦을 막는다.
 const BasicBadge = styled.span`
