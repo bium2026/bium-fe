@@ -3,24 +3,31 @@
  * 재료마다 산 날과 구매 주기로 서버가 계산한 다음 구매 날짜를 월 달력에 보여 주고, 날짜를 누르면 그날 살 재료를 보여 준다.
  * 다음 구매일이 이미 지난 재료는 달력에 놓을 수 없어 달력 위에 따로 모은다.
  * 같은 날 산 재료들의 구매 주기가 다시 겹치는 날은 피버타임으로 표시한다.
+ * 고른 날 살 재료는 장보기 목록에 한 번에 담을 수 있다. 이미 목록에 있는 재료는 서버가 건너뛴다.
  * 날짜는 모두 지역 날짜 "yyyy-MM-dd" 문자열로 다뤄 시간대 때문에 하루씩 어긋나지 않게 한다.
  * 부르는 쪽이 냉장고마다 key를 바꿔 새로 그리므로, 냉장고를 바꿔도 이전 냉장고 응답이 남지 않는다.
  */
 import { useEffect, useState } from "react";
 import { keyframes } from "@emotion/react";
 import styled from "@emotion/styled";
-import { ChevronLeft, ChevronRight, Flame, ShoppingBasket } from "lucide-react";
+import { ChevronLeft, ChevronRight, Flame, ListPlus, ShoppingBasket } from "lucide-react";
 import { ApiError, NETWORK_ERROR } from "../../api/client";
 import type { DayOfWeek } from "../../api/fridge";
 import { getPurchaseSchedule } from "../../api/purchaseSchedule";
 import type { PurchaseScheduleItem } from "../../api/purchaseSchedule";
+import type { ShoppingListItem } from "../../api/shoppingList";
 import { pickFridge, useFridgeStore } from "../../store/fridgeStore";
 import { getDaysLeft } from "../Fridge/fridgeLayout";
 import { formatDate, getDateAfter } from "../Library/libraryDate";
+import { playSound } from "../../sound/soundEffects";
 
 type PurchaseCalendarProps = {
   fridgeId: number;
+  // 장보기 목록을 가진 화면이 담고 목록을 바꾼다. 새로 담은 재료를 돌려주고, 실패하면 던진다.
+  onAddToList: (names: string[]) => Promise<ShoppingListItem[]>;
 };
+
+type AddResult = { date: string; text: string; error: boolean };
 
 type ScheduleState =
   | { status: "loading" }
@@ -111,7 +118,18 @@ function ItemIcon({ item }: { item: PurchaseScheduleItem }) {
   return item.emoji ? <span aria-hidden="true">{item.emoji}</span> : <ShoppingBasket size={14} aria-hidden="true" />;
 }
 
-function PurchaseCalendar({ fridgeId }: PurchaseCalendarProps) {
+function getAddErrorMessage(error: unknown) {
+  if (error instanceof ApiError && (error.status === 400 || error.code === NETWORK_ERROR)) return error.message;
+  return "장보기 목록에 담지 못했어요. 다시 눌러 주세요.";
+}
+
+function getAddResultText(addedCount: number, total: number) {
+  if (addedCount === 0) return "이미 장보기 목록에 모두 있어요.";
+  if (addedCount === total) return `${addedCount}개를 장보기 목록에 담았어요.`;
+  return `${addedCount}개를 장보기 목록에 담았어요. ${total - addedCount}개는 이미 목록에 있어요.`;
+}
+
+function PurchaseCalendar({ fridgeId, onAddToList }: PurchaseCalendarProps) {
   // 장보는 요일은 장보는 날 카드가 바꾸므로 그 카드와 같이 스토어에서 읽어야 바로 따라 바뀐다.
   const shoppingDay = useFridgeStore((state) =>
     state.list.status === "success" ? (pickFridge(state.list.fridges, state.selectedFridgeId)?.shoppingDay ?? null) : null,
@@ -121,6 +139,9 @@ function PurchaseCalendar({ fridgeId }: PurchaseCalendarProps) {
   const [viewMonth, setViewMonth] = useState<Month>(() => getMonthOf(getDateAfter(0)));
   // null이거나 보고 있는 달 밖이면 그 달의 가장 가까운 예정일을 보여 준다.
   const [pickedDate, setPickedDate] = useState<string | null>(null);
+  const [isAdding, setIsAdding] = useState(false);
+  // 담은 결과는 그 날짜를 보고 있을 때만 보여 준다.
+  const [addResult, setAddResult] = useState<AddResult | null>(null);
 
   useEffect(() => {
     let ignore = false;
@@ -209,6 +230,24 @@ function PurchaseCalendar({ fridgeId }: PurchaseCalendarProps) {
   const moveMonth = (offset: number) => {
     const moved = new Date(viewMonth.year, viewMonth.month + offset, 1);
     setViewMonth({ year: moved.getFullYear(), month: moved.getMonth() });
+  };
+
+  const handleAddToList = async () => {
+    if (isAdding || selectedItems.length === 0) return;
+    const date = selectedDate;
+    const names = selectedItems.map((item) => item.name);
+    setIsAdding(true);
+    setAddResult(null);
+    try {
+      const added = await onAddToList(names);
+      playSound(added.length > 0 ? "success" : "toggleOff");
+      setAddResult({ date, text: getAddResultText(added.length, names.length), error: false });
+    } catch (error) {
+      playSound("error");
+      setAddResult({ date, text: getAddErrorMessage(error), error: true });
+    } finally {
+      setIsAdding(false);
+    }
   };
 
   const showFeverDate = (dateKey: string) => {
@@ -333,6 +372,15 @@ function PurchaseCalendar({ fridgeId }: PurchaseCalendarProps) {
               </li>
             ))}
           </ul>
+        )}
+        {selectedItems.length > 0 && (
+          <AddButton type="button" aria-disabled={isAdding || undefined} onClick={handleAddToList}>
+            <ListPlus size={16} aria-hidden="true" />
+            {isAdding ? "담는 중..." : "장보기 목록에 담기"}
+          </AddButton>
+        )}
+        {addResult?.date === selectedDate && (
+          <AddMessage role={addResult.error ? "alert" : "status"}>{addResult.text}</AddMessage>
         )}
       </Selected>
     </Card>
@@ -628,6 +676,38 @@ const Selected = styled.div`
   li span:last-child {
     font-weight: 330;
   }
+`;
+
+const AddButton = styled.button`
+  justify-self: start;
+  min-height: 40px;
+  border: 1px solid var(--text);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  padding: 8px 16px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 480;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--block-lime);
+  }
+
+  &[aria-disabled="true"] {
+    cursor: wait;
+    opacity: 0.45;
+  }
+`;
+
+const AddMessage = styled.p`
+  font-size: 13px;
+  font-weight: 480;
+  line-height: 1.5;
+  word-break: keep-all;
 `;
 
 const StatusBox = styled.div`

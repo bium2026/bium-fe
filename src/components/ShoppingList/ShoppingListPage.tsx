@@ -15,6 +15,7 @@ import { getMyFridge } from "../../api/fridge";
 import type { Fridge } from "../../api/fridge";
 import {
   addShoppingListItem,
+  addShoppingListItems,
   clearCheckedShoppingListItems,
   getShoppingListItems,
   removeShoppingListItem,
@@ -198,6 +199,20 @@ function ShoppingListPage() {
     }
   };
 
+  // 달력에서 고른 날의 재료를 담는다. 서버가 이미 안 산 상태로 있는 재료를 건너뛰고 새로 담은 것만 주므로 그것만 넣는다.
+  // 실패하면 달력이 오류를 보여 주도록 그대로 던진다.
+  const handleAddMany = async (names: string[]) => {
+    if (page.status !== "success") return [];
+    try {
+      const added = await addShoppingListItems(page.fridge.id, names);
+      updateItems((prev) => [...added, ...prev.filter((item) => !added.some((addedItem) => addedItem.id === item.id))]);
+      return added;
+    } catch (error) {
+      if (isFridgeGone(error)) setPage(getErrorState(error));
+      throw error;
+    }
+  };
+
   // 실패하면 입력칸이 오류를 보여 주도록 그대로 던진다. 이미 빠졌거나 그사이 바뀐 재료면 목록을 새로 불러오고 입력칸을 닫는다.
   const handleRename = async (item: ShoppingListItem, name: string) => {
     try {
@@ -363,7 +378,7 @@ function ShoppingListPage() {
           </ShoppingSection>
         </Memo>
         {/* 냉장고가 바뀌면 key로 새로 그려, 이전 냉장고의 일정과 늦게 온 응답이 남지 않게 한다. */}
-        <PurchaseCalendar key={page.fridge.id} fridgeId={page.fridge.id} />
+        <PurchaseCalendar key={page.fridge.id} fridgeId={page.fridge.id} onAddToList={handleAddMany} />
       </Board>
     );
   };

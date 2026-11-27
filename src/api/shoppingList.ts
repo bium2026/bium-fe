@@ -49,6 +49,17 @@ export function addShoppingListItem(fridgeId: number, name: string) {
   });
 }
 
+// 다음 구매 날짜 달력에서 고른 날의 재료처럼 여러 재료(1~30개)를 담고, 새로 담은 것만 돌려준다.
+// 안 산 상태로 같은 이름(공백 무시)이 이미 있으면 건너뛴다. 이미 산 재료는 다시 담는다.
+// 실패: INVALID_INPUT(400), FRIDGE_NOT_FOUND(404)
+export async function addShoppingListItems(fridgeId: number, names: string[]) {
+  const { items } = await request<ShoppingListItemsResponse>(`/api/fridges/${fridgeId}/shopping-list-items/bulk`, {
+    method: "POST",
+    body: { names },
+  });
+  return items;
+}
+
 // 토글이 아니라 보낸 값으로 맞추므로 두 번 보내도 결과가 같다.
 // 실패: SHOPPING_LIST_ITEM_NOT_FOUND(404)
 export function setShoppingListItemChecked(itemId: number, checked: boolean) {
