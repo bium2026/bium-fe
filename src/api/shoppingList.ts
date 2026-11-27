@@ -58,6 +58,15 @@ export function setShoppingListItemChecked(itemId: number, checked: boolean) {
   });
 }
 
+// 이름 규칙은 담기와 같고, 같은 이름이 목록에 있어도 고친다. 체크 여부·레시피는 그대로다.
+// 실패: INVALID_INPUT(400), SHOPPING_LIST_ITEM_NOT_FOUND(404)
+export function renameShoppingListItem(itemId: number, name: string) {
+  return request<ShoppingListItem>(`/api/shopping-list-items/${itemId}/name`, {
+    method: "PATCH",
+    body: { name },
+  });
+}
+
 // 실패: SHOPPING_LIST_ITEM_NOT_FOUND(404)
 export function removeShoppingListItem(itemId: number) {
   return requestNoContent(`/api/shopping-list-items/${itemId}`, { method: "DELETE" });

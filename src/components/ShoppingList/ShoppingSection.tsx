@@ -1,16 +1,30 @@
 /*
  * 장보기 목록의 한 묶음(살 것 또는 산 것)이다.
- * 재료마다 산 것 체크와 빼기 버튼을 두고, 레시피의 부족 재료로 담긴 재료에는 그 레시피를 함께 보여 준다.
+ * 재료마다 산 것 체크와 이름 고치기·빼기 버튼을 두고, 레시피의 부족 재료로 담긴 재료에는 그 레시피를 함께 보여 준다.
+ * 이름 고치기는 그 자리에서 입력칸으로 바꿔, 서버에 저장된 뒤에만 이름을 바꾼다.
  * 시세가 있는 재료에는 KAMIS 소매가 시세와 1주 전과의 차이를 보여 준다.
  * 요청 중인 재료는 버튼을 잠그고, 요청에 실패한 재료 아래에 오류를 보여 준다.
  */
-import { useId } from "react";
-import type { ReactNode, RefObject } from "react";
+import { useId, useState } from "react";
+import type { FormEvent, ReactNode, RefObject } from "react";
 import { keyframes } from "@emotion/react";
 import styled from "@emotion/styled";
-import { Check, ChefHat, Minus, TrendingDown, TrendingUp, X } from "lucide-react";
+import { Check, ChefHat, Minus, Pencil, TrendingDown, TrendingUp, X } from "lucide-react";
 import { Link } from "react-router";
+import { ApiError, NETWORK_ERROR } from "../../api/client";
 import type { MarketPrice, ShoppingListItem } from "../../api/shoppingList";
+import { playSound } from "../../sound/soundEffects";
+
+// 백엔드 검사(1~50자)와 같은 기준이다.
+const NAME_MAX_LENGTH = 50;
+
+// 입력 오류와 연결 오류는 서버 문구가 무엇을 고칠지 알려 주므로 그대로 보여 준다.
+function getRenameErrorMessage(error: unknown) {
+  if (error instanceof ApiError && (error.status === 400 || error.code === NETWORK_ERROR)) {
+    return error.message;
+  }
+  return "이름을 고치지 못했어요. 잠시 후 다시 시도해 주세요.";
+}
 
 // "2026-11-10" -> "11.10"
 function formatSurveyDate(surveyDate: string) {
@@ -38,6 +52,8 @@ type ShoppingSectionProps = {
   muted?: boolean;
   onToggle: (item: ShoppingListItem, checked: boolean) => void;
   onRemove: (item: ShoppingListItem) => void;
+  // 실패하면 입력칸이 오류를 보여 주도록 던진다.
+  onRename: (item: ShoppingListItem, name: string) => Promise<void>;
   // 살 것 묶음 위쪽에 담기 입력칸을 넣는다.
   children?: ReactNode;
 };
@@ -52,9 +68,17 @@ function ShoppingSection({
   muted = false,
   onToggle,
   onRemove,
+  onRename,
   children,
 }: ShoppingSectionProps) {
   const titleId = useId();
+  const [editingId, setEditingId] = useState<number | null>(null);
+
+  // 고치기를 마치면 입력칸이 사라지므로 그 재료의 고치기 버튼으로 포커스를 돌려놓는다.
+  const finishEditing = (itemId: number) => {
+    setEditingId(null);
+    requestAnimationFrame(() => document.getElementById(`${titleId}-${itemId}-edit`)?.focus());
+  };
 
   return (
     <Panel aria-labelledby={titleId} $muted={muted}>
@@ -73,6 +97,20 @@ function ShoppingSection({
             const isPending = pendingIds.includes(item.id);
             const error = itemErrors[item.id];
             const errorId = `${titleId}-${item.id}-error`;
+            if (editingId === item.id) {
+              return (
+                <Item key={item.id} $editing>
+                  <NameEditor
+                    item={item}
+                    onSave={async (name) => {
+                      await onRename(item, name);
+                      finishEditing(item.id);
+                    }}
+                    onCancel={() => finishEditing(item.id)}
+                  />
+                </Item>
+              );
+            }
             return (
               <Item key={item.id}>
                 <ItemMain>
@@ -114,20 +152,112 @@ function ShoppingSection({
                   )}
                 </ItemMain>
 
-                <RemoveButton
-                  type="button"
-                  aria-label={`${item.name} 장보기 목록에서 빼기`}
-                  aria-disabled={isPending || undefined}
-                  onClick={() => onRemove(item)}
-                >
-                  <X size={16} aria-hidden="true" />
-                </RemoveButton>
+                <Actions>
+                  <IconButton
+                    id={`${titleId}-${item.id}-edit`}
+                    type="button"
+                    aria-label={`${item.name} 이름 고치기`}
+                    aria-disabled={isPending || undefined}
+                    $hover="var(--block-lime)"
+                    onClick={() => {
+                      if (!isPending) setEditingId(item.id);
+                    }}
+                  >
+                    <Pencil size={15} aria-hidden="true" />
+                  </IconButton>
+                  <IconButton
+                    type="button"
+                    aria-label={`${item.name} 장보기 목록에서 빼기`}
+                    aria-disabled={isPending || undefined}
+                    $hover="var(--block-pink)"
+                    onClick={() => onRemove(item)}
+                  >
+                    <X size={16} aria-hidden="true" />
+                  </IconButton>
+                </Actions>
               </Item>
             );
           })}
         </List>
       )}
     </Panel>
+  );
+}
+
+type NameEditorProps = {
+  item: ShoppingListItem;
+  onSave: (name: string) => Promise<void>;
+  onCancel: () => void;
+};
+
+// 앞뒤 공백을 지운 이름이 비었거나 50자를 넘으면 저장을 막는다. 이름이 그대로면 저장하지 않고 닫는다.
+function NameEditor({ item, onSave, onCancel }: NameEditorProps) {
+  const messageId = useId();
+  const [value, setValue] = useState(item.name);
+  const [isSaving, setIsSaving] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+
+  const name = value.trim();
+  const isTooLong = name.length > NAME_MAX_LENGTH;
+  const message = !name
+    ? "재료 이름을 입력해 주세요."
+    : isTooLong
+      ? `재료 이름은 ${NAME_MAX_LENGTH}자까지 쓸 수 있어요.`
+      : errorMessage;
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (isSaving || !name || isTooLong) return;
+    if (name === item.name) {
+      onCancel();
+      return;
+    }
+    setIsSaving(true);
+    setErrorMessage("");
+    try {
+      await onSave(name);
+      playSound("success");
+    } catch (error) {
+      playSound("error");
+      setErrorMessage(getRenameErrorMessage(error));
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <EditForm onSubmit={handleSubmit} noValidate>
+      <EditRow>
+        <EditInput
+          value={value}
+          autoFocus
+          aria-label={`${item.name} 새 이름`}
+          autoComplete="off"
+          // 요청 중에도 포커스가 빠지지 않게 disabled 대신 읽기 전용으로 막는다.
+          readOnly={isSaving}
+          aria-invalid={message ? true : undefined}
+          aria-describedby={message ? messageId : undefined}
+          $invalid={Boolean(message)}
+          onChange={(event) => {
+            setValue(event.target.value);
+            setErrorMessage("");
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Escape" && !isSaving) onCancel();
+          }}
+        />
+        <SaveButton type="submit" disabled={!name || isTooLong} aria-disabled={isSaving || undefined}>
+          {isSaving ? "저장하는 중..." : "저장"}
+        </SaveButton>
+        <CancelButton type="button" disabled={isSaving} onClick={onCancel}>
+          취소
+        </CancelButton>
+      </EditRow>
+      {message && (
+        <EditError id={messageId} role="alert">
+          {message}
+        </EditError>
+      )}
+    </EditForm>
   );
 }
 
@@ -205,13 +335,18 @@ const List = styled.ul`
   }
 `;
 
-const Item = styled.li`
+const Item = styled.li<{ $editing?: boolean }>`
   min-height: 52px;
   padding: 6px 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 36px;
+  grid-template-columns: ${(props) => (props.$editing ? "minmax(0, 1fr)" : "minmax(0, 1fr) auto")};
   align-items: center;
   gap: 12px;
+`;
+
+const Actions = styled.div`
+  display: flex;
+  gap: 2px;
 `;
 
 const ItemMain = styled.div`
@@ -363,22 +498,98 @@ const ItemError = styled.p`
   word-break: keep-all;
 `;
 
-const RemoveButton = styled.button`
+const IconButton = styled.button<{ $hover: string }>`
   width: 36px;
   height: 36px;
   border: 0;
   border-radius: 999px;
   background: transparent;
+  color: var(--text);
   display: grid;
   place-items: center;
   cursor: pointer;
 
   &:hover {
-    background: var(--block-pink);
+    background: ${(props) => props.$hover};
   }
 
   &[aria-disabled="true"] {
     cursor: not-allowed;
     opacity: 0.3;
   }
+`;
+
+const EditForm = styled.form`
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 6px;
+`;
+
+const EditRow = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+`;
+
+const EditInput = styled.input<{ $invalid: boolean }>`
+  flex: 1 1 160px;
+  min-width: 0;
+  min-height: 40px;
+  border: 1px solid ${(props) => (props.$invalid ? "var(--block-pink)" : "var(--border)")};
+  border-radius: 8px;
+  background: ${(props) => (props.$invalid ? "var(--block-pink)" : "var(--surface)")};
+  color: var(--text);
+  padding: 8px 12px;
+  font-size: 16px;
+  font-weight: 330;
+
+  &:read-only {
+    background: var(--surface-soft);
+    cursor: wait;
+  }
+`;
+
+const SaveButton = styled.button`
+  min-height: 40px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--text);
+  color: var(--surface);
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 480;
+  white-space: nowrap;
+  cursor: pointer;
+
+  &:disabled,
+  &[aria-disabled="true"] {
+    cursor: not-allowed;
+    opacity: 0.45;
+  }
+`;
+
+const CancelButton = styled.button`
+  min-height: 40px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  padding: 8px 14px;
+  font-size: 14px;
+  font-weight: 480;
+  white-space: nowrap;
+  cursor: pointer;
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.45;
+  }
+`;
+
+const EditError = styled.p`
+  padding-inline: 4px;
+  font-size: 12px;
+  font-weight: 540;
+  line-height: 1.4;
+  word-break: keep-all;
 `;

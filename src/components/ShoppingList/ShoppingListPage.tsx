@@ -3,7 +3,7 @@
  * 헤더에서 고른 냉장고의 장보기 목록을 불러와 살 것과 산 것으로 나눠 보여 준다.
  * 장보기 목록은 냉장고에 묶여 있어, 냉장고 멤버 누구나 같은 목록을 보고 담기·체크·빼기를 할 수 있다.
  * 체크와 빼기는 화면에 먼저 반영하고 서버 요청이 실패하면 되돌린다. 이미 빠졌거나 그사이 바뀐 재료면 목록을 새로 불러온다.
- * 담기는 서버에 담긴 뒤 응답으로 받은 재료를 넣는다.
+ * 담기와 이름 고치기는 서버에 저장된 뒤 응답으로 받은 재료로 바꾼다.
  */
 import { useEffect, useRef, useState } from "react";
 import { keyframes } from "@emotion/react";
@@ -16,6 +16,7 @@ import {
   addShoppingListItem,
   getShoppingListItems,
   removeShoppingListItem,
+  renameShoppingListItem,
   setShoppingListItemChecked,
 } from "../../api/shoppingList";
 import type { ShoppingListItem } from "../../api/shoppingList";
@@ -192,6 +193,19 @@ function ShoppingListPage() {
     }
   };
 
+  // 실패하면 입력칸이 오류를 보여 주도록 그대로 던진다. 이미 빠졌거나 그사이 바뀐 재료면 목록을 새로 불러오고 입력칸을 닫는다.
+  const handleRename = async (item: ShoppingListItem, name: string) => {
+    try {
+      const updated = await renameShoppingListItem(item.id, name);
+      updateItems((prev) => prev.map((prevItem) => (prevItem.id === item.id ? updated : prevItem)));
+      setAnnouncement(`${item.name}을(를) ${updated.name}(으)로 고쳤어요.`);
+    } catch (error) {
+      if (needsRefresh(error) && (await refreshAfterConflict(item))) return;
+      if (isFridgeGone(error)) setPage(getErrorState(error));
+      throw error;
+    }
+  };
+
   const handleRemove = async (item: ShoppingListItem) => {
     if (pendingIds.includes(item.id)) return;
     setPending(item.id, true);
@@ -269,6 +283,7 @@ function ShoppingListPage() {
             checkboxRefs={checkboxRefs}
             onToggle={handleToggle}
             onRemove={handleRemove}
+            onRename={handleRename}
           >
             <ShoppingAddForm onAdd={handleAdd} />
           </ShoppingSection>
@@ -282,6 +297,7 @@ function ShoppingListPage() {
             muted
             onToggle={handleToggle}
             onRemove={handleRemove}
+            onRename={handleRename}
           />
         </Memo>
         {/* 냉장고가 바뀌면 key로 새로 그려, 이전 냉장고의 일정과 늦게 온 응답이 남지 않게 한다. */}
