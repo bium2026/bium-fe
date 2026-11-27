@@ -6,6 +6,9 @@ import { request } from "./client";
 
 export type RecipeDifficulty = "EASY" | "NORMAL" | "HARD";
 
+// RECOMMEND: 냉장고 재료로 추천받은 레시피, TARGET: 만들고 싶은 음식으로 만든 레시피
+export type RecipeType = "RECOMMEND" | "TARGET";
+
 // FRIDGE: 냉장고에 있는 재료, BASIC: 소금·간장 같은 기본 양념,
 // MISSING: 냉장고에 없어서 사야 하는 재료 (만들고 싶은 음식 레시피에만 있다)
 export type IngredientSource = "FRIDGE" | "BASIC" | "MISSING";
@@ -26,6 +29,8 @@ export type RecipeNutrition = {
 
 export type Recipe = {
   id: number;
+  // 예전에 저장된 레시피는 null일 수 있다.
+  type: RecipeType | null;
   name: string;
   emoji: string | null;
   summary: string | null;
