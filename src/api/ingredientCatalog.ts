@@ -4,6 +4,7 @@
  * 목록에는 로그인한 사용자가 직접 추가한 재료와 공용 도감의 기본 재료(basic)가 함께 온다 (bium-be #51).
  */
 import { request } from "./client";
+import type { StorageType } from "./fridge";
 
 export type IngredientCategory = "VEGETABLE" | "MEAT" | "DAIRY" | "FRUIT" | "ETC";
 
@@ -15,6 +16,8 @@ export type CatalogIngredient = {
   // 이모지 대신 올린 사진 주소("/api/ingredient-images/..."). 없으면 null이고 emoji를 보여 준다.
   imageUrl: string | null;
   category: IngredientCategory;
+  // 냉장고에 넣을 때 처음 골라 둘 보관 위치. 기본 재료에 정해져 있고, 내가 추가한 재료는 null이다.
+  defaultStorage: StorageType | null;
   // 기본 유통기한(일)
   shelfLifeDays: number;
   // 공용 도감의 기본 재료. 냉장고에 넣거나 장본 음식에 담을 수 있지만 지울 수 없다.
@@ -23,7 +26,10 @@ export type CatalogIngredient = {
   favorite: boolean;
 };
 
-export type CatalogIngredientCreateRequest = Omit<CatalogIngredient, "id" | "imageUrl" | "basic" | "favorite">;
+export type CatalogIngredientCreateRequest = Omit<
+  CatalogIngredient,
+  "id" | "imageUrl" | "defaultStorage" | "basic" | "favorite"
+>;
 
 type CatalogListResponse = {
   ingredients: CatalogIngredient[];
