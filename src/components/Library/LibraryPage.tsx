@@ -2,7 +2,8 @@
  * 식재료 도감 화면이다.
  * 카테고리 탭과 검색으로 재료를 고르고, 재료를 추가·삭제하거나 장본 음식에 담는다.
  * 전체 탭에서는 카테고리별로 묶어 보여 주고, 고른 탭은 주소(?category=)에 남겨 새로고침해도 유지한다.
- * 도감과 내 냉장고, 그 냉장고의 장본 음식을 함께 불러오고, 장본 음식에 담거나 뺀 결과는 서버에 반영된 뒤 패널에 보인다.
+ * 도감과 내 냉장고·장본 음식을 따로 불러와, 냉장고나 장본 음식을 못 받아도 도감은 보여 준다.
+ * 장본 음식에 담거나 뺀 결과는 서버에 반영된 뒤 패널에 보인다.
  * 도감 재료를 고른 보관 위치에 바로 넣을 수도 있다.
  * 즐겨찾기한 재료는 전체 탭에서는 맨 위 즐겨찾기 묶음에 모이고, 카테고리 탭에서는 서버 순서대로 맨 앞에 온다.
  */
@@ -35,9 +36,15 @@ import { storageLabel } from "./libraryStorage";
 
 type CatalogState =
   | { status: "loading" }
-  // 연결된 냉장고가 없으면 fridgeId는 null이고, 장본 음식에 담거나 냉장고에 넣을 수 없다.
-  | { status: "success"; ingredients: CatalogIngredient[]; fridgeId: number | null }
+  | { status: "success"; ingredients: CatalogIngredient[] }
   | { status: "error"; message: string };
+
+// 내 냉장고와 그 장본 음식. 못 받으면 장본 음식 패널에서만 오류와 다시 시도를 보여 준다.
+type GroceryState =
+  | { status: "loading" }
+  // 연결된 냉장고가 없으면 fridgeId는 null이고, 장본 음식에 담거나 냉장고에 넣을 수 없다.
+  | { status: "success"; fridgeId: number | null }
+  | { status: "error" };
 
 const FRIDGE_ADDED_FEEDBACK_MS = 2000;
 
@@ -64,6 +71,8 @@ function LibraryPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [catalog, setCatalog] = useState<CatalogState>({ status: "loading" });
   const [loadAttempt, setLoadAttempt] = useState(0);
+  const [groceryLoad, setGroceryLoad] = useState<GroceryState>({ status: "loading" });
+  const [groceryAttempt, setGroceryAttempt] = useState(0);
   const [groceries, setGroceries] = useState<PurchasedItem[]>([]);
   const [query, setQuery] = useState("");
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -81,11 +90,9 @@ function LibraryPage() {
 
   useEffect(() => {
     let ignore = false;
-    Promise.all([getMyCatalog(), getFridgeWithGroceries()]).then(
-      ([ingredients, { fridgeId, groceries }]) => {
-        if (ignore) return;
-        setCatalog({ status: "success", ingredients, fridgeId });
-        setGroceries(groceries);
+    getMyCatalog().then(
+      (ingredients) => {
+        if (!ignore) setCatalog({ status: "success", ingredients });
       },
       (error: unknown) => {
         if (!ignore) setCatalog({ status: "error", message: getLoadErrorMessage(error) });
@@ -96,10 +103,27 @@ function LibraryPage() {
     };
   }, [loadAttempt]);
 
+  useEffect(() => {
+    let ignore = false;
+    getFridgeWithGroceries().then(
+      ({ fridgeId, groceries }) => {
+        if (ignore) return;
+        setGroceryLoad({ status: "success", fridgeId });
+        setGroceries(groceries);
+      },
+      () => {
+        if (!ignore) setGroceryLoad({ status: "error" });
+      },
+    );
+    return () => {
+      ignore = true;
+    };
+  }, [groceryAttempt]);
+
   useEffect(() => () => window.clearTimeout(fridgeAddedTimerRef.current), []);
 
   const ingredients = catalog.status === "success" ? catalog.ingredients : [];
-  const fridgeId = catalog.status === "success" ? catalog.fridgeId : null;
+  const fridgeId = groceryLoad.status === "success" ? groceryLoad.fridgeId : null;
   const status = catalog.status;
   const categoryParam = searchParams.get("category");
   const category: CategoryFilter = isCategoryFilter(categoryParam) ? categoryParam : "all";
@@ -233,6 +257,11 @@ function LibraryPage() {
     setLoadAttempt((prev) => prev + 1);
   };
 
+  const handleGroceryRetry = () => {
+    setGroceryLoad({ status: "loading" });
+    setGroceryAttempt((prev) => prev + 1);
+  };
+
   const renderContent = () => {
     if (catalog.status === "error") {
       return (
@@ -357,7 +386,7 @@ function LibraryPage() {
             </CategoryTabs>
           </Toolbar>
 
-          {status === "success" && fridgeId === null && (
+          {status === "success" && groceryLoad.status === "success" && fridgeId === null && (
             <Notice role="status">
               <strong>연결된 냉장고가 없어요.</strong>
               냉장고가 있어야 장본 음식에 담거나 냉장고에 넣을 수 있어요. 도감 재료를 추가하고 지우는 것은 지금도 할 수
@@ -368,7 +397,12 @@ function LibraryPage() {
           {renderContent()}
         </MainColumn>
 
-        <GroceryBag items={groceries} status={status} onRemove={handleRemoveGrocery} />
+        <GroceryBag
+          items={groceries}
+          status={groceryLoad.status}
+          onRemove={handleRemoveGrocery}
+          onRetry={handleGroceryRetry}
+        />
       </Layout>
 
       <ScreenReaderOnly role="status">{announcement}</ScreenReaderOnly>
