@@ -22,7 +22,7 @@ export type FridgeMember = {
   isMe: boolean;
 };
 
-// MOVE는 이동 API가 아직 없어 오지 않는다.
+// MOVE는 재료를 다른 칸으로 옮긴 기록이다. 같은 칸 안에서 순서만 바꾸면 남지 않는다.
 // REMOVE는 주인이 멤버를 내보낸 기록이다. 스스로 나간 기록은 LEAVE다.
 export type ActivityAction = "ADD" | "UPDATE" | "MOVE" | "DELETE" | "DEDUCT" | "RESTORE" | "JOIN" | "LEAVE" | "REMOVE";
 
