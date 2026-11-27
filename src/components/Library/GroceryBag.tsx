@@ -2,6 +2,7 @@
  * 식재료 도감 오른쪽의 장본 음식 패널이다.
  * 냉장고에 담긴 장본 음식을 최근에 담은 순서로 보여 주고, 잘못 담은 재료는 뺄 수 있다.
  * 서버에서 빠진 뒤에 목록에서 사라지고, 빼지 못하면 그 재료 아래에 오류를 보여 준다.
+ * 장본 음식을 불러오지 못하면 도감은 그대로 두고 이 패널에서만 다시 불러올 수 있다.
  */
 import { useId, useState } from "react";
 import styled from "@emotion/styled";
@@ -13,12 +14,13 @@ import { playSound } from "../../sound/soundEffects";
 
 type GroceryBagProps = {
   items: PurchasedItem[];
-  // 도감과 함께 불러오므로 도감의 불러오기 상태를 받는다. 불러오는 중이거나 실패하면 빈 목록 대신 그 상태를 보여 준다.
+  // 불러오는 중이거나 실패하면 빈 목록 대신 그 상태를 보여 준다.
   status: "loading" | "error" | "success";
   onRemove: (item: PurchasedItem) => Promise<void>;
+  onRetry: () => void;
 };
 
-function GroceryBag({ items, status, onRemove }: GroceryBagProps) {
+function GroceryBag({ items, status, onRemove, onRetry }: GroceryBagProps) {
   const titleId = useId();
   // 여러 재료를 연달아 뺄 수 있게 빼는 중인 재료와 빼지 못한 재료를 재료마다 따로 둔다.
   const [removingIds, setRemovingIds] = useState<number[]>([]);
@@ -54,11 +56,12 @@ function GroceryBag({ items, status, onRemove }: GroceryBagProps) {
       {status === "loading" ? (
         <Empty>장본 음식을 불러오는 중이에요.</Empty>
       ) : status === "error" ? (
-        <Empty>
-          장본 음식을 불러오지 못했어요.
-          <br />
-          도감을 다시 불러오면 함께 불러와요.
-        </Empty>
+        <ErrorBox role="alert">
+          <p>장본 음식을 불러오지 못했어요.</p>
+          <RetryButton type="button" onClick={onRetry}>
+            다시 시도
+          </RetryButton>
+        </ErrorBox>
       ) : items.length === 0 ? (
         <Empty>
           아직 담은 재료가 없어요.
@@ -161,6 +164,29 @@ const Empty = styled.p`
   strong {
     font-weight: 540;
   }
+`;
+
+const ErrorBox = styled.div`
+  border-radius: 8px;
+  background: var(--surface);
+  padding: 18px;
+  display: grid;
+  justify-items: start;
+  gap: 10px;
+  font-size: 14px;
+  font-weight: 330;
+  line-height: 1.55;
+  word-break: keep-all;
+`;
+
+const RetryButton = styled.button`
+  border: 1px solid var(--text);
+  border-radius: 50px;
+  background: var(--surface);
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 480;
+  cursor: pointer;
 `;
 
 const List = styled.ul`
