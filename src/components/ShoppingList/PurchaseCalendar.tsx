@@ -170,7 +170,7 @@ function PurchaseCalendar({ fridgeId }: PurchaseCalendarProps) {
     return (
       <Card>
         <Title>다음 구매 날짜</Title>
-        <EmptyText>두 번 이상 산 재료가 생기면 다음 구매 날짜를 알려 드려요.</EmptyText>
+        <EmptyText>서로 다른 날 두 번 이상 산 재료가 생기면 다음 구매 날짜를 알려 드려요.</EmptyText>
       </Card>
     );
   }
