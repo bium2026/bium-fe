@@ -231,7 +231,7 @@ function RecipeDetailPage() {
         <HeroCopy>
           <Badge>
             <Sparkles size={16} aria-hidden="true" />
-            AI 추천 레시피
+            {recipe.type === "TARGET" ? "만들고 싶은 음식 레시피" : "AI 추천 레시피"}
           </Badge>
           <h1>{recipe.name}</h1>
           {recipe.summary && <p>{recipe.summary}</p>}
