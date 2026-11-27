@@ -5,12 +5,16 @@
 import { request } from "./client";
 import type { FridgeItemResponse } from "./fridge";
 
+// 레시피 추천처럼 유통기한이 오늘보다 앞이면 expired다(당일은 false). 추천은 지난 재료를 없는 재료로 본다.
+export type CookingCandidate = FridgeItemResponse & { expired: boolean };
+
 export type CookingIngredient = {
   name: string;
   // AI가 준 "1/2모" 같은 분량, 없으면 null
   amount: string | null;
-  // 이름이 맞는 냉장고 재료를 유통기한이 빠른 순으로 준다. 첫 번째가 추천이고, 맞는 재료가 없으면 빈 배열이다.
-  candidates: FridgeItemResponse[];
+  // 이름이 맞는 냉장고 재료를 유통기한이 지나지 않은 재료부터 유통기한이 빠른 순으로 주고, 지난 재료는 맨 뒤에 둔다.
+  // 맞는 재료가 없으면 빈 배열이다.
+  candidates: CookingCandidate[];
 };
 
 type CookingCandidatesResponse = {

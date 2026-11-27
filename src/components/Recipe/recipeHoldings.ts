@@ -6,9 +6,13 @@
 import { getCookingCandidates } from "../../api/cooking";
 
 // 재료 이름별로 지금 냉장고에 맞는 재료가 있는지. 기본 양념처럼 응답에 없는 재료는 들어 있지 않다.
+// 레시피 추천처럼 유통기한이 지난 재료는 없는 재료로 본다.
 export type Holdings = { recipeId: number; owned: Map<string, boolean> };
 
 export async function getHoldings(recipeId: number): Promise<Holdings> {
   const ingredients = await getCookingCandidates(recipeId);
-  return { recipeId, owned: new Map(ingredients.map((item) => [item.name, item.candidates.length > 0])) };
+  return {
+    recipeId,
+    owned: new Map(ingredients.map((item) => [item.name, item.candidates.some((candidate) => !candidate.expired)])),
+  };
 }

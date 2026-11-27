@@ -1,13 +1,13 @@
 /*
  * 요리를 마쳤을 때 냉장고에서 뺄 재료를 확인하는 모달이다.
- * 서버가 레시피 재료마다 이름이 맞는 냉장고 재료를 유통기한이 빠른 순으로 주고, 첫 번째를 미리 골라 둔다.
+ * 서버가 레시피 재료마다 이름이 맞는 냉장고 재료를 유통기한이 지나지 않은 재료부터 빠른 순으로 주고, 지나지 않은 첫 재료를 미리 골라 둔다.
+ * 유통기한이 지난 재료만 있으면 미리 고르지 않는다. 목록에는 남겨 두어 사용자가 직접 고를 수 있다.
  * 사용자가 고른 재료는 수량과 상관없이 모두 냉장고에서 빠진다. 다른 멤버가 그사이 재료를 바꿨으면 후보를 다시 불러온다.
  */
 import { useEffect, useState } from "react";
 import styled from "@emotion/styled";
 import { ApiError } from "../../api/client";
-import { cook, getCookingCandidates, type CookingIngredient } from "../../api/cooking";
-import type { FridgeItemResponse } from "../../api/fridge";
+import { cook, getCookingCandidates, type CookingCandidate, type CookingIngredient } from "../../api/cooking";
 import { formatDate } from "../Library/libraryDate";
 import LibraryModal, { ModalError } from "../Library/LibraryModal";
 import { ModalActions, ModalButton, ModalSelect } from "../Library/libraryModalStyles";
@@ -42,8 +42,11 @@ function isStaleItemError(error: unknown) {
   );
 }
 
-function getCandidateLabel(item: FridgeItemResponse) {
-  return item.expiresAt ? `${item.name} (${formatDate(item.expiresAt)}까지)` : item.name;
+function getCandidateLabel(item: CookingCandidate) {
+  if (!item.expiresAt) return item.name;
+  return item.expired
+    ? `${item.name} (${formatDate(item.expiresAt)}, 유통기한 지남)`
+    : `${item.name} (${formatDate(item.expiresAt)}까지)`;
 }
 
 // 레시피 재료 두 개가 같은 냉장고 재료를 고를 수 있다(예: 대파·파). 서버도 한 번만 빼므로 한 번만 세고 보낸다.
@@ -93,7 +96,7 @@ function CookingContent({ recipeId, isCooking, onCookingChange, onClose, onCooke
       (ingredients) => {
         if (ignore) return;
         setLoad({ status: "success", ingredients });
-        setSelection(ingredients.map((ingredient) => ingredient.candidates[0]?.id ?? null));
+        setSelection(ingredients.map((ingredient) => ingredient.candidates.find((item) => !item.expired)?.id ?? null));
       },
       (loadError: unknown) => {
         if (ignore) return;
