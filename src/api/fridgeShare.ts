@@ -94,8 +94,16 @@ export function leaveFridge(fridgeId: number) {
   return requestNoContent(`/api/fridges/${fridgeId}/members/me`, { method: "DELETE" });
 }
 
-// 최근 기록부터 50개까지 준다.
-// 실패: FRIDGE_NOT_FOUND(404)
-export function getActivities(fridgeId: number) {
-  return request<Activity[]>(`/api/fridges/${fridgeId}/activities`);
+export type ActivityPage = {
+  activities: Activity[];
+  // 다음 페이지가 없으면 null이다. 있으면 다음 요청의 cursor로 그대로 보낸다.
+  nextCursor: number | null;
+};
+
+// cursor가 null이면 최근 기록부터, 있으면 그 기록보다 오래된 기록부터 50개씩 준다.
+// 요리 하나로 남은 기록이 페이지 사이에서 나뉘지 않게 50개를 넘겨 줄 수 있다.
+// 실패: INVALID_INPUT(400, 다른 냉장고의 cursor), FRIDGE_NOT_FOUND(404)
+export function getActivities(fridgeId: number, cursor: number | null = null) {
+  const query = cursor === null ? "" : `?cursor=${cursor}`;
+  return request<ActivityPage>(`/api/fridges/${fridgeId}/activities${query}`);
 }

@@ -2,6 +2,7 @@
  * 냉장고를 함께 쓰는 사람들이 재료를 어떻게 바꿨는지 최근 순으로 보여 주는 활동 기록이다.
  * 요리로 줄이거나 되돌린 기록은 재료마다 한 줄씩 오는데, 되돌리기는 요리 단위라서 같은 요리는 한 줄로 묶는다.
  * 재료를 줄인 줄의 되돌리기 버튼으로 그 요리에서 뺀 재료를 모두 냉장고로 되돌린다.
+ * 서버는 기록을 50개씩 나눠 주고, 더 보기를 누르면 더 오래된 기록을 이어 붙인다.
  */
 import { useEffect, useId, useRef, useState } from "react";
 import styled from "@emotion/styled";
@@ -20,11 +21,14 @@ import {
 import type { LucideIcon } from "lucide-react";
 import type { Activity, ActivityAction } from "../../api/fridgeShare";
 import { formatActivityTime, getShareErrorMessage } from "./shareFormat";
-import { OutlineButton, Panel, PanelHeader } from "./shareStyles";
+import { Feedback, OutlineButton, Panel, PanelHeader } from "./shareStyles";
 import { playSound } from "../../sound/soundEffects";
 
 type ActivityPanelProps = {
   activities: Activity[];
+  // 더 오래된 기록이 남아 있으면 true
+  hasMore: boolean;
+  onLoadMore: () => Promise<void>;
   onUndoCooking: (cookingLogId: number) => Promise<void>;
 };
 
@@ -47,6 +51,7 @@ const actionMeta: Record<ActivityAction, { icon: LucideIcon; verb: string; tone:
 };
 
 // 같은 요리의 같은 동작을 맨 처음(가장 최근) 줄에 모은다. 서버는 재료를 넣은 반대 순서로 주므로 이름 순서를 되돌린다.
+// 더 보기로 이어 붙인 기록까지 한꺼번에 묶어서, 같은 요리가 페이지 사이에서 나뉘어 와도 한 줄로 보인다.
 function groupActivities(activities: Activity[]) {
   const rows: ActivityRow[] = [];
   const cookingRows = new Map<string, ActivityRow>();
@@ -87,7 +92,7 @@ function getActivityText({ nickname, action, itemNames, targetNickname }: Activi
     : `${nickname} 님이 ${verb}`;
 }
 
-function ActivityPanel({ activities, onUndoCooking }: ActivityPanelProps) {
+function ActivityPanel({ activities, hasMore, onLoadMore, onUndoCooking }: ActivityPanelProps) {
   // 되돌리는 중인 요리와, 되돌리지 못한 요리의 오류를 요리마다 따로 둔다.
   const [undoingIds, setUndoingIds] = useState<number[]>([]);
   const [undoErrors, setUndoErrors] = useState<Record<number, string>>({});
@@ -95,6 +100,8 @@ function ActivityPanel({ activities, onUndoCooking }: ActivityPanelProps) {
   // 되돌리면 버튼이 "되돌림" 글자로 바뀌며 사라져 키보드 초점을 잃는다.
   // 되돌리는 요리를 기억해 두었다가 바뀐 글자가 그려지면 그쪽으로 초점을 옮긴다.
   const focusAfterUndoRef = useRef<number | null>(null);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [moreError, setMoreError] = useState("");
 
   useEffect(() => {
     const cookingLogId = focusAfterUndoRef.current;
@@ -123,6 +130,19 @@ function ActivityPanel({ activities, onUndoCooking }: ActivityPanelProps) {
       }));
     } finally {
       setUndoingIds((prev) => prev.filter((id) => id !== cookingLogId));
+    }
+  };
+
+  const handleLoadMore = async () => {
+    if (isLoadingMore) return;
+    setIsLoadingMore(true);
+    setMoreError("");
+    try {
+      await onLoadMore();
+    } catch (error) {
+      setMoreError(getShareErrorMessage(error, "기록을 더 불러오지 못했어요. 다시 시도해 주세요."));
+    } finally {
+      setIsLoadingMore(false);
     }
   };
 
@@ -174,6 +194,19 @@ function ActivityPanel({ activities, onUndoCooking }: ActivityPanelProps) {
             );
           })}
         </List>
+      )}
+
+      {hasMore && (
+        <MoreArea>
+          <OutlineButton type="button" onClick={handleLoadMore} aria-disabled={isLoadingMore || undefined}>
+            {isLoadingMore ? "불러오는 중..." : moreError ? "다시 시도" : "더 보기"}
+          </OutlineButton>
+          {moreError && (
+            <Feedback $error role="alert">
+              {moreError}
+            </Feedback>
+          )}
+        </MoreArea>
       )}
     </Panel>
   );
@@ -239,6 +272,12 @@ const Time = styled.time`
   font-size: 13px;
   font-weight: 330;
   white-space: nowrap;
+`;
+
+const MoreArea = styled.div`
+  display: grid;
+  justify-items: center;
+  gap: 8px;
 `;
 
 const Empty = styled.p`
