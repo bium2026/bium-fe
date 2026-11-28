@@ -53,6 +53,12 @@ function formatDate(value: string) {
   return `${month}월 ${day}일`;
 }
 
+// 서버 시각 "YYYY-MM-DDTHH:mm:ss"를 브라우저 시간대로 바꾸지 않고 그대로 읽는다.
+function formatDateTime(value: string) {
+  const [date, time] = value.split("T");
+  return `${formatDate(date)} ${time.slice(0, 5)}`;
+}
+
 function NotificationSettingsPage() {
   const [load, setLoad] = useState<LoadState>({ status: "loading" });
   const [attempt, setAttempt] = useState(0);
@@ -261,6 +267,12 @@ function SettingsForm({ saved, onSaved }: SettingsFormProps) {
       </Fieldset>
 
       {saved.lastSentDate && <LastSent>마지막으로 보낸 날: {formatDate(saved.lastSentDate)}</LastSent>}
+      {saved.lastFailedAt && (
+        <LastFailed>
+          <strong>{formatDateTime(saved.lastFailedAt)}에 알림 메일을 보내지 못했어요.</strong>
+          보내지 못하면 그날 안에 몇 번 더 보내 봐요. 계속 오지 않으면 받을 이메일을 확인하고 테스트 메일을 보내 보세요.
+        </LastFailed>
+      )}
 
       {message && (
         <Feedback role={message.error ? "alert" : "status"} $error={message.error}>
@@ -519,6 +531,22 @@ const CheckLabel = styled.label<{ $on: boolean }>`
 const LastSent = styled.p`
   font-size: 14px;
   font-weight: 330;
+`;
+
+const LastFailed = styled.p`
+  border-radius: 8px;
+  background: var(--block-pink);
+  padding: 10px 14px;
+  display: grid;
+  gap: 2px;
+  font-size: 14px;
+  font-weight: 330;
+  line-height: 1.5;
+  word-break: keep-all;
+
+  strong {
+    font-weight: 540;
+  }
 `;
 
 const Feedback = styled.p<{ $error: boolean }>`

@@ -16,9 +16,12 @@ export type NotificationSetting = {
   notifyDday: boolean;
   // 마지막으로 알림 메일을 보낸 날 "YYYY-MM-DD", 보낸 적이 없으면 null
   lastSentDate: string | null;
+  // 마지막으로 보낸 뒤 알림 메일을 보내지 못한 때 "YYYY-MM-DDTHH:mm:ss", 그 뒤에 보냈거나 실패한 적이 없으면 null.
+  // 보내지 못하면 서버가 그날 안에서 몇 번 더 보내 본다. 테스트 메일 실패는 담지 않는다.
+  lastFailedAt: string | null;
 };
 
-export type NotificationSettingRequest = Omit<NotificationSetting, "lastSentDate">;
+export type NotificationSettingRequest = Omit<NotificationSetting, "lastSentDate" | "lastFailedAt">;
 
 type NotificationTestResult = {
   sentTo: string;
