@@ -81,10 +81,10 @@ function TargetRecipeForm({ fridgeId, onFridgeRetry }: TargetRecipeFormProps) {
 
     setTyped(value);
     setTarget({ status: "loading", fridgeId, dishName });
-    const requestToken = useAuthStore.getState().accessToken;
-    // 응답을 기다리는 사이 로그아웃·토큰 만료·다른 계정 로그인이 있었다면 늦게 온 결과는 버린다.
-    // 토큰이 바뀌면 스토어가 요청 상태를 비우므로, 그 뒤 새 계정이 보낸 요청의 상태를 지우지 않게 아무것도 바꾸지 않는다.
-    const isStale = () => useAuthStore.getState().accessToken !== requestToken;
+    const requestSession = useAuthStore.getState().sessionId;
+    // 응답을 기다리는 사이 로그아웃·로그인 만료·다른 계정 로그인이 있었다면 늦게 온 결과는 버린다. 토큰 갱신은 같은 로그인이라 그대로 쓴다.
+    // 로그인이 바뀌면 스토어가 요청 상태를 비우므로, 그 뒤 새 계정이 보낸 요청의 상태를 지우지 않게 아무것도 바꾸지 않는다.
+    const isStale = () => useAuthStore.getState().sessionId !== requestSession;
     try {
       const recipe = await recommendTargetRecipe(fridgeId, dishName);
       if (isStale()) return;

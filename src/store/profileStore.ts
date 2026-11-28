@@ -38,9 +38,9 @@ export const useProfileStore = create<ProfileStore>()((set) => ({
   },
 }));
 
-// 로그아웃하거나 다른 계정으로 로그인하면 이전 사람의 닉네임이 남지 않게 지운다.
+// 로그아웃하거나 다른 계정으로 로그인하면 이전 사람의 닉네임이 남지 않게 지운다. 토큰 갱신은 같은 로그인이라 그대로 둔다.
 useAuthStore.subscribe((state, prevState) => {
-  if (prevState.accessToken === state.accessToken) return;
+  if (prevState.sessionId === state.sessionId) return;
   requestId += 1;
   useProfileStore.setState({ me: { status: "idle" } });
 });

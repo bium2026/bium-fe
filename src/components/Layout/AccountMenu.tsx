@@ -7,6 +7,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import styled from "@emotion/styled";
 import { LogOut, RotateCw, Settings, UserRound } from "lucide-react";
 import { Link } from "react-router";
+import { logout } from "../../api/auth";
 import { useAuthStore } from "../../store/authStore";
 import { useProfileStore } from "../../store/profileStore";
 
@@ -36,6 +37,13 @@ function AccountMenu() {
   const profile = me.status === "success" ? me.profile : null;
   // 이모지처럼 두 글자(UTF-16)로 된 글자도 반으로 자르지 않게 글자 단위로 나눈다.
   const initial = profile ? Array.from(profile.nickname)[0] : null;
+
+  // 서버에 닿지 못해도 이 기기에서는 바로 로그아웃한다. 지우지 못한 리프레시 토큰은 14일 뒤 만료된다.
+  const handleLogout = () => {
+    const { refreshToken } = useAuthStore.getState();
+    clearAuth();
+    if (refreshToken) logout(refreshToken).catch(() => undefined);
+  };
 
   const close = () => {
     setIsOpen(false);
@@ -83,8 +91,8 @@ function AccountMenu() {
             <Settings size={16} aria-hidden="true" />
             계정 설정
           </ItemLink>
-          {/* 토큰을 지우면 RequireAuth가 로그인 화면으로 보내므로 여기서 따로 이동하지 않는다. 냉장고·추천 목록은 각 스토어가 토큰 변화를 보고 비운다. */}
-          <Item type="button" onClick={clearAuth}>
+          {/* 토큰을 지우면 RequireAuth가 로그인 화면으로 보내므로 여기서 따로 이동하지 않는다. 냉장고·추천 목록은 각 스토어가 로그인 변화를 보고 비운다. */}
+          <Item type="button" onClick={handleLogout}>
             <LogOut size={16} aria-hidden="true" />
             로그아웃
           </Item>

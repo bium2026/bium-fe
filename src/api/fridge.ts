@@ -92,10 +92,10 @@ export function getFridgeItems(fridgeId: number) {
 // 헤더에 없는 냉장고에 재료를 넣을 수 있다. 헤더가 목록을 받지 못했거나 그사이 냉장고에서 내보내져 목록이 낡았으면
 // 스토어로 다시 받아 헤더 목록도 함께 바꾼다.
 export async function getMyFridge() {
-  const requestToken = useAuthStore.getState().accessToken;
+  const requestSession = useAuthStore.getState().sessionId;
   const fridges = await useFridgeStore.getState().getFridges();
   // 기다리는 사이 다른 계정으로 바뀌었으면 이전 계정의 냉장고를 지금 계정의 요청에 쓰지 않게 버린다.
-  if (useAuthStore.getState().accessToken !== requestToken) return null;
+  if (useAuthStore.getState().sessionId !== requestSession) return null;
   return pickFridge(fridges, useFridgeStore.getState().selectedFridgeId);
 }
 

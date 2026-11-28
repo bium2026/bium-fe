@@ -351,11 +351,11 @@ function FridgePage() {
 
   // 만든 냉장고를 헤더 목록에 바로 넣고 골라 둔 뒤 그 냉장고로 다시 불러온다. 실패하면 모달이 오류를 보여 주도록 그대로 던진다.
   const handleCreateFridge = async (name: string) => {
-    const requestToken = useAuthStore.getState().accessToken;
+    const requestSession = useAuthStore.getState().sessionId;
     try {
       const fridge = await createFridge(name);
       // 기다리는 사이 다른 계정으로 바뀌었으면 이전 계정의 냉장고를 지금 계정의 목록에 넣지 않는다.
-      if (useAuthStore.getState().accessToken !== requestToken) throw new Error("로그인한 계정이 바뀌었어요.");
+      if (useAuthStore.getState().sessionId !== requestSession) throw new Error("로그인한 계정이 바뀌었어요.");
       const { addFridge, selectFridge } = useFridgeStore.getState();
       addFridge(fridge);
       selectFridge(fridge.id);
