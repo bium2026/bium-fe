@@ -46,6 +46,16 @@ type CookedState = {
   error: string;
 };
 
+// 뺀 재료 없이 요리만 기록할 수도 있어 그때는 재료 수를 말하지 않는다.
+function getCookedMessage({ count, undo }: CookedState) {
+  if (undo === "undone") {
+    return count === 0
+      ? "요리 기록을 되돌렸어요."
+      : `요리 전으로 되돌렸어요. 뺀 재료 ${count}개를 냉장고에 다시 넣었어요.`;
+  }
+  return count === 0 ? "요리를 기록했어요. 냉장고에서 뺀 재료는 없어요." : `재료 ${count}개를 냉장고에서 뺐어요.`;
+}
+
 // AI가 같은 재료를 두 번 줄 수 있어 이름이 같으면 하나로 합친다. 한 번이라도 필수로 나오면 필수로 본다.
 function getMissingIngredients(ingredients: RecipeIngredient[]) {
   const missing = ingredients.filter((item) => item.source === "MISSING");
@@ -258,10 +268,7 @@ function RecipeDetailPage() {
             요리 완료
           </CookButton>
           <CookedNotice ref={cookedNoticeRef} role="status" tabIndex={-1}>
-            {cooked &&
-              (cooked.undo === "undone"
-                ? `요리 전으로 되돌렸어요. 뺀 재료 ${cooked.count}개를 냉장고에 다시 넣었어요.`
-                : `재료 ${cooked.count}개를 냉장고에서 뺐어요.`)}
+            {cooked && getCookedMessage(cooked)}
           </CookedNotice>
           {cooked && cooked.undo !== "undone" && (
             <UndoCookingButton
