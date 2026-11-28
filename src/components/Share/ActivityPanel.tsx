@@ -5,7 +5,18 @@
  */
 import { useEffect, useId, useRef, useState } from "react";
 import styled from "@emotion/styled";
-import { ArrowRightLeft, LogIn, LogOut, CircleMinus, Pencil, Plus, RotateCcw, Trash2, UserMinus } from "lucide-react";
+import {
+  ArrowRightLeft,
+  CircleMinus,
+  Crown,
+  LogIn,
+  LogOut,
+  Pencil,
+  Plus,
+  RotateCcw,
+  Trash2,
+  UserMinus,
+} from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { Activity, ActivityAction } from "../../api/fridgeShare";
 import { formatActivityTime, getShareErrorMessage } from "./shareFormat";
@@ -32,6 +43,7 @@ const actionMeta: Record<ActivityAction, { icon: LucideIcon; verb: string; tone:
   JOIN: { icon: LogIn, verb: "냉장고에 참여했어요", tone: "var(--block-lime)" },
   LEAVE: { icon: LogOut, verb: "냉장고에서 나갔어요", tone: "var(--surface-soft)" },
   REMOVE: { icon: UserMinus, verb: "냉장고에서 내보냈어요", tone: "var(--surface-soft)" },
+  TRANSFER_OWNER: { icon: Crown, verb: "주인을 넘겼어요", tone: "var(--block-lilac)" },
 };
 
 // 같은 요리의 같은 동작을 맨 처음(가장 최근) 줄에 모은다. 서버는 재료를 넣은 반대 순서로 주므로 이름 순서를 되돌린다.
@@ -67,7 +79,8 @@ function getItemNamesText(itemNames: string[]) {
 
 function getActivityText({ nickname, action, itemNames, targetNickname }: ActivityRow) {
   const { verb } = actionMeta[action];
-  // 내보낸 기록은 재료가 아니라 내보내진 멤버를 알려 준다.
+  // 내보낸 기록과 주인을 넘긴 기록은 재료가 아니라 대상 멤버를 알려 준다.
+  if (targetNickname && action === "TRANSFER_OWNER") return `${nickname} 님이 ${targetNickname} 님에게 ${verb}`;
   if (targetNickname) return `${nickname} 님이 ${targetNickname} 님을 ${verb}`;
   return itemNames.length > 0
     ? `${nickname} 님이 ${getItemNamesText(itemNames)}을(를) ${verb}`

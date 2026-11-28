@@ -54,7 +54,9 @@ export function formatActivityTime(value: string, now = Date.now()) {
 const shareErrorMessages: Partial<Record<string, string>> = {
   FRIDGE_NOT_FOUND: "이 냉장고에 더 이상 속해 있지 않아요. 주인이 내보냈을 수 있어요.",
   FRIDGE_OWNER_ONLY: "냉장고 주인만 할 수 있어요.",
-  OWNER_CANNOT_LEAVE: "주인은 냉장고에서 나가거나 내보내질 수 없어요.",
+  OWNER_CANNOT_LEAVE: "주인은 냉장고에서 나가거나 내보내질 수 없어요. 나가려면 먼저 다른 멤버에게 주인을 넘겨 주세요.",
+  FRIDGE_MEMBER_NOT_FOUND: "이미 냉장고를 나간 멤버예요. 화면을 새로고침해 주세요.",
+  ALREADY_FRIDGE_OWNER: "이미 이 냉장고의 주인이에요.",
   INVITE_NOT_FOUND: "초대 코드를 찾을 수 없어요. 받은 코드를 다시 확인해 주세요.",
   INVITE_EXPIRED: "만료됐거나 새 코드로 바뀐 초대 코드예요. 주인에게 새 코드를 받아 주세요.",
   ALREADY_FRIDGE_MEMBER: "이미 참여한 냉장고예요. 헤더의 냉장고 목록에서 바꿔 볼 수 있어요.",

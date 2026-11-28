@@ -18,6 +18,7 @@ import {
   getFridgeMembers,
   leaveFridge,
   removeFridgeMember,
+  transferFridgeOwner,
 } from "../../api/fridgeShare";
 import type { Activity, FridgeMember, InviteCode } from "../../api/fridgeShare";
 import { pickFridge, useFridgeStore } from "../../store/fridgeStore";
@@ -25,7 +26,7 @@ import ActivityPanel from "./ActivityPanel";
 import InvitePanel from "./InvitePanel";
 import MemberPanel from "./MemberPanel";
 import { getShareErrorMessage } from "./shareFormat";
-import { OutlineButton, ScreenReaderText } from "./shareStyles";
+import { Feedback, OutlineButton, ScreenReaderText } from "./shareStyles";
 
 type ShareData = {
   // 주인이 아니거나 지금 쓸 수 있는 코드가 없으면 null
@@ -55,6 +56,8 @@ function SharePage() {
   const loadFridges = useFridgeStore((state) => state.loadFridges);
   const currentFridge = list.status === "success" ? pickFridge(list.fridges, selectedFridgeId) : null;
   const isOwner = currentFridge?.role === "OWNER";
+  // 주인을 넘기면 공유 정보를 새로 그리므로, 넘겼다는 안내는 새로 그려도 남도록 여기에 둔다.
+  const [transferNotice, setTransferNotice] = useState<{ fridgeId: number; nickname: string } | null>(null);
 
   return (
     <Wrapper>
@@ -89,8 +92,20 @@ function SharePage() {
         </StatusBox>
       )}
 
+      {transferNotice && currentFridge?.id === transferNotice.fridgeId && !isOwner && (
+        <Feedback role="status">
+          {transferNotice.nickname} 님에게 주인을 넘겼어요. 이제 멤버로 함께 쓰고, 원하면 냉장고에서 나갈 수도 있어요.
+        </Feedback>
+      )}
+
       {/* 보고 있는 냉장고나 내 역할이 바뀌면 공유 정보를 처음부터 다시 불러온다. */}
-      {currentFridge && <ShareContent key={`${currentFridge.id}-${currentFridge.role}`} fridge={currentFridge} />}
+      {currentFridge && (
+        <ShareContent
+          key={`${currentFridge.id}-${currentFridge.role}`}
+          fridge={currentFridge}
+          onTransferred={(nickname) => setTransferNotice({ fridgeId: currentFridge.id, nickname })}
+        />
+      )}
     </Wrapper>
   );
 }
@@ -110,14 +125,16 @@ function ShareSkeleton() {
 
 type ShareContentProps = {
   fridge: Fridge;
+  onTransferred: (nickname: string) => void;
 };
 
-function ShareContent({ fridge }: ShareContentProps) {
+function ShareContent({ fridge, onTransferred }: ShareContentProps) {
   const { id: fridgeId, role: myRole } = fridge;
   const navigate = useNavigate();
   const selectFridge = useFridgeStore((state) => state.selectFridge);
   const loadFridges = useFridgeStore((state) => state.loadFridges);
   const removeFridge = useFridgeStore((state) => state.removeFridge);
+  const updateFridge = useFridgeStore((state) => state.updateFridge);
   const [share, setShare] = useState<ShareState>({ status: "loading" });
   const [loadAttempt, setLoadAttempt] = useState(0);
   // 멤버를 내보내면 서버가 지금 초대 코드도 함께 끈다. 코드가 사라진 이유를 초대 코드 칸에 알려 준다.
@@ -190,6 +207,15 @@ function ShareContent({ fridge }: ShareContentProps) {
     refreshActivities();
   };
 
+  // 넘기면 내 역할이 멤버로 바뀌어 이 화면이 공유 정보를 처음부터 다시 불러온다(멤버 목록·넘긴 기록 포함).
+  const handleTransfer = async (member: FridgeMember) => {
+    await transferFridgeOwner(fridgeId, member.userId);
+    onTransferred(member.nickname);
+    // 고른 냉장고가 없으면 헤더는 내가 주인인 냉장고를 보여 주므로, 주인이 아니게 돼도 지금 냉장고를 계속 보게 고른다.
+    if (useFridgeStore.getState().selectedFridgeId === null) selectFridge(fridgeId);
+    updateFridge({ ...fridge, role: "MEMBER" });
+  };
+
   // 실패하면 활동 기록이 오류를 보여 주도록 그대로 던진다.
   const handleUndoCooking = async (cookingLogId: number) => {
     try {
@@ -260,6 +286,7 @@ function ShareContent({ fridge }: ShareContentProps) {
           members={share.data.members}
           myRole={myRole}
           onRemove={handleRemove}
+          onTransfer={handleTransfer}
           onLeave={handleLeave}
         />
       </Grid>
