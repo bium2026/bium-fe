@@ -23,7 +23,7 @@ import {
   removeFridgeMember,
   transferFridgeOwner,
 } from "../../api/fridgeShare";
-import type { Activity, FridgeMember, InviteCode } from "../../api/fridgeShare";
+import type { Activity, ActivityPage, FridgeMember, InviteCode } from "../../api/fridgeShare";
 import { pickFridge, useFridgeStore } from "../../store/fridgeStore";
 import ActivityPanel from "./ActivityPanel";
 import FridgeNameModal from "./FridgeNameModal";
@@ -37,6 +37,8 @@ type ShareData = {
   invite: InviteCode | null;
   members: FridgeMember[];
   activities: Activity[];
+  // 더 오래된 활동 기록을 받을 cursor. 다 받았으면 null
+  activityCursor: number | null;
 };
 
 type ShareState =
@@ -46,12 +48,27 @@ type ShareState =
 
 // 초대 코드는 주인만 볼 수 있어서 멤버일 때는 부르지 않는다.
 async function getShareData(fridgeId: number, myRole: MemberRole): Promise<ShareData> {
-  const [invite, members, activities] = await Promise.all([
+  const [invite, members, activityPage] = await Promise.all([
     myRole === "OWNER" ? getActiveInvite(fridgeId) : null,
     getFridgeMembers(fridgeId),
     getActivities(fridgeId),
   ]);
-  return { invite, members, activities };
+  return { invite, members, activities: activityPage.activities, activityCursor: activityPage.nextCursor };
+}
+
+// 다시 받은 첫 페이지로 앞쪽 기록을 바꾸고, 더 보기로 받아 둔 기록은 첫 페이지 마지막 기록 다음부터 그대로 둔다.
+// 그 기록을 지금 목록에서 찾지 못하면(그사이 기록이 한 페이지보다 많이 쌓임) 사이가 비지 않게 첫 페이지만 남긴다.
+function mergeFirstActivityPage(prev: ShareData, page: ActivityPage): ShareData {
+  const last = page.activities.at(-1);
+  const index = last ? prev.activities.findIndex((activity) => activity.id === last.id) : -1;
+  if (page.nextCursor === null || index === -1) {
+    return { ...prev, activities: page.activities, activityCursor: page.nextCursor };
+  }
+  return {
+    ...prev,
+    activities: [...page.activities, ...prev.activities.slice(index + 1)],
+    activityCursor: prev.activityCursor,
+  };
 }
 
 function SharePage() {
@@ -217,11 +234,23 @@ function ShareContent({ fridge, onTransferred }: ShareContentProps) {
   const refreshActivities = () => {
     const requestId = ++activitiesRequestRef.current;
     getActivities(fridgeId).then(
-      (activities) => {
-        if (requestId === activitiesRequestRef.current) updateData((prev) => ({ ...prev, activities }));
+      (page) => {
+        if (requestId === activitiesRequestRef.current) updateData((prev) => mergeFirstActivityPage(prev, page));
       },
       () => undefined,
     );
+  };
+
+  // 실패하면 활동 기록이 오류를 보여 주도록 그대로 던진다.
+  const handleLoadMoreActivities = async () => {
+    if (share.status !== "success" || share.data.activityCursor === null) return;
+    const cursor = share.data.activityCursor;
+    const page = await getActivities(fridgeId, cursor);
+    updateData((prev) => {
+      // 기다리는 사이 기록을 다시 받아 이어 붙일 자리가 바뀌었으면 받은 페이지를 버린다. 버튼은 바뀐 자리부터 다시 받는다.
+      if (prev.activityCursor !== cursor) return prev;
+      return { ...prev, activities: [...prev.activities, ...page.activities], activityCursor: page.nextCursor };
+    });
   };
 
   // 아래 요청들은 서버에 반영된 뒤에 화면을 바꾼다. 실패하면 화면은 그대로 두고, 각 영역이 오류를 보여 주도록 그대로 던진다.
@@ -331,7 +360,12 @@ function ShareContent({ fridge, onTransferred }: ShareContentProps) {
           onLeave={handleLeave}
         />
       </Grid>
-      <ActivityPanel activities={share.data.activities} onUndoCooking={handleUndoCooking} />
+      <ActivityPanel
+        activities={share.data.activities}
+        hasMore={share.data.activityCursor !== null}
+        onLoadMore={handleLoadMoreActivities}
+        onUndoCooking={handleUndoCooking}
+      />
     </>
   );
 }
