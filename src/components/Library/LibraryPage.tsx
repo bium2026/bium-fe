@@ -1,6 +1,6 @@
 /*
  * 식재료 도감 화면이다.
- * 카테고리 탭과 검색으로 재료를 고르고, 재료를 추가·삭제하거나 장본 음식에 담는다.
+ * 카테고리 탭과 검색으로 재료를 고르고, 재료를 추가·수정·삭제하거나 장본 음식에 담는다.
  * 전체 탭에서는 카테고리별로 묶어 보여 주고, 고른 탭은 주소(?category=)에 남겨 새로고침해도 유지한다.
  * 도감과 내 냉장고·장본 음식을 따로 불러와, 냉장고나 장본 음식을 못 받아도 도감은 보여 준다.
  * 장본 음식에 담거나 뺀 결과는 서버에 반영된 뒤 패널에 보인다.
@@ -20,6 +20,7 @@ import {
   deleteCatalogIngredient,
   getMyCatalog,
   removeCatalogFavorite,
+  updateCatalogIngredient,
 } from "../../api/ingredientCatalog";
 import type { CatalogIngredient, CatalogIngredientCreateRequest } from "../../api/ingredientCatalog";
 import { addPurchasedItem, getPurchasedItems, removePurchasedItem } from "../../api/purchasedItem";
@@ -80,6 +81,8 @@ function LibraryPage() {
   const [fridgeTarget, setFridgeTarget] = useState<CatalogIngredient | null>(null);
   // 아이콘을 사진으로 바꿀 재료. null이면 모달이 닫힌다.
   const [imageTarget, setImageTarget] = useState<CatalogIngredient | null>(null);
+  // 수정 모달로 연 내 재료. null이면 모달이 닫힌다.
+  const [editTarget, setEditTarget] = useState<CatalogIngredient | null>(null);
   // 방금 냉장고에 넣은 도감 재료. 카드가 잠깐 "넣었어요"를 보여 준다.
   const [fridgeAddedId, setFridgeAddedId] = useState<number | null>(null);
   const fridgeAddedTimerRef = useRef<number | undefined>(undefined);
@@ -252,6 +255,14 @@ function LibraryPage() {
     setAnnouncement(`${created.name}을(를) 도감에 추가했어요.`);
   };
 
+  // 실패하면 모달이 오류를 보여 주도록 그대로 던진다. 서버가 돌려준 값으로 카드를 바꾼다.
+  const handleEdit = async (values: CatalogIngredientCreateRequest) => {
+    if (editTarget === null) return;
+    const updated = await updateCatalogIngredient(editTarget.id, values);
+    updateIngredients((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
+    setAnnouncement(`${updated.name} 재료를 고쳤어요.`);
+  };
+
   const handleRetry = () => {
     setCatalog({ status: "loading" });
     setLoadAttempt((prev) => prev + 1);
@@ -330,6 +341,7 @@ function LibraryPage() {
                   onAddToGroceries={handleAddToGroceries}
                   onOpenFridgeAdd={setFridgeTarget}
                   onOpenImage={setImageTarget}
+                  onOpenEdit={setEditTarget}
                   onDelete={handleDelete}
                   onToggleFavorite={handleToggleFavorite}
                 />
@@ -412,7 +424,17 @@ function LibraryPage() {
         defaultCategory={category === "all" ? "VEGETABLE" : category}
         existingNames={ingredients.map((item) => item.name)}
         onClose={() => setIsAddOpen(false)}
-        onAdd={handleAdd}
+        onSubmit={handleAdd}
+      />
+
+      <IngredientAddModal
+        open={editTarget !== null}
+        ingredient={editTarget}
+        defaultCategory={editTarget?.category ?? "VEGETABLE"}
+        // 고치는 재료의 이름은 그대로 저장할 수 있게 뺀다.
+        existingNames={ingredients.filter((item) => item.id !== editTarget?.id).map((item) => item.name)}
+        onClose={() => setEditTarget(null)}
+        onSubmit={handleEdit}
       />
 
       <FridgeAddModal ingredient={fridgeTarget} onClose={() => setFridgeTarget(null)} onAdd={handleAddToFridge} />
