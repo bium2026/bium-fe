@@ -1,8 +1,8 @@
 /*
- * 레시피 추천·만들고 싶은 음식 레시피·상세 API다.
+ * 레시피 추천·만들고 싶은 음식 레시피·목록·상세·삭제 API다.
  * 요청·응답 형식은 백엔드 RecipeController의 DTO(RecipeResponse 등)를 따른다.
  */
-import { request } from "./client";
+import { request, requestNoContent } from "./client";
 
 export type RecipeDifficulty = "EASY" | "NORMAL" | "HARD";
 
@@ -75,4 +75,23 @@ export function recommendTargetRecipe(fridgeId: number, dishName: string) {
 // 실패: RECIPE_NOT_FOUND(404)
 export function getRecipe(recipeId: number) {
   return request<Recipe>(`/api/recipes/${recipeId}`);
+}
+
+// 최신 레시피부터 12개씩 준다. 다음 페이지가 없으면 nextCursor는 null이고, 있으면 다음 요청의 cursor로 그대로 보낸다.
+export type RecipePage = {
+  recipes: Recipe[];
+  nextCursor: number | null;
+};
+
+// 추천받은 레시피와 만들고 싶은 음식 레시피를 함께 준다. 지운 레시피는 빠진다.
+// 실패: FRIDGE_NOT_FOUND(404)
+export function getRecipes(fridgeId: number, cursor: number | null = null) {
+  const query = cursor === null ? "" : `?cursor=${cursor}`;
+  return request<RecipePage>(`/api/fridges/${fridgeId}/recipes${query}`);
+}
+
+// 냉장고 멤버면 누구나 지울 수 있다. 요리 기록과 장보기 목록에 남은 레시피 이름은 그대로 보인다.
+// 실패: RECIPE_NOT_FOUND(404)
+export function deleteRecipe(recipeId: number) {
+  return requestNoContent(`/api/recipes/${recipeId}`, { method: "DELETE" });
 }

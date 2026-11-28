@@ -1,7 +1,7 @@
 /*
  * 냉장고 재료로 AI 레시피를 추천받는 화면이다.
- * 내 냉장고를 불러온 뒤 추천 카드 목록과 유통기한 임박 재료, 추천 생성 버튼을 보여 준다.
- * 마지막 추천 결과는 스토어에 남겨 상세 화면에 다녀와도 다시 보여 준다.
+ * 내 냉장고를 불러온 뒤 이 냉장고의 레시피 목록과 유통기한 임박 재료, 추천 생성 버튼을 보여 준다.
+ * 레시피 목록은 서버에서 최신순으로 받아, 추천받은 레시피와 만들고 싶은 음식 레시피를 다른 기기·멤버도 함께 본다.
  * 만들고 싶은 음식 이름으로 레시피를 만드는 입력 영역도 함께 둔다.
  */
 import { useEffect, useState } from "react";
@@ -9,7 +9,7 @@ import styled from "@emotion/styled";
 import { Link } from "react-router";
 import { ApiError } from "../../api/client";
 import { getMyFridge } from "../../api/fridge";
-import { recommendRecipes } from "../../api/recipe";
+import { deleteRecipe, getRecipes, recommendRecipes, type Recipe } from "../../api/recipe";
 import { useAuthStore } from "../../store/authStore";
 import { useRecipeStore } from "../../store/recipeStore";
 import RecipeCard from "./RecipeCard";
@@ -23,6 +23,15 @@ type FridgeState =
   | { status: "success"; fridgeId: number }
   | { status: "error"; message: string };
 
+// 냉장고·다시 시도·새 레시피 저장마다 requestKey가 바뀌어, 그 요청의 결과인지 구분한다.
+type ListResult = { requestKey: string; fridgeId: number } & (
+  | { status: "success"; recipes: Recipe[]; nextCursor: number | null }
+  | { status: "error"; code: string; message: string }
+);
+
+// 더 보기 요청 상태. 목록을 새로 받으면 이전 목록의 더 보기 상태는 쓰지 않는다.
+type MoreState = { requestKey: string; status: "loading" } | { requestKey: string; status: "error"; message: string };
+
 const skeletonKeys = ["s1", "s2", "s3", "s4"];
 
 function getErrorInfo(error: unknown) {
@@ -34,9 +43,11 @@ function RecipePage() {
   const [fridge, setFridge] = useState<FridgeState>({ status: "loading" });
   const [fridgeAttempt, setFridgeAttempt] = useState(0);
   const [prioritizeUrgent, setPrioritizeUrgent] = useState(true);
-  const storedFridgeId = useRecipeStore((state) => state.fridgeId);
-  const storedRecipes = useRecipeStore((state) => state.recipes);
-  const setRecipes = useRecipeStore((state) => state.setRecipes);
+  const [listAttempt, setListAttempt] = useState(0);
+  const [listResult, setListResult] = useState<ListResult | null>(null);
+  const [more, setMore] = useState<MoreState | null>(null);
+  const listVersion = useRecipeStore((state) => state.listVersion);
+  const refreshList = useRecipeStore((state) => state.refreshList);
   const recommend = useRecipeStore((state) => state.recommend);
   const setRecommend = useRecipeStore((state) => state.setRecommend);
 
@@ -61,13 +72,39 @@ function RecipePage() {
   }, [fridgeAttempt]);
 
   const fridgeId = fridge.status === "success" ? fridge.fridgeId : null;
-  const recipes = fridgeId !== null && storedFridgeId === fridgeId ? storedRecipes : [];
+  const listKey = `${fridgeId}-${listVersion}-${listAttempt}`;
+
+  useEffect(() => {
+    if (fridgeId === null) return;
+    let ignore = false;
+    getRecipes(fridgeId).then(
+      (page) => {
+        if (!ignore) setListResult({ requestKey: listKey, fridgeId, status: "success", ...page });
+      },
+      (error: unknown) => {
+        if (!ignore) setListResult({ requestKey: listKey, fridgeId, status: "error", ...getErrorInfo(error) });
+      },
+    );
+    return () => {
+      ignore = true;
+    };
+  }, [fridgeId, listKey]);
+
+  const sameFridgeList = listResult !== null && listResult.fridgeId === fridgeId ? listResult : null;
+  const isListFresh = sameFridgeList?.requestKey === listKey;
+  // 새 레시피가 생겨 목록을 다시 받는 동안에는 같은 냉장고의 이전 목록을 그대로 보여 줘 화면이 깜빡이지 않게 한다.
+  const shownList = sameFridgeList && (isListFresh || sameFridgeList.status === "success") ? sameFridgeList : null;
+  const recipes = shownList?.status === "success" ? shownList.recipes : [];
+  const nextCursor = shownList?.status === "success" ? shownList.nextCursor : null;
+  const listError = shownList?.status === "error" ? shownList : null;
+  const moreState = more !== null && more.requestKey === shownList?.requestKey ? more : null;
   // 추천은 한 번에 하나만 보내므로 버튼은 어느 냉장고의 요청이든 기다리는 동안 막는다.
   const isGenerating = recommend.status === "loading";
   // 기다림·오류는 요청한 냉장고 화면에서만 보여 준다. 다른 냉장고의 결과는 이 냉장고의 추천이 아니다.
   const isGeneratingHere = isGenerating && recommend.fridgeId === fridgeId;
   const recommendError = recommend.status === "error" && recommend.fridgeId === fridgeId ? recommend : null;
-  const isLoading = fridge.status === "loading" || isGeneratingHere;
+  const isListLoading = fridge.status === "loading" || (fridgeId !== null && shownList === null);
+  const isLoading = isListLoading || isGeneratingHere;
 
   const reloadFridge = () => {
     setFridge({ status: "loading" });
@@ -89,9 +126,10 @@ function RecipePage() {
     // 토큰이 바뀌면 스토어가 목록과 요청 상태를 비우므로, 그 뒤 새 계정이 보낸 요청의 상태를 지우지 않게 아무것도 바꾸지 않는다.
     const isStale = () => useAuthStore.getState().accessToken !== requestToken;
     try {
-      const nextRecipes = await recommendRecipes(fridgeId, prioritizeUrgent);
+      await recommendRecipes(fridgeId, prioritizeUrgent);
       if (isStale()) return;
-      setRecipes(fridgeId, nextRecipes);
+      // 추천받은 레시피는 서버 목록에 저장되므로 목록을 다시 받는다. 그사이 화면을 떠났어도 돌아오면 새 목록을 받는다.
+      refreshList();
       playSound("success");
       setRecommend({ status: "idle" });
     } catch (error) {
@@ -99,6 +137,42 @@ function RecipePage() {
       playSound("error");
       setRecommend({ status: "error", fridgeId, ...getErrorInfo(error) });
     }
+  };
+
+  const handleLoadMore = async () => {
+    if (fridgeId === null || shownList?.status !== "success" || nextCursor === null || moreState?.status === "loading") {
+      return;
+    }
+    const { requestKey } = shownList;
+    setMore({ requestKey, status: "loading" });
+    try {
+      const page = await getRecipes(fridgeId, nextCursor);
+      // 기다리는 사이 목록을 새로 받았으면 이어 붙이지 않는다. 새 목록은 처음부터 다시 받는다.
+      setListResult((prev) =>
+        prev?.status === "success" && prev.requestKey === requestKey
+          ? {
+              ...prev,
+              recipes: [...prev.recipes, ...page.recipes.filter((recipe) => !prev.recipes.some((item) => item.id === recipe.id))],
+              nextCursor: page.nextCursor,
+            }
+          : prev,
+      );
+      setMore(null);
+    } catch (error) {
+      setMore({ requestKey, status: "error", message: getErrorInfo(error).message });
+    }
+  };
+
+  // 카드가 확인·오류 표시를 맡고, 지운 뒤에만 목록에서 뺀다. 다른 멤버가 먼저 지웠으면 지운 것과 같으므로 그대로 뺀다.
+  const handleDelete = async (recipe: Recipe) => {
+    try {
+      await deleteRecipe(recipe.id);
+    } catch (error) {
+      if (!(error instanceof ApiError && error.code === "RECIPE_NOT_FOUND")) throw error;
+    }
+    setListResult((prev) =>
+      prev?.status === "success" ? { ...prev, recipes: prev.recipes.filter((item) => item.id !== recipe.id) } : prev,
+    );
   };
 
   return (
@@ -121,6 +195,22 @@ function RecipePage() {
       <ContentGrid>
         <RecipeGrid aria-busy={isLoading}>
           {isLoading && skeletonKeys.map((key) => <RecipeSkeletonCard key={key} />)}
+
+          {listError && (
+            <StatusBox role="alert">
+              <strong>레시피 목록을 불러오지 못했어요.</strong>
+              <p>{listError.message}</p>
+              {listError.code === "FRIDGE_NOT_FOUND" ? (
+                <RetryButton type="button" onClick={handleFridgeRetry}>
+                  냉장고 다시 불러오기
+                </RetryButton>
+              ) : (
+                <RetryButton type="button" onClick={() => setListAttempt((prev) => prev + 1)}>
+                  다시 시도
+                </RetryButton>
+              )}
+            </StatusBox>
+          )}
 
           {fridge.status === "error" && (
             <StatusBox role="alert">
@@ -151,17 +241,32 @@ function RecipePage() {
             </StatusBox>
           )}
 
-          {fridge.status === "success" &&
-            !isGeneratingHere &&
-            !recommendError &&
-            recipes.length === 0 && (
-              <StatusBox>
-                <strong>아직 추천받은 레시피가 없어요.</strong>
-                <p>냉장고 재료를 바탕으로 AI가 바로 만들 수 있는 레시피를 추천해 드려요.</p>
-              </StatusBox>
-            )}
+          {shownList?.status === "success" && !isGeneratingHere && !recommendError && recipes.length === 0 && (
+            <StatusBox>
+              <strong>아직 레시피가 없어요.</strong>
+              <p>
+                냉장고 재료로 AI 추천을 받거나 만들고 싶은 음식을 입력하면, 만든 레시피가 여기에 쌓여 멤버와 함께 볼 수
+                있어요.
+              </p>
+            </StatusBox>
+          )}
 
-          {!isLoading && recipes.map((recipe) => <RecipeCard key={recipe.id} recipe={recipe} />)}
+          {recipes.map((recipe) => (
+            <RecipeCard key={recipe.id} recipe={recipe} onDelete={handleDelete} />
+          ))}
+
+          {nextCursor !== null && (
+            <MoreArea>
+              {moreState?.status === "error" && <MoreError role="alert">{moreState.message}</MoreError>}
+              <RetryButton
+                type="button"
+                onClick={handleLoadMore}
+                aria-disabled={moreState?.status === "loading" || undefined}
+              >
+                {moreState?.status === "loading" ? "불러오는 중" : moreState?.status === "error" ? "다시 시도" : "레시피 더 보기"}
+              </RetryButton>
+            </MoreArea>
+          )}
         </RecipeGrid>
 
         <UrgentBox>
@@ -335,6 +440,24 @@ const RetryButton = styled.button`
 
 const RetryLink = styled(Link)`
   ${retryStyle}
+`;
+
+const MoreArea = styled.div`
+  grid-column: 1 / -1;
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+
+  button[aria-disabled="true"] {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+`;
+
+const MoreError = styled.p`
+  font-size: 14px;
+  line-height: 1.5;
+  word-break: keep-all;
 `;
 
 const UrgentBox = styled.aside`

@@ -45,6 +45,7 @@ function TargetRecipeForm({ fridgeId, onFridgeRetry }: TargetRecipeFormProps) {
   const targetDone = useRecipeStore((state) => state.targetDone);
   const setTargetDone = useRecipeStore((state) => state.setTargetDone);
   const setAskShoppingRecipeId = useRecipeStore((state) => state.setAskShoppingRecipeId);
+  const refreshList = useRecipeStore((state) => state.refreshList);
   // 입력하기 전(null)에는 이 냉장고에서 진행 중이거나 실패한 요청의 음식 이름을 보여 준다.
   // 다른 화면에 다녀와도 입력칸이 비지 않게 하려는 것이고, 냉장고는 불러온 뒤에야 알 수 있어 렌더링마다 구한다.
   const [typed, setTyped] = useState<string | null>(null);
@@ -89,6 +90,8 @@ function TargetRecipeForm({ fridgeId, onFridgeRetry }: TargetRecipeFormProps) {
       const recipe = await recommendTargetRecipe(fridgeId, dishName);
       if (isStale()) return;
       playSound("success");
+      // 만든 레시피는 서버 목록에도 들어가므로 레시피 화면에 돌아왔을 때 보이게 목록을 다시 받게 한다.
+      refreshList();
       // 기다리는 사이 다른 화면으로 갔으면 그 화면에서 끌고 오지 않고, 돌아왔을 때 결과를 알려 준다.
       if (!isMountedRef.current) {
         setTarget({ status: "idle" });
