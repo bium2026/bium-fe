@@ -78,7 +78,8 @@ export function clearCheckedShoppingListItems(fridgeId: number) {
   return requestNoContent(`/api/fridges/${fridgeId}/shopping-list-items/checked`, { method: "DELETE" });
 }
 
-// 레시피의 부족 재료(MISSING) 중 고른 이름을 담고, 새로 담은 것만 돌려준다.
+// 레시피 재료 중 지금 냉장고에 없는 재료(만들 때 MISSING이었거나 요리로 다 쓴 재료)를 골라 담고, 새로 담은 것만 돌려준다.
+// 서버는 기본 양념이 아닌 레시피 재료인지만 확인한다.
 // 안 산 상태로 같은 재료가 이미 있으면 건너뛴다. 이름이 하나라도 틀리면 아무것도 담지 않는다.
 // 실패: INVALID_INPUT(400), RECIPE_NOT_FOUND(404)
 export async function addRecipeMissingItems(recipeId: number, names: string[]) {

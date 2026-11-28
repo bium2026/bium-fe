@@ -1,7 +1,7 @@
 /*
  * 추천 레시피 한 개의 상세 화면이다.
  * 주소의 id로 레시피를 불러와 조리 순서, 활용 팁, 재료, 냉장고 매칭, 영양 정보를 보여 준다.
- * 재료는 냉장고 보유·기본 양념·부족으로 나눠 표시하고, 부족 재료가 있으면 위쪽에 모아 보여 준다.
+ * 재료는 냉장고 보유·기본 양념·부족으로 나눠 지금 냉장고 기준으로 표시하고, 부족 재료가 있으면 위쪽에 모아 보여 준다.
  * 부족 재료는 확인 모달에서 골라 장보기 목록에 담는다. 방금 만든 레시피면 모달을 한 번 먼저 띄운다.
  * 요리를 마치면 쓴 재료를 확인 모달에서 골라 냉장고에서 뺀다. 잘못 뺐으면 안내 옆 버튼이나 활동 기록에서 되돌린다.
  */
@@ -223,15 +223,18 @@ function RecipeDetailPage() {
 
   const { recipe } = view;
   const owned = holdings?.recipeId === recipe.id ? holdings.owned : null;
-  // 지금 냉장고에 없는 재료만 "냉장고 보유" 표시를 내린다. 후보 응답에 없는 재료는 레시피의 source를 그대로 쓴다.
+  // 보유·부족 표시와 없는 재료 목록을 지금 냉장고 기준으로 맞춘다. 요리로 다 쓴 재료는 부족으로, 만든 뒤에 산 재료는 보유로 바뀐다.
+  // 기본 양념이나 후보 응답에 없는 재료, 후보를 못 받았을 때는 레시피의 source를 그대로 쓴다.
   const isGone = (name: string) => owned?.get(name) === false;
-  const shownIngredients = recipe.ingredients.map((item) =>
-    item.source === "FRIDGE" && isGone(item.name) ? { ...item, source: null } : item,
-  );
+  const shownIngredients = recipe.ingredients.map((item): RecipeIngredient => {
+    const hasNow = owned?.get(item.name);
+    if (item.source === "BASIC" || hasNow === undefined) return item;
+    return { ...item, source: hasNow ? "FRIDGE" : "MISSING" };
+  });
   const fridgeMatches = recipe.fridgeMatches.filter((name) => !isGone(name));
   const requiredIngredients = shownIngredients.filter((item) => item.required);
   const optionalIngredients = shownIngredients.filter((item) => !item.required);
-  const missingIngredients = getMissingIngredients(recipe.ingredients);
+  const missingIngredients = getMissingIngredients(shownIngredients);
 
   return (
     <DetailWrap>
