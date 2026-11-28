@@ -1,13 +1,14 @@
 /*
  * 로그인 뒤 화면들이 함께 쓰는 상단 헤더다.
  * 브랜드와 냉장고·식재료 도감·AI 레시피·장보기 목록·냉장고 공유·냉장고 피드 메뉴를 보여 주고, 지금 보고 있는 화면의 메뉴에 밑줄을 긋는다.
- * 오른쪽에서는 지금 보고 있는 냉장고를 다른 냉장고로 바꾸거나, 효과음을 켜고 끄거나, 유통기한 알림 설정으로 가거나, 로그아웃할 수 있다.
+ * 오른쪽에서는 지금 보고 있는 냉장고를 다른 냉장고로 바꾸거나, 효과음을 켜고 끄거나, 유통기한 알림 설정으로 가거나,
+ * 계정 버튼에서 닉네임을 보고 계정 설정으로 가거나 로그아웃할 수 있다.
  */
 import { useEffect, useRef } from "react";
 import styled from "@emotion/styled";
-import { BellRing, BookOpen, Bot, LogOut, Newspaper, Refrigerator, ShoppingCart, Users } from "lucide-react";
+import { BellRing, BookOpen, Bot, Newspaper, Refrigerator, ShoppingCart, Users } from "lucide-react";
 import { Link, NavLink, useLocation } from "react-router";
-import { useAuthStore } from "../../store/authStore";
+import AccountMenu from "./AccountMenu";
 import FridgeSwitcher from "./FridgeSwitcher";
 import SoundToggle from "./SoundToggle";
 
@@ -23,7 +24,6 @@ const menus = [
 function AppHeader() {
   const { pathname } = useLocation();
   const menuRef = useRef<HTMLElement>(null);
-  const clearAuth = useAuthStore((state) => state.clearAuth);
 
   // 좁은 화면에서는 메뉴가 한 줄을 넘쳐 가로로 밀리므로, 지금 화면의 메뉴가 가운데 보이도록 메뉴 줄을 옮긴다.
   // 메뉴가 다 들어가는 넓은 화면에서는 옮길 곳이 없어 그대로다.
@@ -61,10 +61,7 @@ function AppHeader() {
         <NotificationLink to="/notifications" aria-label="유통기한 알림" title="유통기한 알림">
           <BellRing size={16} aria-hidden="true" />
         </NotificationLink>
-        {/* 토큰을 지우면 RequireAuth가 로그인 화면으로 보내므로 여기서 따로 이동하지 않는다. 냉장고·추천 목록은 각 스토어가 토큰 변화를 보고 비운다. */}
-        <LogoutButton type="button" aria-label="로그아웃" title="로그아웃" onClick={clearAuth}>
-          <LogOut size={16} aria-hidden="true" />
-        </LogoutButton>
+        <AccountMenu />
       </Actions>
     </Header>
   );
@@ -82,7 +79,7 @@ const Header = styled.header`
   padding: 0 max(32px, calc((100vw - 1280px) / 2));
   display: grid;
   /* 메뉴가 가운데에서 벗어나는 정도는 (왼쪽 칸 - 오른쪽 칸) / 2라서, 왼쪽 칸을 오른쪽 칸에 되도록 가깝게 둔다.
-     오른쪽 칸 294px = 이름 100px + 냉장고 버튼의 나머지 68px(테두리·여백·아이콘 둘·간격) + (간격 6px + 버튼 36px) × 3(효과음·알림·로그아웃).
+     오른쪽 칸 294px = 이름 100px + 냉장고 버튼의 나머지 68px(테두리·여백·아이콘 둘·간격) + (간격 6px + 버튼 36px) × 3(효과음·알림·계정).
      왼쪽 칸(브랜드는 86px)은 100% - (오른쪽 칸 294 + 칸 사이 간격 둘 + 메뉴 폭)만큼 남겨 둔다.
      메뉴 폭은 글자 폭 621px + 항목 좌우 여백 24px + 항목 사이 간격 5개라서, 여기서는 621 + 24 + 10 × 5 = 695px이다.
      헤더 본문 폭이 1265px(세로 스크롤바 15px을 뺀 폭)이면 왼쪽 칸 260px로 메뉴가 17px, 1280px이면 275px로 9.5px 왼쪽에 온다. */
@@ -227,29 +224,6 @@ const NotificationLink = styled(NavLink)`
 
   &.active {
     border-color: var(--text);
-    background: var(--surface-soft);
-  }
-
-  &:focus-visible {
-    outline: 2px solid var(--text);
-    outline-offset: 2px;
-  }
-`;
-
-// 냉장고 선택 버튼과 같은 높이·테두리로 맞추고, 실수로 누르지 않게 냉장고 선택 버튼 옆에 작게 둔다.
-const LogoutButton = styled.button`
-  flex-shrink: 0;
-  width: 36px;
-  height: 36px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--surface);
-  color: var(--text);
-  display: grid;
-  place-items: center;
-  cursor: pointer;
-
-  &:hover {
     background: var(--surface-soft);
   }
 

@@ -56,6 +56,7 @@ export const router = createBrowserRouter([
           { path: '/feed', ...page(() => import('./components/Feed/FeedPage.tsx')) },
           { path: '/feed/:fridgeId', ...page(() => import('./components/Feed/FeedFridgePage.tsx')) },
           { path: '/notifications', ...page(() => import('./components/Notification/NotificationSettingsPage.tsx')) },
+          { path: '/account', ...page(() => import('./components/Account/AccountPage.tsx')) },
         ],
       },
       // 위에 없는 주소는 모두 여기로 온다. 로그인하지 않았다면 RequireAuth가 먼저 로그인 화면으로 보낸다.
