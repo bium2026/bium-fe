@@ -4,16 +4,18 @@
  * 장보기 목록은 냉장고에 묶여 있어, 냉장고 멤버 누구나 같은 목록을 보고 담기·체크·빼기를 할 수 있다.
  * 체크와 빼기는 화면에 먼저 반영하고 서버 요청이 실패하면 되돌린다. 이미 빠졌거나 그사이 바뀐 재료면 목록을 새로 불러온다.
  * 담기와 이름 고치기는 서버에 저장된 뒤 응답으로 받은 재료로 바꾼다.
+ * 산 것 비우기는 화면 안에서 한 번 더 확인한 뒤, 화면에서 먼저 빼고 실패하면 되돌린다.
  */
 import { useEffect, useRef, useState } from "react";
 import { keyframes } from "@emotion/react";
 import styled from "@emotion/styled";
-import { Refrigerator, X } from "lucide-react";
+import { Refrigerator, Trash2, X } from "lucide-react";
 import { ApiError, NETWORK_ERROR } from "../../api/client";
 import { getMyFridge } from "../../api/fridge";
 import type { Fridge } from "../../api/fridge";
 import {
   addShoppingListItem,
+  clearCheckedShoppingListItems,
   getShoppingListItems,
   removeShoppingListItem,
   renameShoppingListItem,
@@ -87,6 +89,9 @@ function ShoppingListPage() {
   // 담기·체크·빼기 결과를 스크린 리더에 알려 준다. 화면에는 보이지 않는다.
   const [announcement, setAnnouncement] = useState("");
   const checkboxRefs = useRef(new Map<number, HTMLInputElement>());
+  // 산 것 비우기: 확인을 한 번 더 받고(confirm), 요청 중(clearing)에는 다시 누를 수 없다.
+  const [clearState, setClearState] = useState<"idle" | "confirm" | "clearing">("idle");
+  const [clearError, setClearError] = useState("");
   // 서로 다른 재료에서 동시에 다시 불러오면 늦게 온 이전 응답이 새 목록을 덮지 않게 요청마다 번호를 매긴다.
   const refreshIdRef = useRef(0);
 
@@ -228,6 +233,31 @@ function ShoppingListPage() {
     }
   };
 
+  const handleClearChecked = async () => {
+    if (page.status !== "success" || clearState === "clearing") return;
+    const removed = page.items.filter((item) => item.checked);
+    setClearState("clearing");
+    setClearError("");
+    updateItems((prev) => prev.filter((item) => !item.checked));
+    playSound("delete");
+    try {
+      await clearCheckedShoppingListItems(page.fridge.id);
+      // 기다리는 사이 다른 재료 때문에 목록을 새로 불러왔으면 지운 재료가 다시 들어 있을 수 있어 한 번 더 뺀다.
+      updateItems((prev) => prev.filter((item) => !removed.some((removedItem) => removedItem.id === item.id)));
+      setAnnouncement(`산 것 ${removed.length}개를 장보기 목록에서 뺐어요.`);
+    } catch (error) {
+      playSound("error");
+      if (isFridgeGone(error)) {
+        setPage(getErrorState(error));
+      } else {
+        updateItems((prev) => [...prev, ...removed.filter((removedItem) => !prev.some((item) => item.id === removedItem.id))]);
+        setClearError("산 것을 비우지 못했어요. 다시 눌러 주세요.");
+      }
+    } finally {
+      setClearState("idle");
+    }
+  };
+
   const handleRetry = async () => {
     setPage({ status: "loading" });
     setItemErrors({});
@@ -298,7 +328,39 @@ function ShoppingListPage() {
             onToggle={handleToggle}
             onRemove={handleRemove}
             onRename={handleRename}
-          />
+          >
+            {bought.length > 0 &&
+              (clearState === "confirm" ? (
+                <ClearBar role="group" aria-label="산 것 비우기 확인">
+                  <span>산 것 {bought.length}개를 장보기 목록에서 모두 뺄까요?</span>
+                  <ClearButtons>
+                    <SmallButton type="button" $primary onClick={handleClearChecked}>
+                      모두 빼기
+                    </SmallButton>
+                    <SmallButton type="button" autoFocus onClick={() => setClearState("idle")}>
+                      취소
+                    </SmallButton>
+                  </ClearButtons>
+                </ClearBar>
+              ) : (
+                <ClearBar>
+                  <SmallButton
+                    type="button"
+                    // 체크 요청이 남아 있으면 무엇이 지워질지 바뀔 수 있어 끝난 뒤에 누르게 한다.
+                    aria-disabled={clearState === "clearing" || pendingIds.length > 0 || undefined}
+                    onClick={() => {
+                      if (clearState === "clearing" || pendingIds.length > 0) return;
+                      setClearError("");
+                      setClearState("confirm");
+                    }}
+                  >
+                    <Trash2 size={15} aria-hidden="true" />
+                    {clearState === "clearing" ? "비우는 중..." : "산 것 비우기"}
+                  </SmallButton>
+                </ClearBar>
+              ))}
+            {clearError && <ClearError role="alert">{clearError}</ClearError>}
+          </ShoppingSection>
         </Memo>
         {/* 냉장고가 바뀌면 key로 새로 그려, 이전 냉장고의 일정과 늦게 온 응답이 남지 않게 한다. */}
         <PurchaseCalendar key={page.fridge.id} fridgeId={page.fridge.id} />
@@ -509,6 +571,54 @@ const OutlineButton = styled.button`
   font-size: 15px;
   font-weight: 480;
   cursor: pointer;
+`;
+
+const ClearBar = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+
+  & > span {
+    font-size: 14px;
+    font-weight: 480;
+    line-height: 1.5;
+    word-break: keep-all;
+  }
+`;
+
+const ClearButtons = styled.div`
+  display: flex;
+  gap: 6px;
+`;
+
+const SmallButton = styled.button<{ $primary?: boolean }>`
+  min-height: 36px;
+  border: 1px solid ${(props) => (props.$primary ? "var(--text)" : "var(--border)")};
+  border-radius: 999px;
+  background: ${(props) => (props.$primary ? "var(--text)" : "var(--surface)")};
+  color: ${(props) => (props.$primary ? "var(--surface)" : "var(--text)")};
+  padding: 6px 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 480;
+  white-space: nowrap;
+  cursor: pointer;
+
+  &[aria-disabled="true"] {
+    cursor: not-allowed;
+    opacity: 0.45;
+  }
+`;
+
+const ClearError = styled.p`
+  font-size: 13px;
+  font-weight: 540;
+  line-height: 1.4;
+  word-break: keep-all;
 `;
 
 const Skeleton = styled.div`
