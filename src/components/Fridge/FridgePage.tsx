@@ -7,6 +7,7 @@
  * 옮긴 재료는 화면에 먼저 보여 주고 저장에 실패하면 원래 자리로 되돌린다. 저장을 기다리는 동안에는 다시 끌지 못하게 막는다.
  * 영수증 사진을 고르면 AI가 읽은 재료를 모달로 보여 주고, 확인한 재료를 냉장고에 한꺼번에 넣는다.
  * 유통기한 지난 재료는 모든 구역에서 모아 확인 모달을 거쳐 한 번에 지운다.
+ * 속한 냉장고가 하나도 없으면 새 냉장고를 만들 수 있다.
  */
 import { useEffect, useRef, useState } from "react";
 import {
@@ -33,6 +34,7 @@ import { ApiError, NETWORK_ERROR } from "../../api/client";
 import {
   addFridgeItems,
   changeFridgeItemPosition,
+  createFridge,
   deleteFridgeItem,
   deleteFridgeItems,
   getFridgeItems,
@@ -42,6 +44,9 @@ import {
   type FridgeItemBulkCreateItem,
 } from "../../api/fridge";
 import { getPurchasedItems, movePurchasedItem, type PurchasedItem } from "../../api/purchasedItem";
+import FridgeNameModal from "../Share/FridgeNameModal";
+import { useAuthStore } from "../../store/authStore";
+import { useFridgeStore } from "../../store/fridgeStore";
 import ExpiredDeleteModal, { STALE_NOT_RELOADED } from "./ExpiredDeleteModal";
 import FridgeBoard, { DOOR_SLOT_COUNT } from "./FridgeBoard";
 import FridgeNutritionModal from "./FridgeNutritionModal";
@@ -71,7 +76,12 @@ import { adjacentZone, isZoneId, zoneMeta, zoneOrder, type ZoneDirection } from 
 import { startReceiptScan, type ReceiptScan } from "./receiptScan";
 import { playSound } from "../../sound/soundEffects";
 
-type LoadState = { status: "loading" } | { status: "error"; message: string } | { status: "success"; fridgeId: number };
+type LoadState =
+  | { status: "loading" }
+  | { status: "error"; message: string }
+  // 속한 냉장고가 하나도 없다. 새 냉장고를 만들거나 헤더에서 초대 코드로 참여할 수 있다.
+  | { status: "empty" }
+  | { status: "success"; fridgeId: number };
 type SlideDirection = ZoneDirection;
 // 끌고 있는 것. DragOverlay가 손가락·마우스를 따라다니는 카드로 그린다.
 type ActiveDrag = { kind: "fridge-item"; ingredient: FridgeIngredient } | { kind: "purchased"; item: PurchasedItem };
@@ -165,6 +175,7 @@ function FridgePage() {
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [isExpiredModalOpen, setIsExpiredModalOpen] = useState(false);
   const [isNutritionOpen, setIsNutritionOpen] = useState(false);
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [activeDrag, setActiveDrag] = useState<ActiveDrag | null>(null);
   const [highlightedSection, setHighlightedSection] = useState<SectionId | null>(null);
   // 끌고 있는 재료가 올라가 있는 화살표. 머무르는 동안 옆 구역으로 넘기는 타이머를 함께 둔다.
@@ -200,7 +211,7 @@ function FridgePage() {
         const fridge = await getMyFridge();
         if (ignore) return;
         if (!fridge) {
-          setLoad({ status: "error", message: "연결된 냉장고가 없어요." });
+          setLoad({ status: "empty" });
           return;
         }
         const response = await getFridgeItems(fridge.id);
@@ -334,6 +345,25 @@ function FridgePage() {
 
   const handleRetry = () => {
     if (isLoading) return;
+    setLoad({ status: "loading" });
+    setLoadAttempt((prev) => prev + 1);
+  };
+
+  // 만든 냉장고를 헤더 목록에 바로 넣고 골라 둔 뒤 그 냉장고로 다시 불러온다. 실패하면 모달이 오류를 보여 주도록 그대로 던진다.
+  const handleCreateFridge = async (name: string) => {
+    const requestToken = useAuthStore.getState().accessToken;
+    try {
+      const fridge = await createFridge(name);
+      // 기다리는 사이 다른 계정으로 바뀌었으면 이전 계정의 냉장고를 지금 계정의 목록에 넣지 않는다.
+      if (useAuthStore.getState().accessToken !== requestToken) throw new Error("로그인한 계정이 바뀌었어요.");
+      const { addFridge, selectFridge } = useFridgeStore.getState();
+      addFridge(fridge);
+      selectFridge(fridge.id);
+    } catch (error) {
+      // 다른 기기에서 그사이 냉장고를 만들거나 참여했으면 헤더 목록에 없을 수 있어 서버 목록을 다시 받는다.
+      if (error instanceof ApiError && error.code === "FRIDGE_ALREADY_EXISTS") useFridgeStore.getState().loadFridges();
+      throw error;
+    }
     setLoad({ status: "loading" });
     setLoadAttempt((prev) => prev + 1);
   };
@@ -675,6 +705,14 @@ function FridgePage() {
               다시 시도
             </RetryButton>
           </StatusBox>
+        ) : load.status === "empty" ? (
+          <StatusBox>
+            <strong>연결된 냉장고가 없어요.</strong>
+            <p>새 냉장고를 만들거나, 헤더 오른쪽 냉장고 버튼에서 받은 초대 코드로 참여할 수 있어요.</p>
+            <RetryButton type="button" onClick={() => setIsCreateOpen(true)}>
+              새 냉장고 만들기
+            </RetryButton>
+          </StatusBox>
         ) : (
           <BoardLayout $panelOpen={isPanelOpen}>
             {/* 구역이 바뀔 때마다 key가 바뀌어 슬라이드 애니메이션이 다시 재생된다. */}
@@ -730,6 +768,17 @@ function FridgePage() {
         onClose={() => setSelectedIngredient(null)}
         onSave={handleSave}
         onDelete={handleDelete}
+      />
+
+      <FridgeNameModal
+        open={isCreateOpen}
+        title="새 냉장고 만들기"
+        initialName=""
+        submitLabel="만들기"
+        busyLabel="만드는 중..."
+        fallbackError="냉장고를 만들지 못했어요. 잠시 후 다시 시도해 주세요."
+        onClose={() => setIsCreateOpen(false)}
+        onSubmit={handleCreateFridge}
       />
 
       <ReceiptScanModal
