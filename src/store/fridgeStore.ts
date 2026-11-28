@@ -135,9 +135,10 @@ export const useFridgeStore = create<FridgeState>()(
 );
 
 // 로그아웃하거나 다른 계정으로 로그인하면, 다음 사람이 이전 사람의 냉장고를 보거나 고른 채로 시작하지 않게 지운다.
+// 토큰 갱신은 같은 로그인이라 그대로 둔다.
 // 진행 중이던 목록 요청도 번호를 올려 응답이 와도 버린다.
 useAuthStore.subscribe((state, prevState) => {
-  if (prevState.accessToken === state.accessToken) return;
+  if (prevState.sessionId === state.sessionId) return;
   listRequestId += 1;
   // 다음 계정의 getMyFridge()가 이전 계정의 목록 요청을 함께 기다리지 않게 한다.
   pendingList = null;

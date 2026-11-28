@@ -1,11 +1,12 @@
 /*
  * 서버 요청을 보내는 공통 함수다.
  * 백엔드 공통 응답({ success, data, error })에서 data만 꺼내 돌려주고, 실패하면 ApiError를 던진다.
- * 로그인 토큰을 Authorization 헤더에 담고, 토큰이 만료돼 401을 받으면 저장된 토큰을 지우고 만료로 표시한다.
+ * 로그인 토큰을 Authorization 헤더에 담는다. 액세스 토큰이 만료돼 401을 받으면 리프레시 토큰으로 새 토큰을 한 번 받아
+ * 원래 요청을 다시 보낸다. 새 토큰을 받지 못하면 저장된 토큰을 지우고 만료로 표시한다.
  * 토큰이 지워지면 RequireAuth가 로그인 화면으로 보내고, 로그인 화면은 만료 안내를 보여 준다.
  * 냉장고를 찾지 못했다는 오류(FRIDGE_NOT_FOUND)를 받으면 받아 둔 냉장고 목록을 낡은 것으로 표시한다.
  */
-import { useAuthStore } from "../store/authStore";
+import { useAuthStore, type AuthTokens } from "../store/authStore";
 import { markFridgeListStale } from "../store/fridgeStore";
 
 // 끝에 "/"를 붙여 적어도 "//api/..."가 되지 않게 뗀다. 서버(Spring Security)는 "//"가 든 주소를 400으로 막는다.
@@ -64,21 +65,81 @@ async function send(path: string, { method = "GET", body, auth = true }: Request
     });
     return { response, token };
   } catch {
-    throw new ApiError(
-      0,
-      NETWORK_ERROR,
-      "서버에 연결하지 못했어요. 인터넷 연결을 확인하고 다시 시도해 주세요.",
-    );
+    throw networkError();
   }
 }
 
-async function readData<T>(response: Response, token: string | null): Promise<T> {
+function networkError() {
+  return new ApiError(0, NETWORK_ERROR, "서버에 연결하지 못했어요. 인터넷 연결을 확인하고 다시 시도해 주세요.");
+}
+
+// 기다리고 있는 토큰 갱신. 여러 요청이 함께 401을 받아도 갱신 요청은 하나만 보내고 모두 그 결과를 기다린다.
+let pendingRefresh: Promise<string | null> | null = null;
+
+// 같은 리프레시 토큰으로 여러 탭이 동시에 갱신하면 하나만 성공하고 나머지는 로그아웃되므로, 탭 사이에서도 한 번에 하나만 갱신한다.
+// Web Locks를 쓸 수 없는 브라우저나 http로 연 화면에서는 이 탭 안에서만 하나로 묶는다.
+function runExclusive<T>(task: () => Promise<T>): Promise<T> {
+  if (!("locks" in navigator)) return task();
+  return navigator.locks.request("bium-auth-refresh", task);
+}
+
+// 새 액세스 토큰을 돌려준다. 다시 로그인해야 하면 null을 돌려주고, 서버에 닿지 못하면 ApiError를 던진다.
+function refreshAccessToken(failedToken: string) {
+  pendingRefresh ??= runExclusive(() => requestNewToken(failedToken)).finally(() => {
+    pendingRefresh = null;
+  });
+  return pendingRefresh;
+}
+
+async function requestNewToken(failedToken: string): Promise<string | null> {
+  // 다른 탭이 먼저 갱신했으면 localStorage에 새 토큰이 있으므로 다시 읽는다.
+  await useAuthStore.persist.rehydrate();
+  const { accessToken, refreshToken, sessionId } = useAuthStore.getState();
+  // 이 요청을 보낸 뒤 이미 새 토큰을 받았으면 그 토큰으로 다시 보낸다.
+  if (accessToken && accessToken !== failedToken) return accessToken;
+  if (!refreshToken) return null;
+
+  let response: Response;
+  try {
+    response = await fetch(`${API_URL}/api/auth/refresh`, {
+      method: "POST",
+      headers: { ...ngrokHeaders, "Content-Type": "application/json" },
+      body: JSON.stringify({ refreshToken }),
+    });
+  } catch {
+    // 서버에 닿지 못한 것은 로그인이 끝난 것이 아니므로 로그아웃하지 않는다.
+    throw networkError();
+  }
+  const result: ApiResponse<AuthTokens> | null = await response.json().catch(() => null);
+  if (!response.ok || !result?.success) {
+    // 만료됐거나 이미 쓴 리프레시 토큰이면 다시 로그인해야 한다. 그 밖의 서버 오류는 로그인을 지우지 않고 요청 실패로 알린다.
+    if (response.status === 401 || response.status === 400) return null;
+    throw new ApiError(response.status, result?.error?.code ?? "UNKNOWN_ERROR", result?.error?.message ?? "요청을 처리하지 못했어요.");
+  }
+  // 기다리는 사이 로그아웃했거나 다른 계정으로 로그인했으면 받은 토큰을 버린다.
+  if (useAuthStore.getState().sessionId !== sessionId) return useAuthStore.getState().accessToken;
+  useAuthStore.getState().updateTokens(result.data);
+  return result.data.accessToken;
+}
+
+// 로그인한 요청이 401을 받으면 토큰을 한 번 새로 받아 다시 보낸다. 다시 보낸 요청도 401이면 다시 시도하지 않는다.
+async function sendWithRefresh(path: string, options: RequestOptions) {
+  const sessionId = useAuthStore.getState().sessionId;
+  const first = await send(path, options);
+  if (first.response.status !== 401 || !first.token) return first.response;
+
+  const newToken = await refreshAccessToken(first.token);
+  // 기다리는 사이 다른 탭에서 로그아웃하거나 다른 계정으로 로그인했으면, 이전 로그인의 요청을 새 토큰으로 다시 보내지 않고
+  // 지금 로그인도 지우지 않는다.
+  const isSameSession = useAuthStore.getState().sessionId === sessionId;
+  const response = newToken && isSameSession ? (await send(path, options)).response : first.response;
+  if (response.status === 401 && isSameSession) useAuthStore.getState().expireAuth();
+  return response;
+}
+
+async function readData<T>(response: Response): Promise<T> {
   // 프록시 오류 페이지처럼 JSON이 아닌 응답이 올 수 있어 읽지 못하면 null로 둔다.
   const result: ApiResponse<T> | null = await response.json().catch(() => null);
-
-  if (response.status === 401 && token) {
-    useAuthStore.getState().expireAuth();
-  }
 
   // 멤버가 아닌 냉장고도 서버가 이 오류로 거절한다. 그사이 내보내졌거나 다른 기기에서 나갔을 수 있어
   // 다음 getMyFridge()가 냉장고 목록부터 다시 받게 한다. 어느 화면에서 받았든 같은 곳에서 표시해 화면마다 처리하지 않는다.
@@ -97,13 +158,13 @@ async function readData<T>(response: Response, token: string | null): Promise<T>
 }
 
 export async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const { response, token } = await send(path, options);
-  return readData<T>(response, token);
+  const response = await sendWithRefresh(path, options);
+  return readData<T>(response);
 }
 
 // 삭제처럼 성공하면 본문 없이 204를 주는 API에 쓴다. 실패 응답은 request와 같이 ApiError로 던진다.
 export async function requestNoContent(path: string, options: RequestOptions = {}): Promise<void> {
-  const { response, token } = await send(path, options);
+  const response = await sendWithRefresh(path, options);
   if (response.status === 204) return;
-  await readData<unknown>(response, token);
+  await readData<unknown>(response);
 }

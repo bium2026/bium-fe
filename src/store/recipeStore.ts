@@ -76,11 +76,11 @@ export const useRecipeStore = create<RecipeState>()(
   ),
 );
 
-// 로그아웃하거나 토큰이 만료되면 같은 브라우저를 쓰는 다음 사람에게 남지 않도록 추천 목록과 요청 상태를 지운다.
-// 토큰이 비지 않고 바로 다른 계정의 토큰으로 바뀌는 경우에도 이전 계정의 추천이 남지 않도록, 토큰이 바뀔 때마다 지운다.
+// 로그아웃하거나 로그인이 만료되면 같은 브라우저를 쓰는 다음 사람에게 남지 않도록 추천 목록과 요청 상태를 지운다.
+// 바로 다른 계정으로 로그인하는 경우에도 이전 계정의 추천이 남지 않도록, 로그인(sessionId)이 바뀔 때마다 지운다. 토큰 갱신은 같은 로그인이라 남긴다.
 // 이 구독이 처음부터 돌도록 main.tsx에서 미리 불러온다.
 useAuthStore.subscribe((state, prevState) => {
-  if (prevState.accessToken !== state.accessToken) useRecipeStore.getState().clearRecipes();
+  if (prevState.sessionId !== state.sessionId) useRecipeStore.getState().clearRecipes();
 });
 
 // authStore는 이 파일보다 먼저 불러와지면서 만료된 토큰을 이미 지웠을 수 있다. 그 전환은 위 구독이 받지 못하므로 시작할 때 한 번 확인한다.

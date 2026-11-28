@@ -48,8 +48,7 @@ function LoginForm({ signedUpEmail }: LoginFormProps) {
     setIsSubmitting(true);
     setError(undefined);
     try {
-      const { accessToken, expiresIn } = await login({ email: email.trim(), password });
-      setAuth(accessToken, expiresIn);
+      setAuth(await login({ email: email.trim(), password }));
       // 성공하면 화면을 떠나므로 버튼은 다시 켜지 않는다.
       navigate(returnPath, { replace: true });
     } catch (err) {

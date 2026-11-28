@@ -47,11 +47,11 @@ function JoinInvitePage() {
   const handleJoin = async () => {
     if (codeError || state.status === "joining") return;
     setState({ status: "joining" });
-    const requestToken = useAuthStore.getState().accessToken;
+    const requestSession = useAuthStore.getState().sessionId;
     try {
       const fridge = await joinFridge(code);
-      // 기다리는 사이 다른 계정으로 바뀌었으면 이전 계정이 참여한 냉장고를 지금 계정의 목록에 넣지 않는다.
-      if (useAuthStore.getState().accessToken !== requestToken) throw new Error("로그인한 계정이 바뀌었어요.");
+      // 기다리는 사이 다른 계정으로 바뀌었으면 이전 계정이 참여한 냉장고를 지금 계정의 목록에 넣지 않는다. 토큰 갱신은 같은 로그인이라 그대로 넣는다.
+      if (useAuthStore.getState().sessionId !== requestSession) throw new Error("로그인한 계정이 바뀌었어요.");
       addFridge(fridge);
       playSound("success");
       setState({ status: "joined", fridge });
