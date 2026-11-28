@@ -59,6 +59,18 @@ export function getMyFridges() {
   return request<Fridge[]>("/api/fridges");
 }
 
+// 속한 냉장고가 하나도 없을 때 새 냉장고를 만들고 주인이 된다. 이름은 50자까지.
+// 실패: INVALID_INPUT(400), FRIDGE_ALREADY_EXISTS(409, 이미 속한 냉장고가 있음)
+export function createFridge(name: string) {
+  return request<Fridge>("/api/fridges", { method: "POST", body: { name } });
+}
+
+// 냉장고 이름을 바꾼다. 소유자만 할 수 있다. 이름은 50자까지.
+// 실패: INVALID_INPUT(400), FRIDGE_OWNER_ONLY(403), FRIDGE_NOT_FOUND(404, 멤버가 아닌 냉장고 포함)
+export function renameFridge(fridgeId: number, name: string) {
+  return request<Fridge>(`/api/fridges/${fridgeId}/name`, { method: "PATCH", body: { name } });
+}
+
 // 냉장고를 피드에 공개하거나 숨긴다. 소유자만 할 수 있다.
 // 실패: FRIDGE_OWNER_ONLY(403), FRIDGE_NOT_FOUND(404, 멤버가 아닌 냉장고 포함)
 export function changeFridgeVisibility(fridgeId: number, isPublic: boolean) {
