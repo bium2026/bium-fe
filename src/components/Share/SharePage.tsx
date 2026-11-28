@@ -3,13 +3,16 @@
  * 지금 보고 있는 냉장고에 초대 코드로 다른 사람을 부르고, 멤버와 활동 기록을 본다.
  * 받은 코드로 다른 냉장고에 참여하는 것은 헤더의 냉장고 목록에서 한다.
  * 냉장고 이름과 내 역할은 헤더에서 고른 냉장고를 따르고, 초대 코드·멤버·활동 기록은 그 냉장고 기준으로 서버에서 불러온다.
+ * 주인은 이름 옆 연필 버튼으로 냉장고 이름을 바꾼다. 서버에 반영된 뒤 헤더 목록의 이름도 함께 바뀐다.
  */
 import { useEffect, useRef, useState } from "react";
 import { keyframes } from "@emotion/react";
 import styled from "@emotion/styled";
+import { Pencil } from "lucide-react";
 import { useNavigate } from "react-router";
 import { ApiError } from "../../api/client";
 import { undoCooking } from "../../api/cooking";
+import { renameFridge } from "../../api/fridge";
 import type { Fridge, MemberRole } from "../../api/fridge";
 import {
   createInvite,
@@ -23,6 +26,7 @@ import {
 import type { Activity, FridgeMember, InviteCode } from "../../api/fridgeShare";
 import { pickFridge, useFridgeStore } from "../../store/fridgeStore";
 import ActivityPanel from "./ActivityPanel";
+import FridgeNameModal from "./FridgeNameModal";
 import InvitePanel from "./InvitePanel";
 import MemberPanel from "./MemberPanel";
 import { getShareErrorMessage } from "./shareFormat";
@@ -54,10 +58,26 @@ function SharePage() {
   const list = useFridgeStore((state) => state.list);
   const selectedFridgeId = useFridgeStore((state) => state.selectedFridgeId);
   const loadFridges = useFridgeStore((state) => state.loadFridges);
+  const updateFridge = useFridgeStore((state) => state.updateFridge);
   const currentFridge = list.status === "success" ? pickFridge(list.fridges, selectedFridgeId) : null;
   const isOwner = currentFridge?.role === "OWNER";
   // 주인을 넘기면 공유 정보를 새로 그리므로, 넘겼다는 안내는 새로 그려도 남도록 여기에 둔다.
   const [transferNotice, setTransferNotice] = useState<{ fridgeId: number; nickname: string } | null>(null);
+  const [isRenameOpen, setIsRenameOpen] = useState(false);
+
+  // 실패하면 모달이 오류를 보여 주도록 그대로 던진다.
+  const handleRename = async (name: string) => {
+    if (!currentFridge) return;
+    try {
+      updateFridge(await renameFridge(currentFridge.id, name));
+    } catch (error) {
+      // 다른 기기에서 주인을 넘겼거나 내보내졌으면 받아 둔 역할이 서버와 달라, 목록을 다시 받아 지금 역할을 보여 준다.
+      if (error instanceof ApiError && (error.code === "FRIDGE_OWNER_ONLY" || error.code === "FRIDGE_NOT_FOUND")) {
+        loadFridges();
+      }
+      throw error;
+    }
+  };
 
   return (
     <Wrapper>
@@ -67,6 +87,16 @@ function SharePage() {
           <FridgeLine>
             <strong>{currentFridge.name}</strong>
             <RoleBadge $owner={isOwner}>{isOwner ? "주인" : "멤버"}</RoleBadge>
+            {isOwner && (
+              <RenameButton
+                type="button"
+                aria-label="냉장고 이름 바꾸기"
+                title="이름 바꾸기"
+                onClick={() => setIsRenameOpen(true)}
+              >
+                <Pencil size={16} aria-hidden="true" />
+              </RenameButton>
+            )}
           </FridgeLine>
         )}
         <p>가족이나 룸메이트와 냉장고를 함께 관리하고, 누가 무엇을 바꿨는지 확인해요.</p>
@@ -88,7 +118,7 @@ function SharePage() {
       {list.status === "success" && !currentFridge && (
         <StatusBox>
           <strong>아직 속한 냉장고가 없어요.</strong>
-          <p>헤더 오른쪽 냉장고 버튼에서 받은 초대 코드로 참여할 수 있어요.</p>
+          <p>냉장고 화면에서 새 냉장고를 만들거나, 헤더 오른쪽 냉장고 버튼에서 받은 초대 코드로 참여할 수 있어요.</p>
         </StatusBox>
       )}
 
@@ -106,6 +136,17 @@ function SharePage() {
           onTransferred={(nickname) => setTransferNotice({ fridgeId: currentFridge.id, nickname })}
         />
       )}
+
+      <FridgeNameModal
+        open={isRenameOpen && currentFridge !== null}
+        title="냉장고 이름 바꾸기"
+        initialName={currentFridge?.name ?? ""}
+        submitLabel="저장"
+        busyLabel="저장하는 중..."
+        fallbackError="이름을 바꾸지 못했어요. 잠시 후 다시 시도해 주세요."
+        onClose={() => setIsRenameOpen(false)}
+        onSubmit={handleRename}
+      />
     </Wrapper>
   );
 }
@@ -333,8 +374,10 @@ const Hero = styled.header`
   }
 `;
 
+// 이름은 50자까지라 좁은 화면에서 넘치지 않게 줄을 바꾼다.
 const FridgeLine = styled.div`
   min-height: 40px;
+  max-width: 100%;
   border-radius: 999px;
   background: var(--surface);
   padding: 6px 8px 6px 16px;
@@ -343,12 +386,37 @@ const FridgeLine = styled.div`
   gap: 8px;
 
   strong {
+    min-width: 0;
     font-size: 16px;
     font-weight: 540;
+    overflow-wrap: anywhere;
+  }
+`;
+
+const RenameButton = styled.button`
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--block-mint);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--text);
+    outline-offset: 2px;
   }
 `;
 
 const RoleBadge = styled.span<{ $owner: boolean }>`
+  flex: none;
   border-radius: 999px;
   background: ${(props) => (props.$owner ? "var(--text)" : "var(--surface-soft)")};
   color: ${(props) => (props.$owner ? "var(--surface)" : "var(--text)")};
